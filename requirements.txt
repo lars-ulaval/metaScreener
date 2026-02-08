@@ -1,0 +1,9 @@
+﻿openai>=1.40.0
+pymupdf
+pillow
+pytesseract
+rapidfuzz
+requests
+pandas
+openpyxl
+langdetect

@@ -1,0 +1,74 @@
+﻿# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# --- Node / Frontend ---
+node_modules/
+.next/
+.nuxt/
+.svelte-kit/
+
+# --- Builds / Outputs ---
+dist/
+build/
+out/
+bin/
+obj/
+coverage/
+.nyc_output/
+*.log
+logs/
+
+# --- Secrets / Local config ---
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+secrets/*
+!secrets/README.md
+
+# --- Common credential/token files ---
+**/credentials.json
+**/token.json
+**/client_secret*.json
+**/*oauth*token*.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+
+# --- Databases ---
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+
+# --- Executables ---
+**/*.exe
+
+# docs_ (keep only minimal samples)
+docs_/**
+!docs_/README.md
+!docs_/samples/
+!docs_/samples/**
+
+
+# Office temp files
+~$*
+

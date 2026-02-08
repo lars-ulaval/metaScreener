@@ -1,0 +1,39 @@
+1. Jung, S., & Lindeman, R. W. (2021). Perspective: Does realism improve presence in VR? Suggesting a model and metric for VR experience evaluation. *Frontiers in Virtual Reality, 2*, 693327.
+
+2. Anderson, P. L., Rothbaum, B. O., & Hodges, L. (2001). Virtual reality: Using the virtual world to improve quality of life in the real world. *Bulletin of the Menninger Clinic, 65*(1), 78–91.
+
+3. Brown, D. K., Barton, J. L., & Gladwell, V. F. (2013). Viewing nature scenes positively affects recovery of autonomic function following acute mental stress. *Environmental Science & Technology, 47*(11), 5562–5569.
+
+4. Basu, A., Duvall, J., & Kaplan, R. (2019). Attention restoration theory: Exploring the role of soft fascination and mental bandwidth. *Environment and Behavior, 51*(9–10), 1055–1081.
+
+5. Cieslik, B., Mazurek, J., Rutkowski, S., Kiper, P., Turolla, A., & Szczepanska-Gieracha, J. (2020). Virtual reality in psychiatric disorders: A systematic review of reviews. *Complementary Therapies in Medicine, 52*, 102480.
+
+6. Bratman, G. N., Olvera-Alvarez, H. A., & Gross, J. J. (2021). The affective benefits of nature exposure. *Social and Personality Psychology Compass, 15*(8), e12630.
+
+7. Brivio, E., Serino, S., Negro Cousa, E., Zini, A., Riva, G., & De Leo, G. (2021). Virtual reality and 360-panorama technology: A media comparison to study changes in sense of presence, anxiety, and positive emotions. *Virtual Reality, 25*(2), 303–311.
+
+8. Buttussi, F., & Chittaro, L. (2019). Locomotion in place in virtual reality: A comparative evaluation of joystick, teleport, and leaning. *IEEE Transactions on Visualization and Computer Graphics, 27*(1), 125–136.
+
+9. Ferrara, M., Langiano, E., Di Brango, T., Di Cioccio, L., Bauco, C., & De Vito, E. (2008). Prevalence of stress, anxiety and depression in Alzheimer caregivers. *Health and Quality of Life Outcomes, 6*(1), 93.
+
+10. Dillon, D., & Cai, J. (2022). Virtual reality greenspaces: Does level of immersion affect directed attention restoration in VR environments? *J, 5*(3), 334–357.
+
+11. Gorini, A., & Riva, G. (2008). Virtual reality in anxiety disorders: The past and the future. *Expert Review of Neurotherapeutics, 8*(2), 215–233.
+
+12. Hine, K., & Tasaki, H. (2019). Active view and passive view in virtual reality have different impacts on memory and impression. *Frontiers in Psychology, 10*, 2416.
+
+13. James, K. H., Humphrey, G. K., Vilis, T., Corrie, B., Baddour, R., & Goodale, M. A. (2002). Active and passive learning of three-dimensional object structure within an immersive virtual reality environment. *Behavior Research Methods, Instruments, & Computers, 34*(3), 383–390.
+
+14. Christou, C., & Parker, A. (2023). Visual realism and virtual reality: A psychological perspective. In K. Carr & R. England (Eds.), *Simulated and Virtual Realities* (pp. 53–84). London: Taylor & Francis.
+
+15. Hartig, T., Evans, G. W., Jamner, L. D., Davis, D. S., & Gärling, T. (2003). Tracking restoration in natural and urban field settings. *Journal of Environmental Psychology, 23*(2), 109–123.
+
+16. Furness, P. J., Phelan, I., Babiker, N. T., Fehily, O., Lindley, S. A., & Thompson, A. R. (2019). Reducing pain during wound dressings in burn care using virtual reality: A study of perceived impact and usability with patients and nurses. *Journal of Burn Care & Research, 40*(6), 878–885.
+
+17. Baum, A., & Grunberg, N. E. (1991). Gender, stress, and health. *Health Psychology, 10*(2), 80.
+
+18. Ferguson, C., Van den Broek, E. L., & Van Oostendorp, H. (2020). On the role of interaction mode and story structure in virtual reality serious games. *Computers & Education, 143*, 103671.
+
+19. Benlamine, M. S., Chaouachi, M., Frasson, C., & Dufresne, A. (2016). Physiology-based recognition of facial micro-expressions using EEG and identification of relevant sensors by emotion. *International Conference on Physiological Computing Systems.*
+
+20. Gorini, A., & Riva, G. (2008). Virtual reality in anxiety disorders: The past and the future. *Expert Review of Neurotherapeutics, 8*(2), 215–233.*
