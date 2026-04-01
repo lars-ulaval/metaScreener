@@ -7,7 +7,9 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19360125.svg)](https://doi.org/10.5281/zenodo.19360125)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%2B-blue.svg)](#platform-compatibility)
 [![Platform: macOS/Linux](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)](#platform-compatibility)
-[![Tests](https://img.shields.io/badge/Tests-in%20progress-orange.svg)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-73%20passed-brightgreen.svg)](#testing)
+[![PyPI](https://img.shields.io/pypi/v/metascreener-lars-ulaval.svg)](https://pypi.org/project/metascreener-lars-ulaval/)
+[![Tested on](https://img.shields.io/badge/Tested%20on-Ubuntu%2024.04%20%7C%20Windows%2010-brightgreen.svg)](#platform-compatibility)
 
 ---
 
@@ -80,7 +82,15 @@ Bundles are integrity-verified using **SHA-256 hashes** at ingestion and export.
 
 ## Installation
 
-### Prerequisites
+### Option A — Install from PyPI
+
+```bash
+pip install metascreener-lars-ulaval
+```
+
+### Option B — Install from source
+
+#### Prerequisites
 
 - **Python 3.10 or later** (with Tkinter — included by default on Windows and macOS; on Linux, install `python3-tk`)
 - **An OpenAI API key** (required for Plugins 01, 03, 06, 07; not required for Plugins 02, 04, 05)
@@ -224,16 +234,26 @@ The application is pure Python with no compiled extensions. It is expected to wo
 
 ## Testing
 
-Automated test coverage is currently being developed. The test suite will cover:
+The project includes 73 automated tests covering the deterministic components of the pipeline. No OpenAI API key, network access, or graphical display server is required.
 
-- Criteria Parser: free-text parsing, operator/stage inference, guardrail enforcement
-- EH/IH: deterministic filtering against known input bundles with expected decision outcomes
-- EL/IL: bundle integrity verification, cache key construction, evidence gating logic
-- End-to-end: full pipeline execution on the sample corpus with output comparison against reference bundles
+```bash
+pip install pytest
+python -m pytest tests/ -v
+```
 
-In the meantime, the pipeline can be validated manually by running it on the sample data provided in `docs_/samples/` and comparing the resulting bundle contents against the screening funnel documented in the [paper](https://doi.org/10.5281/zenodo.19360125).
+The test suite covers four areas:
 
-> **Status**: 🔄 Test suite in development. Contributions welcome.
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| `test_criteria_parser.py` | 16 | Free-text parsing, operator/stage inference |
+| `test_deterministic_filters.py` | 11 | EH/IH `_eval_criterion` for all operator types |
+| `test_evidence_gating.py` | 17 | Quote validation, SHA-256 hashing, cache key construction |
+| `test_bundle_integrity.py` | 10 | Bundle ZIP structure, manifest schema, hash verification |
+| `test_imports.py` | 9 | Module import smoke tests, plugin_manager sanitizer |
+
+Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
+
+> **Status**: ✅ 73 passed
 
 ---
 
