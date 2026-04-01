@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metascreener-lars-ulaval"
+version = "3.0.0"
+description = "A plugin-based desktop application for human-in-the-loop systematic literature screening"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Alejandro Reyes-Consuelo", email = "alejandro.reyes-consuelo.1@ulaval.ca"},
+]
+keywords = [
+    "systematic review",
+    "literature screening",
+    "large language models",
+    "evidence synthesis",
+    "reproducibility",
+    "audit trail",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Text Processing :: General",
+]
+dependencies = [
+    "openai>=1.40.0",
+    "pymupdf",
+    "pillow",
+    "pytesseract",
+    "rapidfuzz",
+    "requests",
+    "pandas",
+    "openpyxl",
+    "langdetect",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[project.urls]
+Homepage = "https://github.com/lars-ulaval/metaScreener"
+Repository = "https://github.com/lars-ulaval/metaScreener"
+Issues = "https://github.com/lars-ulaval/metaScreener/issues"
+Documentation = "https://github.com/lars-ulaval/metaScreener#readme"
+
+[project.scripts]
+metascreener = "run:main"
+
+[project.gui-scripts]
+metascreener-gui = "run:main"
+
+[tool.setuptools]
+py-modules = ["run"]
+
+[tool.setuptools.packages.find]
+include = ["prisma_hub*", "plugins*"]
+
+[tool.setuptools.package-data]
+"plugins" = ["**/*.py", "**/*.txt", "**/*.csv"]
+"docs_" = ["samples/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

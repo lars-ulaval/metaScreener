@@ -2,5 +2,10 @@
 import prisma_hub.plugin_manager  # side-effect: installs meta-path sanitizer
 from prisma_hub.main import PrismaHubApp
 
-if __name__ == "__main__":
+def main():
+    """Entry point for the metascreener console command."""
     PrismaHubApp().mainloop()
+
+
+if __name__ == "__main__":
+    main()

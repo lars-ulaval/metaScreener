@@ -1,0 +1,131 @@
+# -*- coding: utf-8 -*-
+"""
+conftest.py — shared fixtures for metaScreener pytest suite.
+
+Mocks tkinter and prisma_hub.plugin_api so that plugin modules can be
+imported on headless systems (CI, Docker, WSL) without an X server.
+"""
+
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+# ---------------------------------------------------------------------------
+# 1. Mock tkinter and related submodules BEFORE any plugin import
+# ---------------------------------------------------------------------------
+_TK_MODULES = [
+    "tkinter", "tkinter.ttk", "tkinter.filedialog", "tkinter.messagebox",
+    "tkinter.scrolledtext", "tkinter.font", "_tkinter",
+]
+
+for mod_name in _TK_MODULES:
+    if mod_name not in sys.modules:
+        mock = MagicMock()
+        # ttk.Notebook, ttk.Frame, etc. must return MagicMock so type() works
+        sys.modules[mod_name] = mock
+
+
+# Mock prisma_hub.plugin_api so BasePlugin / PluginMeta resolve
+_plugin_api = types.ModuleType("prisma_hub.plugin_api")
+
+class _FakePluginMeta:
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+class _FakeBasePlugin:
+    def __init__(self, app=None, meta=None):
+        self.app = app
+        self.meta = meta
+
+_plugin_api.PluginMeta = _FakePluginMeta       # type: ignore
+_plugin_api.BasePlugin = _FakeBasePlugin        # type: ignore
+
+# Ensure the prisma_hub package exists in sys.modules
+if "prisma_hub" not in sys.modules:
+    _prisma_hub = types.ModuleType("prisma_hub")
+    sys.modules["prisma_hub"] = _prisma_hub
+if "prisma_hub.plugin_api" not in sys.modules:
+    sys.modules["prisma_hub.plugin_api"] = _plugin_api
+
+# ---------------------------------------------------------------------------
+# 2. Add project root to sys.path so plugin imports resolve
+# ---------------------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# ---------------------------------------------------------------------------
+# 3. Shared paths / data
+# ---------------------------------------------------------------------------
+SAMPLES_DIR = PROJECT_ROOT / "docs_" / "samples"
+IC_EC_FILE = SAMPLES_DIR / "ic_ec_12.txt"
+AGGREGATE_CSV = SAMPLES_DIR / "20260122_1654_aggregate.csv"
+
+# Columns present in the sample aggregate CSV (used in criterion inference)
+AGGREGATE_COLUMNS = [
+    "local_id", "source_key", "title", "authors", "first_author", "year",
+    "doi", "pmid", "pmcid", "arxiv", "venue", "volume", "issue", "pages",
+    "publisher", "lang", "url", "confidence", "status", "provenance",
+    "last_checked", "parents", "abstract", "keywords", "open_access",
+    "doc_type", "hit_openalex", "hit_crossref", "hit_semanticscholar",
+    "match_strategy",
+]
+
+
+# ---------------------------------------------------------------------------
+# 4. Import helpers for plugins (dirs start with digits → importlib needed)
+# ---------------------------------------------------------------------------
+import importlib.util
+
+def _import_plugin(subdir: str, module_name: str = "plugin"):
+    """Import a plugin module from plugins/<subdir>/plugin.py."""
+    plugin_path = PROJECT_ROOT / "plugins" / subdir / f"{module_name}.py"
+    if not plugin_path.exists():
+        raise FileNotFoundError(f"Plugin not found: {plugin_path}")
+    spec = importlib.util.spec_from_file_location(
+        f"plugins.{subdir}.{module_name}", str(plugin_path)
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# Pre-import plugin modules (cached after first call)
+_plugin_cache = {}
+
+def get_harmoniser():
+    if "harmoniser" not in _plugin_cache:
+        _plugin_cache["harmoniser"] = _import_plugin("03_harmoniser")
+    return _plugin_cache["harmoniser"]
+
+def get_eh():
+    if "eh" not in _plugin_cache:
+        _plugin_cache["eh"] = _import_plugin("04_eh")
+    return _plugin_cache["eh"]
+
+def get_el():
+    if "el" not in _plugin_cache:
+        _plugin_cache["el"] = _import_plugin("06_el")
+    return _plugin_cache["el"]
+
+
+# ---------------------------------------------------------------------------
+# 5. Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def ic_ec_text() -> str:
+    """Raw text of the sample ic_ec_12.txt criteria file."""
+    return IC_EC_FILE.read_text(encoding="utf-8-sig")
+
+
+@pytest.fixture
+def aggregate_columns() -> list:
+    """Column names from the sample aggregate CSV."""
+    return list(AGGREGATE_COLUMNS)

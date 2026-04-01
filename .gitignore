@@ -72,3 +72,8 @@ docs_/**
 # Office temp files
 ~$*
 
+
+dist/
+build/
+*.egg-info/
+.pytest_cache/
