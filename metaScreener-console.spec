@@ -2,9 +2,9 @@
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('plugins', 'plugins'), ('S:\\prisma-hub\\.venv\\Lib\\site-packages\\certifi\\cacert.pem', 'certifi')]
+datas = [('plugins', 'plugins')]
 binaries = []
-hiddenimports = ['tkinter.ttk', 'tkinter.messagebox', 'tkinter.filedialog', 'prisma_hub.plugin_api', 'platform', 'html', 'json', 'csv', 'queue', 'threading', 'time', 're', 'math', 'random', 'pathlib', 'itertools', 'statistics', 'urllib.parse', 'urllib.request', 'typing', 'typing_extensions', 'dataclasses', 'io', 'codecs', 'traceback', 'logging', 'functools', 'operator', 'collections', 'concurrent.futures']
+hiddenimports = ['tkinter.ttk', 'tkinter.messagebox', 'tkinter.filedialog', 'metascreener.plugin_api', 'platform', 'html', 'json', 'csv', 'queue', 'threading', 'time', 're', 'math', 'random', 'pathlib', 'itertools', 'statistics', 'urllib.parse', 'urllib.request', 'typing', 'typing_extensions', 'dataclasses', 'io', 'codecs', 'traceback', 'logging', 'functools', 'operator', 'collections', 'concurrent.futures']
 datas += collect_data_files('certifi')
 tmp_ret = collect_all('requests')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
@@ -37,7 +37,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='PRISMA Hub (console)',
+    name='metaScreener (console)',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
