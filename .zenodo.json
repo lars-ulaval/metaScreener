@@ -1,0 +1,41 @@
+{
+  "title": "metaScreener: A Plugin-Based Desktop Application for Human-in-the-Loop Systematic Literature Screening",
+  "description": "metaScreener is an open-source, cross-platform desktop application implemented in Python/Tkinter that delivers a sequential, multi-stage pipeline for systematic literature screening. The software integrates deterministic rule-based filters with large language model (LLM) inference to automate high-volume citation screening within structured evidence synthesis workflows. Its plugin architecture exposes seven interoperable modules covering citation extraction, reference resolution, eligibility criteria structuring, heuristic-based filtering, and LLM-based full-record eligibility adjudication. Each screening decision is logged within a timestamped, SHA-256-verified bundle archive that satisfies the audit and reproducibility requirements expected in rigorous evidence synthesis methodology.",
+  "creators": [
+    {
+      "name": "Reyes-Consuelo, Alejandro",
+      "affiliation": "Universite Laval",
+      "orcid": "0000-0001-6075-7556"
+    },
+    {
+      "name": "Kiss, Jocelyne",
+      "affiliation": "Universite Laval",
+      "orcid": "0000-0001-6215-0360"
+    },
+    {
+      "name": "Voisin, Julien",
+      "affiliation": "Universite Laval",
+      "orcid": "0000-0002-8390-6056"
+    }
+  ],
+  "license": "MIT",
+  "upload_type": "software",
+  "access_right": "open",
+  "keywords": [
+    "systematic review",
+    "literature screening",
+    "large language models",
+    "evidence synthesis",
+    "reproducibility",
+    "audit trail",
+    "human-in-the-loop",
+    "screening automation"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/lars-ulaval/metaScreener",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

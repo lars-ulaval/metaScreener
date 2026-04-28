@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+message: "If you use metaScreener in your research, please cite it as below."
+type: software
+title: "metaScreener: A Plugin-Based Desktop Application for Human-in-the-Loop Systematic Literature Screening"
+abstract: "metaScreener is an open-source, cross-platform desktop application implemented in Python/Tkinter that delivers a sequential, multi-stage pipeline for systematic literature screening. The software integrates deterministic rule-based filters with large language model (LLM) inference to automate high-volume citation screening within structured evidence synthesis workflows. Each screening decision is logged within a timestamped, SHA-256-verified bundle archive."
+authors:
+  - family-names: "Reyes-Consuelo"
+    given-names: "Alejandro"
+    orcid: "https://orcid.org/0000-0001-6075-7556"
+    affiliation: "Université Laval"
+    email: "alejandro.reyes-consuelo.1@ulaval.ca"
+  - family-names: "Kiss"
+    given-names: "Jocelyne"
+    orcid: "https://orcid.org/0000-0001-6215-0360"
+    affiliation: "Université Laval"
+  - family-names: "Voisin"
+    given-names: "Julien"
+    orcid: "https://orcid.org/0000-0002-8390-6056"
+    affiliation: "Université Laval"
+version: "3.1.0"
+date-released: "2026-04-29"
+license: MIT
+repository-code: "https://github.com/lars-ulaval/metaScreener"
+url: "https://github.com/lars-ulaval/metaScreener"
+keywords:
+  - "systematic review"
+  - "literature screening"
+  - "large language models"
+  - "evidence synthesis"
+  - "reproducibility"
+  - "audit trail"
+  - "human-in-the-loop"
+  - "screening automation"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Reyes-Consuelo"
+      given-names: "Alejandro"
+      orcid: "https://orcid.org/0000-0001-6075-7556"
+    - family-names: "Kiss"
+      given-names: "Jocelyne"
+      orcid: "https://orcid.org/0000-0001-6215-0360"
+    - family-names: "Voisin"
+      given-names: "Julien"
+      orcid: "https://orcid.org/0000-0002-8390-6056"
+  title: "metaScreener: A Plugin-Based Desktop Application for Human-in-the-Loop Systematic Literature Screening"
+  journal: "Journal of Open Research Software"
+  year: 2026
+  notes: "Under revision."
