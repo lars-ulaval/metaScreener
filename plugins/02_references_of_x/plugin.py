@@ -1,6 +1,6 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-plugin.py â€” Hub plugin wrapper for "References-of-X â€” AI v1"
+plugin.py — Hub plugin wrapper for "References-of-X — AI v1"
 
 Responsibilities:
 - Mount the Tk/ttk view (ReferencesOfXView) inside a Hub tab.

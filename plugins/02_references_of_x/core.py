@@ -149,7 +149,7 @@ class BibItem:
     parents: List[str] = field(default_factory=list)  # which X items cite it
 
     # Content fields
-    abstract: str = ""                      # résumé
+    abstract: str = ""                      # article abstract
     keywords: str = ""                      # semi-colon separated
     open_access: Optional[bool] = None      # True/False if known
     doc_type: str = ""                      # normalized: article/conference/chapter/book/thesis/report/preprint/other

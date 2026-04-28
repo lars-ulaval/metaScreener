@@ -1,4 +1,4 @@
-﻿# docs_ (samples)
+# docs_ (samples)
 
 This folder contains small sample inputs that can be used to test PRISMA Hub quickly.
 

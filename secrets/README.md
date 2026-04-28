@@ -1,4 +1,4 @@
-﻿# secrets/
+# secrets/
 This folder is intentionally ignored by Git.
 
 Put local-only sensitive files here, for example:

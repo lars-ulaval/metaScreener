@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 plugin_manager.py — hardened plugin loader for dev & PyInstaller one-file.
 

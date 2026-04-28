@@ -1,4 +1,4 @@
-﻿from dataclasses import dataclass
+from dataclasses import dataclass
 from typing import Optional
 import tkinter as tk
 from tkinter import ttk
