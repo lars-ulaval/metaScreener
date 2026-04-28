@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 """
-plugin.py — Screen A (IH-only) as a PRISMA Hub tab plugin (Contract v2, IH stage)
+plugin.py — Screen A (IH-only) as a metaScreener tab plugin (Contract v2, IH stage)
 
 UPDATED: Bundle-first input (Harmoniser ZIP)
 
@@ -65,7 +65,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from prisma_hub.plugin_api import BasePlugin, PluginMeta
+from metascreener.plugin_api import BasePlugin, PluginMeta
 
 
 TAB_TITLE = "Screen A — IH"

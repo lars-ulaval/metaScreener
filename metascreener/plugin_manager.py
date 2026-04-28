@@ -30,7 +30,7 @@ BANNER_DISCOVER = "PLUGIN LOADER: meta-path sanitizer ACTIVE"
 # ---------- paths & environment ----------
 
 def _project_root_dev() -> Path:
-    # This file is at <project_root>/prisma_hub/plugin_manager.py, so parents[1] is project_root.
+    # This file is at <project_root>/metascreener/plugin_manager.py, so parents[1] is project_root.
     return Path(__file__).resolve().parents[1]
 
 def _plugins_root_dev() -> Path:
@@ -42,7 +42,7 @@ def _plugins_root_frozen() -> Optional[Path]:
         return None
     return Path(base) / "plugins"
 
-def _ensure_prisma_hub_on_sys_path():
+def _ensure_metascreener_on_sys_path():
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass and meipass not in sys.path:
         sys.path.insert(0, meipass)
@@ -51,7 +51,7 @@ def _ensure_prisma_hub_on_sys_path():
     if s not in sys.path:
         sys.path.insert(0, s)
     try:
-        import prisma_hub  # noqa: F401
+        import metascreener  # noqa: F401
     except Exception:
         pass
 
@@ -199,7 +199,7 @@ def _install_finder(root: Path):
 def discover(app):
     """Import every 'plugins.<name>.plugin' via the sanitizer and return the modules."""
     print(BANNER_DISCOVER, flush=True)
-    _ensure_prisma_hub_on_sys_path()
+    _ensure_metascreener_on_sys_path()
     root = _plugins_root_frozen() or _plugins_root_dev()
     if not root or not root.exists():
         raise ModuleNotFoundError(f"Plugins folder not found: {root}")
@@ -219,7 +219,7 @@ def discover(app):
     return loaded
 
 # Install at import time (so early imports are intercepted)
-_ensure_prisma_hub_on_sys_path()
+_ensure_metascreener_on_sys_path()
 _root = _plugins_root_frozen() or _plugins_root_dev()
 if _root and _root.exists():
     _install_finder(_root)

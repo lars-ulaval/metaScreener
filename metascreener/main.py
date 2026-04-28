@@ -44,15 +44,15 @@ def _save_env_key(env_path: Path, key: str):
     except Exception:
         pass  # non-fatal
 
-class PrismaHubApp(tk.Tk):
+class MetaScreenerApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PRISMA Hub")
+        self.title("metaScreener")
         self.geometry("1200x820")
         self.minsize(1020, 720)
 
         # Project root & .env path
-        self.project_root = Path(__file__).resolve().parents[1]  # .../prisma-hub
+        self.project_root = Path(__file__).resolve().parents[1]  # .../metaScreener
         self.env_path = self.project_root / ENV_FILE_NAME
 
         # Load .env only to PREFILL (we will still prompt every time)
@@ -91,7 +91,7 @@ class PrismaHubApp(tk.Tk):
         return True
 
     def _load_plugins(self):
-        from prisma_hub.plugin_manager import discover
+        from metascreener.plugin_manager import discover
     
         def _maybe(obj, *names, default=None):
             for n in names:

@@ -22,7 +22,7 @@ TAB_TITLE = "References-of-X — AI v1"
 
 from typing import Optional
 from tkinter import ttk
-from prisma_hub.plugin_api import PluginMeta, BasePlugin
+from metascreener.plugin_api import PluginMeta, BasePlugin
 
 from .ui import ReferencesOfXView  # type: ignore
 

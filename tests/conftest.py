@@ -6,7 +6,7 @@
 """
 conftest.py — shared fixtures for metaScreener pytest suite.
 
-Mocks tkinter and prisma_hub.plugin_api so that plugin modules can be
+Mocks tkinter and metascreener.plugin_api so that plugin modules can be
 imported on headless systems (CI, Docker, WSL) without an X server.
 """
 
@@ -32,8 +32,8 @@ for mod_name in _TK_MODULES:
         sys.modules[mod_name] = mock
 
 
-# Mock prisma_hub.plugin_api so BasePlugin / PluginMeta resolve
-_plugin_api = types.ModuleType("prisma_hub.plugin_api")
+# Mock metascreener.plugin_api so BasePlugin / PluginMeta resolve
+_plugin_api = types.ModuleType("metascreener.plugin_api")
 
 class _FakePluginMeta:
     def __init__(self, **kw):
@@ -48,12 +48,12 @@ class _FakeBasePlugin:
 _plugin_api.PluginMeta = _FakePluginMeta       # type: ignore
 _plugin_api.BasePlugin = _FakeBasePlugin        # type: ignore
 
-# Ensure the prisma_hub package exists in sys.modules
-if "prisma_hub" not in sys.modules:
-    _prisma_hub = types.ModuleType("prisma_hub")
-    sys.modules["prisma_hub"] = _prisma_hub
-if "prisma_hub.plugin_api" not in sys.modules:
-    sys.modules["prisma_hub.plugin_api"] = _plugin_api
+# Ensure the metascreener package exists in sys.modules
+if "metascreener" not in sys.modules:
+    _metascreener = types.ModuleType("metascreener")
+    sys.modules["metascreener"] = _metascreener
+if "metascreener.plugin_api" not in sys.modules:
+    sys.modules["metascreener.plugin_api"] = _plugin_api
 
 # ---------------------------------------------------------------------------
 # 2. Add project root to sys.path so plugin imports resolve

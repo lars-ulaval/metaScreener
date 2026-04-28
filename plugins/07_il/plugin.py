@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: MIT
 
 """
-plugin.py — Screen A (IL-only) as a PRISMA Hub tab plugin (Contract v2, IL stage)
+plugin.py — Screen A (IL-only) as a metaScreener tab plugin (Contract v2, IL stage)
 
 Design goals (aligned with your EH/IH conventions)
-- Single-file plugin: UI + engine + LLM interaction (no local imports except prisma_hub.plugin_api)
+- Single-file plugin: UI + engine + LLM interaction (no local imports except metascreener.plugin_api)
 - Bundle-first input (Harmoniser ZIP): reads data/current.csv + criteria/criteria_harmonized.csv
 - IL semantics (contract v2):
     - Per criterion status: MET / FAILED / MISSING / UNCERTAIN
@@ -23,7 +23,7 @@ Design goals (aligned with your EH/IH conventions)
   Key includes model + criterion_id + a_id + hash(truncated target text) + prompt_version.
 
 Notes
-- Requires prisma_hub.plugin_api.BasePlugin / PluginMeta
+- Requires metascreener.plugin_api.BasePlugin / PluginMeta
 - Requires OPENAI_API_KEY in environment to run LLM
 - Uses OpenAI Chat Completions via `from openai import OpenAI` (imported inside function)
 """
@@ -47,7 +47,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from prisma_hub.plugin_api import BasePlugin, PluginMeta
+from metascreener.plugin_api import BasePlugin, PluginMeta
 
 
 # ------------------------------ constants -------------------------------------

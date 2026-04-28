@@ -5,7 +5,7 @@ TAB_TITLE = "Citations — PRISMA AI"
 
 from tkinter import ttk
 import tkinter.messagebox as messagebox
-from prisma_hub.plugin_api import PluginMeta, BasePlugin
+from metascreener.plugin_api import PluginMeta, BasePlugin
 
 def create_plugin(app):
     meta = PluginMeta(id="prisma_ai_v3_1", title="PRISMA Citations AI v3.1")

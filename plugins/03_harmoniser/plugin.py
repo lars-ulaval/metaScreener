@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 """
-plugin.py — Harmoniser (Criteria) as a PRISMA Hub tab plugin
+plugin.py — Harmoniser (Criteria) as a metaScreener tab plugin
 
 Single-file, self-contained (UI + engine).
 
@@ -56,7 +56,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from prisma_hub.plugin_api import PluginMeta, BasePlugin
+from metascreener.plugin_api import PluginMeta, BasePlugin
 
 
 # ============================

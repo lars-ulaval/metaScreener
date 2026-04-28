@@ -22,7 +22,7 @@ class TestCoreImports:
     def test_import_plugin_api(self):
         # plugin_api is mocked by conftest for headless compat;
         # verify our mock exposes the right interface
-        import prisma_hub.plugin_api as api
+        import metascreener.plugin_api as api
         assert hasattr(api, "BasePlugin")
         assert hasattr(api, "PluginMeta")
 
@@ -30,8 +30,8 @@ class TestCoreImports:
         """Load plugin_manager directly from file (avoids conftest mock)."""
         import importlib.util
         from conftest import PROJECT_ROOT
-        pm_path = PROJECT_ROOT / "prisma_hub" / "plugin_manager.py"
-        spec = importlib.util.spec_from_file_location("prisma_hub.plugin_manager", str(pm_path))
+        pm_path = PROJECT_ROOT / "metascreener" / "plugin_manager.py"
+        spec = importlib.util.spec_from_file_location("metascreener.plugin_manager", str(pm_path))
         pm = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(pm)
         assert hasattr(pm, "_sanitize")
@@ -39,7 +39,7 @@ class TestCoreImports:
     def test_sanitizer_strips_bom(self):
         import importlib.util
         from conftest import PROJECT_ROOT
-        pm_path = PROJECT_ROOT / "prisma_hub" / "plugin_manager.py"
+        pm_path = PROJECT_ROOT / "metascreener" / "plugin_manager.py"
         spec = importlib.util.spec_from_file_location("_pm_test", str(pm_path))
         pm = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(pm)
@@ -51,7 +51,7 @@ class TestCoreImports:
     def test_sanitizer_strips_future_annotations(self):
         import importlib.util
         from conftest import PROJECT_ROOT
-        pm_path = PROJECT_ROOT / "prisma_hub" / "plugin_manager.py"
+        pm_path = PROJECT_ROOT / "metascreener" / "plugin_manager.py"
         spec = importlib.util.spec_from_file_location("_pm_test2", str(pm_path))
         pm = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(pm)
