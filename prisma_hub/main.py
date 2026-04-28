@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 import os
 from pathlib import Path
 import tkinter as tk

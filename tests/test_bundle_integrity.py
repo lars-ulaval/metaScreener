@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """
 test_bundle_integrity.py — Tests for bundle ZIP structure and SHA-256 integrity.
 

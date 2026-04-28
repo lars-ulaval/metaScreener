@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """
 plugin.py — Screen A (EL-only) as a PRISMA Hub tab plugin (Contract v2, EL stage)
 

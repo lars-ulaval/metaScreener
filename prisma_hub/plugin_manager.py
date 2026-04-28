@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """
 plugin_manager.py — hardened plugin loader for dev & PyInstaller one-file.
 

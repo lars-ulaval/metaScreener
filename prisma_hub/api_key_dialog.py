@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """
 Created on Sat Sep  6 09:51:50 2025
 

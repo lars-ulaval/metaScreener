@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """
 Created on Thu Sep  4 17:22:53 2025
 
-@author: alere
+@author: Alejandro Reyes-Consuelo
 """
 
 #!/usr/bin/env python3

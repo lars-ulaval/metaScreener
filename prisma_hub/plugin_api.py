@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 from dataclasses import dataclass
 from typing import Optional
 import tkinter as tk

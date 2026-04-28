@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """
 test_criteria_parser.py — Tests for _parse_free_text_criteria() and
 _infer_criterion_details() from the Harmoniser plugin (Plugin 03).
