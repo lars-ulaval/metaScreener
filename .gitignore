@@ -77,3 +77,14 @@ dist/
 build/
 *.egg-info/
 .pytest_cache/
+
+# --- Historical drafts and timestamped backups (Conv 2 cleanup) ---
+plugins/_parking_lot/
+plugins/**/2025*_*.py
+plugins/**/2026*_*.py
+prisma_hub/2025*_*.py
+prisma_hub/2026*_*.py
+metascreener/2025*_*.py
+metascreener/2026*_*.py
+plugins/**/original/2025*_*.py
+plugins/**/original/2026*_*.py
