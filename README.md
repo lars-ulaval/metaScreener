@@ -226,7 +226,7 @@ All dependencies are listed in `requirements.txt`.
 |----------|--------|-------|
 | Windows 10+ | ✅ Developed and tested | Primary development platform |
 | macOS 12+ | 🔄 In progress | Tkinter is included with Python on macOS; testing underway |
-| Linux (Ubuntu 24.04) | 🔄 In progress | Requires `python3-tk` package; testing underway |
+| Linux (Ubuntu 24.04) | ✅ Tested (Docker, headless) | Test suite executes via Dockerfile in repo |
 
 The application is pure Python with no compiled extensions. It is expected to work on any platform supporting Python 3.10+ and Tkinter. Cross-platform validation is currently being conducted and will be documented here upon completion.
 
