@@ -35,8 +35,14 @@ metaScreener organises its screening workflow into seven plugins across four fun
 
 | # | Plugin | Description | Method |
 |---|--------|-------------|--------|
-| 01 | **Citations AI** | Extracts citation records from a PRISMA flow diagram image (PDF/PNG) | GPT-4o vision API |
+| 01 | **Reference Markers** (experimental) | Extracts visually-present reference markers (e.g., `[1]`, `[Smith 2022]`) from images supplied as PDF or PNG | GPT-4o vision API |
 | 02 | **References-of-X AI** | Resolves and enriches bibliographic references via federated queries | OpenAlex, Crossref, Semantic Scholar |
+
+> **⚠ Plugin 01 is experimental.** It is designed for images containing visible
+> reference markers (e.g., numbered or author–year citation lists rendered as
+> image text). Standard PRISMA flow diagrams typically do not contain such
+> markers, and feeding one as input may produce hallucinated output. Plugin 01
+> output should always be verified by the researcher before downstream use.
 
 ### Criteria structuring
 
@@ -164,7 +170,7 @@ cp .env.example .env
 python run.py
 ```
 
-> **Note on Tesseract**: Plugin 01 (Citations AI) can optionally use Tesseract OCR for fallback text extraction. If needed, install Tesseract separately for your platform and ensure `tesseract` is on your PATH.
+> **Note on Tesseract**: Plugin 01 (Reference Markers, experimental) can optionally use Tesseract OCR for fallback text extraction. If needed, install Tesseract separately for your platform and ensure `tesseract` is on your PATH.
 
 ---
 
@@ -175,10 +181,10 @@ python run.py
 2. **Prepare your inputs**:
    - A **criteria file** in plain text (see `docs_/samples/ic_ec_12.txt` for format — one criterion per line with `IC-N` / `EC-N` identifiers)
    - A **citation corpus** as an aggregate CSV (see `docs_/samples/20260122_1654_aggregate.csv` for the expected schema)
-   - Or, if starting from scratch, a **PRISMA flow diagram PDF** for Plugin 01
+   - Or, for the experimental Plugin 01, an image (PDF or PNG) containing **visible reference markers** (numbered or author–year citation lists). *Note: standard PRISMA flow diagrams typically do not contain reference markers.*
 
 3. **Run the pipeline** sequentially through the tabs:
-   - **Tab 1 (Citations AI)**: supply a PDF, extract references
+   - **Tab 1 (Reference Markers, experimental)**: supply an image (PDF or PNG) containing visible reference markers; extract them. *Skip this tab if you already have an aggregate CSV.*
    - **Tab 2 (References-of-X AI)**: resolve and enrich extracted references
    - **Tab 3 (Criteria Parser)**: load criteria + aggregate CSV, review the harmonized output, export a bundle ZIP
    - **Tab 4 (EH)**: load the bundle, run exclusion by heuristic
@@ -287,12 +293,12 @@ metaScreener targets any **OpenAI-compatible API endpoint**. This includes:
 ```
 metaScreener/
 ├── run.py                       # Application entry point
-├── prisma_hub/
+├── metascreener/
 │   ├── main.py                  # Main window and tab orchestration
 │   ├── plugin_api.py            # BasePlugin / PluginMeta contract
 │   └── plugin_manager.py        # Dynamic plugin discovery and loading
 ├── plugins/
-│   ├── 01_prisma_citations_ai_v3_1/   # Plugin 01: Citations AI
+│   ├── 01_reference_extractor/        # Plugin 01: Reference Markers (experimental)
 │   ├── 02_references_of_x/            # Plugin 02: References-of-X AI
 │   ├── 03_harmoniser/                 # Plugin 03: Criteria Parser
 │   ├── 04_eh/                         # Plugin 04: EH (Exclusion by Heuristic)

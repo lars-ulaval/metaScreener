@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped version to 3.1.0 in preparation for peer-review revision release
 - Stripped UTF-8 BOMs from text files
 - Translated remaining French inline comments to English
+- Renamed Python package `prisma_hub/` → `metascreener/` for naming consistency
+- Renamed application class `PrismaHubApp` → `MetaScreenerApp`
+- Renamed PyInstaller spec files: `PRISMA Hub.spec` → `metaScreener.spec`, `PRISMA Hub (console).spec` → `metaScreener-console.spec`
+- Renamed Plugin 01 folder to `plugins/01_reference_extractor/` and flagged as experimental
+- Plugin 01 UI tab now labeled with explicit `(experimental)` scope warning
+- Plugin 01 frame now displays an experimental scope banner
+
+### Fixed
+- Removed hardcoded developer-machine venv path (`S:\prisma-hub\.venv\…`) from PyInstaller spec files
 
 ### Removed
 - `plugins/_parking_lot/` (historical drafts folder, retained in git history)
