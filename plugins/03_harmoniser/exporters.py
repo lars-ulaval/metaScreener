@@ -38,6 +38,7 @@ from .parser import (
     _norm_space,
     _safe_str,
     _what_to_export,
+    _export_to_pipe_table,
 )
 
 
