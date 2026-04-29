@@ -257,6 +257,20 @@ The test suite covers four areas:
 | `test_bundle_integrity.py` | 10 | Bundle ZIP structure, manifest schema, hash verification |
 | `test_imports.py` | 9 | Module import smoke tests, plugin_manager sanitizer |
 
+### Refactoring safety: static import audit
+
+In addition to the runtime tests, refactoring commits should pass a static `ast`-based audit
+that catches missing imports the test suite can't see (e.g., a private engine function
+called only via Tkinter View workflow methods, which headless test runs mock out):
+
+```bash
+python tools/audit_imports.py plugins/03_harmoniser/
+```
+
+Exit code 0 means every name reference in every module resolves to an import, definition,
+parameter, local binding, or builtin. Exit code 1 lists the offenders. Designed to run
+alongside `pytest -q` as a pre-commit gate when extracting code into new modules.
+
 Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 
 > **Status**: ✅ 73 passed
