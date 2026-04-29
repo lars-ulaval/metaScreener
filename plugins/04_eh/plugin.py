@@ -93,6 +93,12 @@ from plugins._common.evaluator import (
     _summarize_reason as _summarize_reason_common,
 )
 
+from plugins._common.exporters import (
+    _export_input_errors_csv,
+    _write_csv_bytes,
+    _export_xlsx as _export_xlsx_common,
+)
+
 
 TAB_TITLE = "Screen A — EH"
 
@@ -303,47 +309,12 @@ def run_eh_screen(
 
 
 # ----------------------------
-# Export helpers
+# Export helpers (delegate to plugins._common.exporters)
 # ----------------------------
 
-def _export_input_errors_csv(path: str, skipped: Sequence[Tuple[int, str, str]]) -> None:
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        w = csv.writer(f, lineterminator="\n")
-        w.writerow(["record_index_ex_header", "reason", "raw_record"])
-        for rec_i, reason, raw in skipped:
-            w.writerow([rec_i, reason, raw])
-
-
 def _export_xlsx(path: str, full_rows: List[Dict[str, str]], survivors: List[Dict[str, str]], aggregate_header: List[str]) -> None:
-    try:
-        from openpyxl import Workbook
-    except Exception as e:
-        raise RuntimeError(f"openpyxl not available: {e}")
-
-    full_cols = list(aggregate_header) + ["eh_outcome", "eh_failed_ids", "eh_missing_ids", "eh_met_ids", "eh_reason_summary"]
-    surv_cols = list(aggregate_header)
-
-    wb = Workbook(write_only=True)
-    ws1 = wb.create_sheet("EH_FULL")
-    ws1.append(full_cols)
-    for r in full_rows:
-        ws1.append([_safe_str(r.get(c, "")) for c in full_cols])
-
-    ws2 = wb.create_sheet("EH_SURVIVORS")
-    ws2.append(surv_cols)
-    for r in survivors:
-        ws2.append([_safe_str(r.get(c, "")) for c in surv_cols])
-
-    wb.save(path)
-
-
-def _write_csv_bytes(fieldnames: List[str], rows: Sequence[Dict[str, str]]) -> bytes:
-    buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n")
-    w.writeheader()
-    for r in rows:
-        w.writerow({k: _safe_str(r.get(k, "")) for k in fieldnames})
-    return buf.getvalue().encode("utf-8")
+    """Backward-compat wrapper. Real implementation in plugins._common.exporters."""
+    return _export_xlsx_common(path, full_rows, survivors, aggregate_header, stage="EH")
 
 
 def _export_next_bundle_zip(
