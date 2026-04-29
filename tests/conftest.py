@@ -113,6 +113,11 @@ def get_eh():
         _plugin_cache["eh"] = _import_plugin("04_eh")
     return _plugin_cache["eh"]
 
+def get_ih():
+    if "ih" not in _plugin_cache:
+        _plugin_cache["ih"] = _import_plugin("05_ih")
+    return _plugin_cache["ih"]
+
 def get_el():
     if "el" not in _plugin_cache:
         _plugin_cache["el"] = _import_plugin("06_el")
