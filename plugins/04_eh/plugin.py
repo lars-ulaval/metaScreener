@@ -54,6 +54,38 @@ from tkinter import ttk, filedialog, messagebox
 
 from metascreener.plugin_api import BasePlugin, PluginMeta
 
+from plugins._common.parser import (
+    # Constants
+    TRUTHY,
+    DOC_TYPE_MAP,
+    LANG_MAP,
+    # Dataclasses
+    Criterion,
+    ParseReport,
+    CriteriaLoadReport,
+    # Utility functions
+    _safe_str,
+    _truthy,
+    _split_targets,
+    _split_what_list,
+    _norm_basic,
+    _norm_doc_type,
+    _norm_lang,
+    _norm_for_target,
+    _norm_what_for_target,
+    _now_stamp,
+    _iso_now,
+    _sha256_hex,
+    _decode_bytes,
+    # CSV parsing
+    _split_csv_records,
+    _parse_csv_tolerant_text,
+    _load_input_errors_from_text,
+    # Criteria loading
+    _load_criteria_from_text,
+    _detect_contradictions_simple,
+)
+
 
 TAB_TITLE = "Screen A — EH"
 
@@ -61,89 +93,9 @@ MAX_UI_ROWS_HINT = 2000  # only used for status text; we render all rows increme
 RENDER_CHUNK = 300
 PROGRESS_EVERY_N = 200
 
-TRUTHY = {"1", "true", "yes", "y", "on", "enabled"}
-
-
-# ----------------------------
-# Normalization maps
-# ----------------------------
-
-DOC_TYPE_MAP = {
-    # journal-like
-    "journal": "journal",
-    "journal article": "journal",
-    "article": "journal",
-    "research article": "journal",
-    "original article": "journal",
-    "journal-article": "journal",
-    "peer reviewed article": "journal",
-    # conference/proceedings-like
-    "conference": "conference",
-    "conference paper": "conference",
-    "conference article": "conference",
-    "proceedings": "conference",
-    "proceedings article": "conference",
-    "inproceedings": "conference",
-    "conference proceedings": "conference",
-    # misc common
-    "preprint": "preprint",
-    "arxiv": "preprint",
-    "thesis": "thesis",
-    "dissertation": "thesis",
-    "book chapter": "book_chapter",
-    "chapter": "book_chapter",
-    "report": "report",
-}
-
-LANG_MAP = {
-    "en": "en",
-    "eng": "en",
-    "english": "en",
-    "en-us": "en",
-    "en-gb": "en",
-    "fr": "fr",
-    "fra": "fr",
-    "fre": "fr",
-    "french": "fr",
-    "fr-ca": "fr",
-    "es": "es",
-    "spa": "es",
-    "spanish": "es",
-}
-
-
 # ----------------------------
 # Data structures
 # ----------------------------
-
-@dataclass
-class Criterion:
-    stage: str
-    cid: str
-    ctype: str           # include / exclude
-    scope: str
-    label: str
-    operator: str
-    targets: List[str]   # parsed list of targets
-    what_raw: str
-    what_list: List[str]
-    threshold: Optional[float]
-    enabled: bool
-    source_text: str
-
-
-@dataclass
-class ParseReport:
-    header: List[str]
-    rows: List[Dict[str, str]]           # integral rows only
-    skipped: List[Tuple[int, str, str]]  # (record_index_1based_ex_header, reason, raw_record_text)
-
-
-@dataclass
-class CriteriaLoadReport:
-    criteria: List[Criterion]
-    warnings: List[str]
-
 
 @dataclass
 class BundleInfo:
@@ -151,102 +103,6 @@ class BundleInfo:
     root: str                       # e.g. "ScreenA_Bundle/" or ""
     manifest: Dict[str, Any]
     members: List[str]
-
-
-# ----------------------------
-# Utilities
-# ----------------------------
-
-def _now_stamp() -> str:
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
-
-
-def _iso_now() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-
-
-def _safe_str(x: Any) -> str:
-    if x is None:
-        return ""
-    if isinstance(x, str):
-        return x
-    try:
-        return str(x)
-    except Exception:
-        return ""
-
-
-def _norm_basic(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").strip())
-
-
-def _truthy(x: Any) -> bool:
-    return _safe_str(x).strip().lower() in TRUTHY
-
-
-def _split_targets(target_cell: str) -> List[str]:
-    t = _safe_str(target_cell)
-    out: List[str] = []
-    for p in t.split(","):
-        p = p.strip().strip('"').strip("'")
-        if p:
-            out.append(p)
-    return out
-
-
-def _split_what_list(what_cell: str) -> List[str]:
-    w = _safe_str(what_cell).replace("\n", ";").replace("\r", ";")
-    out: List[str] = []
-    for p in w.split(";"):
-        p = p.strip().strip('"').strip("'")
-        if p:
-            out.append(p)
-    return out
-
-
-def _norm_doc_type(v: str) -> str:
-    x = _norm_basic(v).lower()
-    x = x.replace("_", " ").replace("-", " ")
-    x = re.sub(r"\s+", " ", x).strip()
-    return DOC_TYPE_MAP.get(x, x)
-
-
-def _norm_lang(v: str) -> str:
-    x = _norm_basic(v).lower()
-    x = x.replace("_", "-")
-    x = re.sub(r"\s+", "", x)
-    return LANG_MAP.get(x, x)
-
-
-def _norm_for_target(target: str, value: str) -> str:
-    t = (target or "").strip().lower()
-    v = _safe_str(value)
-    if not v.strip():
-        return ""
-    if t == "doc_type":
-        return _norm_doc_type(v)
-    if t == "lang":
-        return _norm_lang(v)
-    return _norm_basic(v)
-
-
-def _norm_what_for_target(target: str, what: str) -> str:
-    return _norm_for_target(target, what)
-
-
-def _sha256_hex(data: bytes) -> str:
-    h = sha256()
-    h.update(data)
-    return h.hexdigest()
-
-
-def _decode_bytes(b: bytes) -> str:
-    for enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
-        try:
-            return b.decode(enc)
-        except Exception:
-            continue
-    return b.decode("utf-8", errors="ignore")
 
 
 # ----------------------------
@@ -314,223 +170,9 @@ def _load_bundle(zip_path: str) -> BundleInfo:
         return BundleInfo(zip_path=zip_path, root=root, manifest=manifest, members=members)
 
 
-# ----------------------------
-# Robust CSV parsing (record splitter)
-# ----------------------------
-
-def _split_csv_records(text: str) -> List[str]:
-    """
-    Split CSV into record strings by scanning newlines not inside quotes.
-    Preserves embedded newlines inside quoted fields.
-    """
-    if not text:
-        return []
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-
-    recs: List[str] = []
-    buf: List[str] = []
-    in_quote = False
-    i = 0
-    n = len(text)
-
-    while i < n:
-        ch = text[i]
-        if ch == '"':
-            if in_quote and (i + 1) < n and text[i + 1] == '"':
-                buf.append('"')
-                buf.append('"')
-                i += 2
-                continue
-            in_quote = not in_quote
-            buf.append(ch)
-            i += 1
-            continue
-
-        if ch == "\n" and not in_quote:
-            recs.append("".join(buf))
-            buf = []
-            i += 1
-            continue
-
-        buf.append(ch)
-        i += 1
-
-    if buf:
-        recs.append("".join(buf))
-    return recs
-
-
-def _parse_csv_tolerant_text(text: str, required_id: str = "local_id") -> ParseReport:
-    records = _split_csv_records(text)
-    if not records:
-        raise ValueError("CSV is empty.")
-
-    try:
-        header = next(csv.reader(io.StringIO(records[0] + "\n")))
-    except Exception as e:
-        raise ValueError(f"Failed to parse CSV header: {e}")
-
-    header = [h.strip() for h in header]
-    if not header or all(not h for h in header):
-        raise ValueError("CSV header is empty.")
-
-    expected_n = len(header)
-    rows: List[Dict[str, str]] = []
-    skipped: List[Tuple[int, str, str]] = []
-
-    for rec_idx, rec in enumerate(records[1:], start=1):  # 1-based, excluding header
-        raw = rec
-        if not raw.strip():
-            skipped.append((rec_idx, "empty_record", raw))
-            continue
-        try:
-            parsed = next(csv.reader(io.StringIO(raw + "\n")))
-        except csv.Error as e:
-            skipped.append((rec_idx, f"csv_error:{e}", raw))
-            continue
-        except Exception as e:
-            skipped.append((rec_idx, f"parse_error:{e}", raw))
-            continue
-
-        if len(parsed) != expected_n:
-            skipped.append((rec_idx, f"bad_column_count:{len(parsed)}!=expected:{expected_n}", raw))
-            continue
-
-        d = {header[i]: _safe_str(parsed[i]) for i in range(expected_n)}
-
-        lid = _safe_str(d.get(required_id, "")).strip()
-        if not lid:
-            skipped.append((rec_idx, "missing_local_id", raw))
-            continue
-
-        rows.append(d)
-
-    return ParseReport(header=header, rows=rows, skipped=skipped)
-
-
-def _load_input_errors_from_text(text: str) -> List[Tuple[int, str, str]]:
-    """
-    Parse a prior input_errors.csv (if present in bundle) and return skipped tuples.
-    Expected columns: record_index_ex_header, reason, raw_record
-    """
-    out: List[Tuple[int, str, str]] = []
-    try:
-        rdr = csv.DictReader(io.StringIO(text))
-        for row in rdr:
-            idx_raw = (_safe_str(row.get("record_index_ex_header", "")) or "").strip()
-            try:
-                idx = int(idx_raw)
-            except Exception:
-                idx = 0
-            reason = _safe_str(row.get("reason", "")).strip()
-            raw = _safe_str(row.get("raw_record", "")).strip()
-            if idx > 0 and reason:
-                out.append((idx, reason, raw))
-    except Exception:
-        return []
-    return out
-
-
-# ----------------------------
-# Criteria loading + contradiction warnings
-# ----------------------------
-
 def _load_criteria_eh_from_text(text: str) -> CriteriaLoadReport:
-    warnings: List[str] = []
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        return CriteriaLoadReport(criteria=[], warnings=["Criteria header not found."])
-
-    has_stage = any((h or "").strip().lower() == "stage" for h in (reader.fieldnames or []))
-
-    crits: List[Criterion] = []
-    row_i = 0
-    for row in reader:
-        row_i += 1
-        stage = _safe_str(row.get("stage", "")).strip()
-        if not has_stage:
-            stage = "EH"
-        if stage.strip().upper() != "EH":
-            continue
-
-        enabled = _truthy(row.get("enabled", "1"))
-        if not enabled:
-            continue
-
-        cid = _safe_str(row.get("id", "")).strip() or f"EH_ROW_{row_i}"
-        ctype = (_safe_str(row.get("type", "")).strip().lower() or "include")
-        scope = _safe_str(row.get("scope", "")).strip()
-        label = _safe_str(row.get("label", "")).strip()
-        operator = (_safe_str(row.get("operator", "")).strip().lower() or "equals")
-        targets = _split_targets(_safe_str(row.get("target", "")).strip())
-        what_raw = _safe_str(row.get("what", "")).strip()
-        what_list = _split_what_list(what_raw)
-        source_text = _safe_str(row.get("source_text", "")).strip()
-
-        thr = None
-        thr_cell = _safe_str(row.get("threshold", "")).strip()
-        if thr_cell:
-            try:
-                thr = float(thr_cell)
-            except Exception:
-                warnings.append(f"[criteria] Row {row_i} ({cid}): invalid threshold '{thr_cell}' -> ignored.")
-
-        if ctype not in ("include", "exclude"):
-            warnings.append(f"[criteria] {cid}: unknown type '{ctype}' -> treating as include.")
-            ctype = "include"
-
-        if not targets:
-            warnings.append(f"[criteria] {cid}: missing target -> criterion will be treated as MISSING (PASS_FLAGGED).")
-
-        crits.append(
-            Criterion(
-                stage="EH",
-                cid=cid,
-                ctype=ctype,
-                scope=scope,
-                label=label,
-                operator=operator,
-                targets=targets,
-                what_raw=what_raw,
-                what_list=what_list,
-                threshold=thr,
-                enabled=True,
-                source_text=source_text,
-            )
-        )
-
-    warnings.extend(_detect_contradictions_simple(crits))
-    return CriteriaLoadReport(criteria=crits, warnings=warnings)
-
-
-def _detect_contradictions_simple(crits: Sequence[Criterion]) -> List[str]:
-    warns: List[str] = []
-    bucket: Dict[str, Dict[str, set]] = {}
-
-    for c in crits:
-        if not c.targets or len(c.targets) != 1:
-            continue
-        tgt = c.targets[0].strip()
-        op = (c.operator or "").strip().lower()
-        if op not in ("equals", "in_list"):
-            continue
-        vals = c.what_list[:] if c.what_list else ([_safe_str(c.what_raw)] if c.what_raw else [])
-        vals_norm = {_norm_what_for_target(tgt, v) for v in vals if _norm_what_for_target(tgt, v)}
-        if not vals_norm:
-            continue
-        bucket.setdefault(tgt, {"include": set(), "exclude": set()})
-        bucket[tgt][c.ctype].update(vals_norm)
-
-    for tgt, d in bucket.items():
-        inc = d.get("include", set())
-        exc = d.get("exclude", set())
-        overlap = sorted(inc.intersection(exc))
-        if overlap:
-            warns.append(
-                f"[criteria] Possible contradiction on target '{tgt}': values appear in BOTH include and exclude: {', '.join(overlap[:10])}"
-                + (" ..." if len(overlap) > 10 else "")
-            )
-    return warns
+    """Backward-compat wrapper. Real implementation in plugins._common.parser."""
+    return _load_criteria_from_text(text, stage="EH")
 
 
 # ----------------------------
