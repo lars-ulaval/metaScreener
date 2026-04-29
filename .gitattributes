@@ -1,1 +1,5 @@
 * text=auto
+
+# Golden files for byte-identity regression tests. Treat as binary so
+# autocrlf does not rewrite line endings between commit and checkout.
+tests/golden/** binary
