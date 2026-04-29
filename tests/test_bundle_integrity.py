@@ -180,3 +180,37 @@ class TestSHA256Integrity:
 
         h_modified = sha256(zip_path2.read_bytes()).hexdigest()
         assert h_original != h_modified
+
+class TestBundleLoader:
+    """Regression tests for plugins/_common/bundle.py public surface.
+
+    Guards against @dataclass-decorator omission during refactor extraction.
+    The original such regression: Conv 5 / Commit 4 (e84b796) extracted
+    BundleInfo from plugins/04_eh/plugin.py into _common/bundle.py but the
+    extraction regex started one line below the @dataclass decorator,
+    silently dropping it. Test_bundle_integrity.py only inspected raw zip
+    structure and SHA-256 — it never instantiated BundleInfo or called
+    _load_bundle, so the bug surfaced only via GUI smoke during Commit 7.
+    These two tests close that gap.
+    """
+
+    def test_bundle_info_accepts_keyword_arguments(self):
+        """BundleInfo must be a real dataclass (kwargs constructor)."""
+        from plugins._common.bundle import BundleInfo
+        b = BundleInfo(zip_path="/x", root="r/", manifest={}, members=[])
+        assert b.zip_path == "/x"
+        assert b.root == "r/"
+        assert b.manifest == {}
+        assert b.members == []
+
+    def test_load_bundle_returns_populated_bundle_info(self, tmp_path):
+        """_load_bundle on a real ZIP returns a populated BundleInfo instance."""
+        from plugins._common.bundle import _load_bundle, BundleInfo
+        zip_path = _make_minimal_bundle(tmp_path)
+        bundle = _load_bundle(str(zip_path))
+        assert isinstance(bundle, BundleInfo)
+        assert bundle.zip_path == str(zip_path)
+        assert bundle.root == "ScreenA_Bundle/"
+        assert isinstance(bundle.manifest, dict)
+        assert "ScreenA_Bundle/manifest.json" in bundle.members
+

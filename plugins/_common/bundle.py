@@ -61,6 +61,7 @@ from plugins._common.exporters import (
 )
 
 
+@dataclass
 class BundleInfo:
     zip_path: str
     root: str                       # e.g. "ScreenA_Bundle/" or ""
