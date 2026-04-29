@@ -91,15 +91,8 @@ from .llm_refine import (
     _llm_refine,
 )
 
-from .exporters import (
-    BUNDLE_SCHEMA,
-    BUNDLE_ROOT_NAME,
-    _export_csv,
-    _export_pipe,
-    _sha256_file,
-    _clean_aggregate_csv,
-    _build_manifest,
-)
+from .exporters import BUNDLE_ROOT_NAME, _export_csv
+from .bundle import export_screen_a_bundle
 
 
 # ============================
@@ -628,70 +621,22 @@ class HarmoniserView(ttk.Frame):
         criteria_source_text = self.txt_criteria.get("1.0", "end").strip()
 
         try:
-            with tempfile.TemporaryDirectory(prefix="screenA_bundle_") as tmp:
-                root = Path(tmp) / BUNDLE_ROOT_NAME
-                data_dir = root / "data"
-                crit_dir = root / "criteria"
-                data_dir.mkdir(parents=True, exist_ok=True)
-                crit_dir.mkdir(parents=True, exist_ok=True)
-
-                criteria_csv = crit_dir / "criteria_harmonized.csv"
-                criteria_txt = crit_dir / "criteria_harmonized.txt"
-                criteria_src = crit_dir / "criteria_source.txt"
-
-                _export_csv(self.state.rows, str(criteria_csv))
-                _export_pipe(self.state.rows, str(criteria_txt))
-                criteria_src.write_text(criteria_source_text + "\n", encoding="utf-8")
-
-                current_csv = data_dir / "current.csv"
-                errors_csv = data_dir / "input_errors.csv"
-                clean_stats = _clean_aggregate_csv(self.state.a_path, current_csv, errors_csv)
-
-                wrote_errors = errors_csv.exists() and errors_csv.stat().st_size > 0
-                if not wrote_errors:
-                    try:
-                        errors_csv.unlink(missing_ok=True)
-                    except Exception:
-                        if errors_csv.exists():
-                            errors_csv.unlink()
-
-                manifest = _build_manifest(
-                    a_path=self.state.a_path,
-                    a_columns=self.state.a_columns,
-                    a_id_col_guess=self.state.a_id_col,
-                    clean_stats=clean_stats,
-                    criteria_path=self.state.criteria_path,
-                    criteria_kind=self.state.criteria_kind,
-                    criteria_rows=self.state.rows,
-                    criteria_source_text=criteria_source_text,
-                    wrote_input_errors=wrote_errors,
-                )
-
-                hashes = {
-                    "data/current.csv": _sha256_file(current_csv),
-                    "criteria/criteria_harmonized.csv": _sha256_file(criteria_csv),
-                }
-                if wrote_errors:
-                    hashes["data/input_errors.csv"] = _sha256_file(errors_csv)
-                manifest["sha256"] = hashes
-
-                (root / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-
-                zip_out = Path(zip_path)
-                zip_out.parent.mkdir(parents=True, exist_ok=True)
-
-                with zipfile.ZipFile(zip_out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-                    for p in root.rglob("*"):
-                        if p.is_file():
-                            arc = str(p.relative_to(Path(tmp)))  # includes root folder name
-                            zf.write(p, arcname=arc)
-
+            export_screen_a_bundle(
+                rows=self.state.rows,
+                a_path=self.state.a_path,
+                a_columns=self.state.a_columns,
+                a_id_col_guess=self.state.a_id_col,
+                criteria_path=self.state.criteria_path,
+                criteria_kind=self.state.criteria_kind,
+                criteria_source_text=criteria_source_text,
+                zip_out_path=zip_path,
+            )
             self._log(f"Bundle exported: {zip_path}")
             messagebox.showinfo("Export done", f"Exported bundle ZIP:\n{zip_path}")
-
         except Exception as e:
             messagebox.showerror("Export failed", str(e))
             self._log(f"Export failed: {e}")
+
 
     def _pick_targets(self) -> None:
         if not self.state.a_columns:
