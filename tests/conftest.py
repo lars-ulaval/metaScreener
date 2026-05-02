@@ -123,6 +123,11 @@ def get_el():
         _plugin_cache["el"] = _import_plugin("06_el")
     return _plugin_cache["el"]
 
+def get_il():
+    if "il" not in _plugin_cache:
+        _plugin_cache["il"] = _import_plugin("07_il")
+    return _plugin_cache["il"]
+
 
 # ---------------------------------------------------------------------------
 # 5. Fixtures
