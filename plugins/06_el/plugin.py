@@ -49,6 +49,27 @@ from tkinter import ttk, filedialog, messagebox
 
 from metascreener.plugin_api import BasePlugin, PluginMeta
 
+# Shared LLM-driving infrastructure (Conv 6 / Commit 1). The names below
+# previously had local copies in this file; they are now imported from
+# plugins/_common/llm_client.py and remain reachable in this module's
+# namespace for backward compatibility with UI code paths and tests
+# (test_imports, test_evidence_gating).
+from plugins._common.llm_client import (
+    _has_openai_key,
+    _quote_in_text,
+    _sha_text,
+    _normalize_space,
+    chunked,
+    _parse_llm_json_array,
+    _build_llm_messages_for_criterion,
+    run_m1_llm_for_criterion,
+    _make_item_for_llm,
+    _row_target_text_hash,
+    _load_cache_from_jsonl,
+    _dump_cache_to_jsonl,
+)
+from plugins._common.llm_client import _cache_key as _shared_cache_key
+
 
 # ------------------------------ constants -------------------------------------
 
@@ -166,33 +187,9 @@ def _write_csv(path: str, header: List[str], rows: List[Dict[str, Any]]):
         for r in rows:
             w.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in header})
 
-def _sha_text(s: str) -> str:
-    return sha256(s.encode("utf-8", errors="ignore")).hexdigest()
-
-def _normalize_space(s: str) -> str:
-    return re.sub(r"\s+", " ", s or "").strip()
-
-def _quote_in_text(quote: str, text: str) -> bool:
-    """
-    Quote validity check:
-      - exact substring OR
-      - whitespace-normalized substring (prevents false invalid due to newlines/multiple spaces)
-    """
-    if not quote or not text:
-        return False
-    if quote in text:
-        return True
-    qn = _normalize_space(quote)
-    tn = _normalize_space(text)
-    return bool(qn) and (qn in tn)
-
-def _has_openai_key() -> bool:
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
-
-def chunked(seq: Sequence[Any], n: int):
-    n = max(1, int(n))
-    for i in range(0, len(seq), n):
-        yield seq[i:i+n]
+# Small utilities (_sha_text, _normalize_space, _quote_in_text, _has_openai_key,
+# chunked) moved to plugins/_common/llm_client.py in Conv 6 / Commit 1; the
+# names remain reachable via the import block at the top of this file.
 
 
 # -------------------------- bundle parsing ------------------------------------
@@ -649,48 +646,21 @@ def run_m1_llm_for_criterion(
 
 # ------------------------ EL engine (self-contained) --------------------------
 
-def _make_item_for_llm(row: Dict[str, str]) -> Dict[str, Any]:
-    return {
-        "a_id": _safe_str(row.get("local_id","")).strip(),
-        "title": _safe_str(row.get("title","")),
-        "abstract": _safe_str(row.get("abstract","")),
-        "keywords": _safe_str(row.get("keywords","")),
-    }
-
-def _row_target_text_hash(row: Dict[str, str], targets: List[str], trunc_chars: int) -> str:
-    parts: List[str] = []
-    for t in targets:
-        v = _safe_str(row.get(t, ""))
-        if trunc_chars and len(v) > trunc_chars:
-            v = v[:trunc_chars]
-        parts.append(v)
-    return _sha_text("|".join(parts))
-
+# Stage-curried wrapper around plugins._common.llm_client._cache_key. Bakes in
+# this stage's PROMPT_VERSION so call sites and the existing evidence-gating
+# tests continue to work unchanged. The shared function takes prompt_version
+# as a keyword parameter; this wrapper passes EL's value transparently.
 def _cache_key(*, model: str, cid: str, a_id: str, text_hash: str, trunc_chars: int) -> str:
-    base = f"{PROMPT_VERSION}|{model}|{cid}|{a_id}|{text_hash}|{trunc_chars}"
-    return _sha_text(base)
+    return _shared_cache_key(
+        prompt_version=PROMPT_VERSION,
+        model=model, cid=cid, a_id=a_id,
+        text_hash=text_hash, trunc_chars=trunc_chars,
+    )
 
-def _load_cache_from_jsonl(text: str) -> Dict[str, Dict[str, Any]]:
-    out: Dict[str, Dict[str, Any]] = {}
-    for ln in (text or "").splitlines():
-        ln = ln.strip()
-        if not ln:
-            continue
-        try:
-            obj = json.loads(ln)
-            k = _safe_str(obj.get("key",""))
-            v = obj.get("val", None)
-            if k and isinstance(v, dict):
-                out[k] = v
-        except Exception:
-            continue
-    return out
-
-def _dump_cache_to_jsonl(cache: Dict[str, Dict[str, Any]]) -> str:
-    lines: List[str] = []
-    for k, v in cache.items():
-        lines.append(json.dumps({"key": k, "val": v}, ensure_ascii=False))
-    return "\n".join(lines) + ("\n" if lines else "")
+# _make_item_for_llm, _row_target_text_hash, _load_cache_from_jsonl,
+# _dump_cache_to_jsonl moved to plugins/_common/llm_client.py in Conv 6 /
+# Commit 1; the names remain reachable via the import block at the top
+# of this file.
 
 def run_el_screen(
     parse: ParseReport,
@@ -830,6 +800,7 @@ def run_el_screen(
             res = run_m1_llm_for_criterion(
                 crit_pack,
                 to_call,
+                stage="EL",
                 model=model,
                 trunc_chars=trunc_chars,
                 batch_size=batch_size,
