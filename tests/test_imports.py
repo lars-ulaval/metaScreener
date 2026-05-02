@@ -289,6 +289,59 @@ class TestPerPluginUI:
         assert hasattr(mod, "StandaloneILPlugin")
 
 
+class TestPerPluginScreen:
+    """Conv 6 / Commit 5-6 contract: the engine entry point
+    (run_el_screen / run_il_screen), associated dataclasses
+    (Criterion, ParseReport, CriteriaLoadReport, BundleInfo), and
+    EL/IL-specific helpers live in per-plugin ``screen.py`` modules,
+    not in ``plugin.py``. The plugin module re-exports them.
+
+    These tests would catch a regression that accidentally moved
+    engine code back into plugin.py (defeating the thin-shim goal).
+    """
+
+    def _all_top_level_names(self, path):
+        """Return the union of class and function names defined at module level."""
+        import ast
+        with open(path, "r", encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        names = set()
+        for n in ast.iter_child_nodes(tree):
+            if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                names.add(n.name)
+        return names
+
+    def test_el_engine_in_screen_not_plugin(self):
+        from conftest import PROJECT_ROOT
+        screen_names = self._all_top_level_names(PROJECT_ROOT / "plugins" / "06_el" / "screen.py")
+        plugin_names = self._all_top_level_names(PROJECT_ROOT / "plugins" / "06_el" / "plugin.py")
+        # Engine entry point must live in screen.py
+        assert "run_el_screen" in screen_names
+        assert "run_el_screen" not in plugin_names, (
+            "run_el_screen must NOT be defined in plugin.py "
+            "(thin shim should re-export it from .screen)"
+        )
+        # Dataclasses must live in screen.py
+        for name in ("Criterion", "ParseReport", "CriteriaLoadReport", "BundleInfo"):
+            assert name in screen_names, f"{name} must be in plugins/06_el/screen.py"
+            assert name not in plugin_names, f"{name} must NOT be in plugins/06_el/plugin.py"
+        # Stage-curried _cache_key must live in screen.py
+        assert "_cache_key" in screen_names
+        assert "_cache_key" not in plugin_names
+
+    def test_el_thin_shim_size(self):
+        """plugin.py should be a thin shim (under 150 lines including
+        re-exports). If this test fails, engine code may have crept back
+        in or the re-export block has bloated."""
+        from conftest import PROJECT_ROOT
+        path = PROJECT_ROOT / "plugins" / "06_el" / "plugin.py"
+        line_count = sum(1 for _ in open(path, "r", encoding="utf-8"))
+        assert line_count <= 150, (
+            f"plugins/06_el/plugin.py has {line_count} lines; "
+            f"thin-shim target is <=150 (Conv 6 / Commit 5)."
+        )
+
+
 class TestEnvironmentInfo:
     """Report environment info (not assertions — for CI logs)."""
 
