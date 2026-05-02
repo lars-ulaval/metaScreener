@@ -84,6 +84,81 @@ class TestPluginImports:
         assert hasattr(mod, "PROMPT_VERSION")
 
 
+class TestSharedHelpersOrigin:
+    """Regression tests for Conv 6 / Commit 1 (f3fa6bb).
+
+    The original Commit 1 apply script left orphaned local definitions of
+    ``run_m1_llm_for_criterion``, ``_build_llm_messages_for_criterion``, and
+    ``_parse_llm_json_array`` inside plugins/06_el/plugin.py and
+    plugins/07_il/plugin.py. Those locals shadowed the imports from
+    plugins/_common/llm_client and lacked the new ``stage`` keyword
+    parameter. Production calls would have TypeError'd; the byte-identity
+    tests masked the bug because their fully-cached paths never invoked
+    ``run_m1_llm_for_criterion``.
+
+    These tests assert that EL/IL plugin modules expose the SHARED versions
+    of the LLM helpers (origin: plugins._common.llm_client), not local
+    re-definitions. They would have caught the original incomplete
+    extraction.
+    """
+
+    SHARED_FN_NAMES = (
+        "run_m1_llm_for_criterion",
+        "_build_llm_messages_for_criterion",
+        "_parse_llm_json_array",
+        "_make_item_for_llm",
+        "_row_target_text_hash",
+        "_load_cache_from_jsonl",
+        "_dump_cache_to_jsonl",
+        "_quote_in_text",
+        "_sha_text",
+        "_normalize_space",
+        "_has_openai_key",
+        "chunked",
+    )
+
+    def _check_origin(self, mod, fn_name):
+        fn = getattr(mod, fn_name, None)
+        assert fn is not None, f"{mod.__name__} missing {fn_name}"
+        assert fn.__module__ == "plugins._common.llm_client", (
+            f"{mod.__name__}.{fn_name} resolves to {fn.__module__!r}, "
+            f"expected 'plugins._common.llm_client'. A local re-definition "
+            f"is shadowing the import (Conv 6 / Commit 1 bug class)."
+        )
+
+    def test_el_helpers_resolve_to_common(self):
+        from conftest import get_el
+        mod = get_el()
+        for name in self.SHARED_FN_NAMES:
+            self._check_origin(mod, name)
+
+    def test_il_helpers_resolve_to_common(self):
+        from conftest import get_il
+        mod = get_il()
+        for name in self.SHARED_FN_NAMES:
+            self._check_origin(mod, name)
+
+    def test_run_m1_llm_accepts_stage_kwarg_el(self):
+        """Direct check: the function bound to el.run_m1_llm_for_criterion
+        must accept the ``stage`` keyword parameter introduced in Commit 1."""
+        import inspect
+        from conftest import get_el
+        sig = inspect.signature(get_el().run_m1_llm_for_criterion)
+        assert "stage" in sig.parameters, (
+            "el.run_m1_llm_for_criterion lacks the 'stage' parameter; "
+            "a stale local definition is shadowing the shared import."
+        )
+
+    def test_run_m1_llm_accepts_stage_kwarg_il(self):
+        import inspect
+        from conftest import get_il
+        sig = inspect.signature(get_il().run_m1_llm_for_criterion)
+        assert "stage" in sig.parameters, (
+            "il.run_m1_llm_for_criterion lacks the 'stage' parameter; "
+            "a stale local definition is shadowing the shared import."
+        )
+
+
 class TestEnvironmentInfo:
     """Report environment info (not assertions — for CI logs)."""
 
