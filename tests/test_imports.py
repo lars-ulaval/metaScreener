@@ -208,6 +208,73 @@ class TestPerPluginPrompts:
         assert get_il().PROMPT_VERSION == "IL_v1_jsonlist"
 
 
+class TestPerPluginUI:
+    """Conv 6 / Commit 3 contract: View classes live in per-plugin
+    ``ui.py`` modules, not inside ``plugin.py``. The plugin module
+    re-exports them so el.ELView and il.ILView remain reachable.
+
+    Implementation note: the test environment mocks tkinter (see the
+    ``MagicMock`` usage in ``conftest.py``), which means ``ttk.Frame``
+    is a MagicMock and ``class ELView(ttk.Frame)`` produces a MagicMock-
+    like object, NOT a real class. So we cannot use ``__module__`` for
+    introspection. Instead we inspect the source files at the AST level
+    to assert which file each class is defined in.
+
+    These tests would catch a regression that accidentally moved a View
+    class back into ``plugin.py``, or that left an orphan copy of it
+    there during extraction.
+    """
+
+    def _class_defs_in(self, path):
+        import ast
+        with open(path, "r", encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        return {n.name for n in ast.iter_child_nodes(tree) if isinstance(n, ast.ClassDef)}
+
+    def test_el_view_in_ui_not_plugin(self):
+        from conftest import PROJECT_ROOT
+        ui_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "06_el" / "ui.py")
+        plugin_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "06_el" / "plugin.py")
+        assert "ELView" in ui_classes, "ELView must be defined in plugins/06_el/ui.py"
+        assert "ELView" not in plugin_classes, (
+            "ELView must NOT be defined in plugins/06_el/plugin.py "
+            "(orphan from incomplete Commit 3 extraction)"
+        )
+        assert "StandaloneELPlugin" in ui_classes
+        assert "StandaloneELPlugin" not in plugin_classes
+        assert "DataTable" in ui_classes
+        assert "DataTable" not in plugin_classes
+
+    def test_il_view_in_ui_not_plugin(self):
+        from conftest import PROJECT_ROOT
+        ui_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "07_il" / "ui.py")
+        plugin_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "07_il" / "plugin.py")
+        assert "ILView" in ui_classes, "ILView must be defined in plugins/07_il/ui.py"
+        assert "ILView" not in plugin_classes, (
+            "ILView must NOT be defined in plugins/07_il/plugin.py "
+            "(orphan from incomplete Commit 3 extraction)"
+        )
+        assert "StandaloneILPlugin" in ui_classes
+        assert "StandaloneILPlugin" not in plugin_classes
+        assert "DataTable" in ui_classes
+        assert "DataTable" not in plugin_classes
+
+    def test_el_view_reachable_via_plugin_module(self):
+        """Smoke check: the plugin module must re-export ELView so existing
+        consumers (Plugin.build_tab, tests) can reach it via plugin
+        namespace, even though it's now defined in ui.py."""
+        from conftest import get_el
+        mod = get_el()
+        assert hasattr(mod, "ELView")
+        assert hasattr(mod, "StandaloneELPlugin")
+
+    def test_il_view_reachable_via_plugin_module(self):
+        from conftest import get_il
+        mod = get_il()
+        assert hasattr(mod, "ILView")
+        assert hasattr(mod, "StandaloneILPlugin")
+
+
 class TestEnvironmentInfo:
     """Report environment info (not assertions — for CI logs)."""
 
