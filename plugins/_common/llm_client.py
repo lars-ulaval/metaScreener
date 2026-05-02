@@ -25,6 +25,11 @@ shared across stages with different per-stage constants:
   (``[EL-LLM]`` / ``[IL-LLM]``) and the courtesy ``"stage"`` field on
   emitted progress events; no semantic logic depends on its value.
 
+* ``run_m1_llm_for_criterion`` also takes a ``build_messages``
+  callable parameter (added in Conv 6 / Commit 2). Each plugin passes
+  its own per-stage prompt builder from ``plugins/<stage>/prompt.py``
+  so EL and IL prompts can evolve independently.
+
 All other functions are byte-identical to the inlined copies that
 previously lived in ``plugins/06_el/plugin.py`` and
 ``plugins/07_il/plugin.py``.
@@ -107,43 +112,12 @@ def _parse_llm_json_array(text: str) -> List[Dict[str, Any]]:
             pass
     return []
 
-def _build_llm_messages_for_criterion(criterion: Dict[str, Any], items: List[Dict[str, Any]], trunc_chars: int) -> List[Dict[str, str]]:
-    sys = (
-        "You are scoring research items against ONE screening criterion. "
-        "For each item, answer with JSON only. Keys per item: "
-        "a_id, decision ('meet'|'not_meet'|'uncertain'), confidence (0..1), "
-        "field ('title'|'abstract'|'keywords'), quote (exact substring from that field), span [start,end]. "
-        "Return a JSON list of objects, nothing else."
-    )
-
-    c_pack = {
-        "id": criterion["id"],
-        "type": criterion.get("type", "exclude"),
-        "operator": criterion.get("operator", "llm"),
-        "target": criterion.get("target", "abstract"),
-        "what": criterion.get("what", []),
-        "how": criterion.get("how", "llm"),
-        "label": criterion.get("label", ""),
-        "threshold": criterion.get("threshold", 0.6),
-    }
-
-    def trunc(s: str) -> str:
-        s = s or ""
-        if trunc_chars and len(s) > trunc_chars:
-            return s[:trunc_chars]
-        return s
-
-    items_pack = []
-    for it in items:
-        items_pack.append({
-            "a_id": it.get("a_id", ""),
-            "title": trunc(_safe_str(it.get("title",""))),
-            "abstract": trunc(_safe_str(it.get("abstract",""))),
-            "keywords": trunc(_safe_str(it.get("keywords",""))),
-        })
-
-    user = json.dumps({"criterion": c_pack, "items": items_pack}, ensure_ascii=False)
-    return [{"role":"system","content":sys}, {"role":"user","content":user}]
+# _build_llm_messages_for_criterion moved to per-plugin prompt.py modules
+# (plugins/06_el/prompt.py, plugins/07_il/prompt.py) in Conv 6 / Commit 2.
+# The body is byte-identical between EL and IL today, but is duplicated
+# deliberately so the two stages' prompts can evolve independently.
+# run_m1_llm_for_criterion below now takes the per-stage builder as a
+# `build_messages` keyword argument; each plugin passes its own.
 
 
 def run_m1_llm_for_criterion(
@@ -151,6 +125,7 @@ def run_m1_llm_for_criterion(
     items: List[Dict[str, Any]],
     *,
     stage: str,
+    build_messages: Callable[[Dict[str, Any], List[Dict[str, Any]], int], List[Dict[str, str]]],
     model: Optional[str],
     trunc_chars: int,
     batch_size: int,
@@ -191,7 +166,7 @@ def run_m1_llm_for_criterion(
             raise RuntimeError("Cancelled")
 
     def _call_once(batch: List[Dict[str, Any]], cur_trunc: int):
-        msgs = _build_llm_messages_for_criterion(criterion, batch, cur_trunc)
+        msgs = build_messages(criterion, batch, cur_trunc)
         return client.chat.completions.create(
             model=model,
             messages=msgs,

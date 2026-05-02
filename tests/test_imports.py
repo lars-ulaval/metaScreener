@@ -104,7 +104,6 @@ class TestSharedHelpersOrigin:
 
     SHARED_FN_NAMES = (
         "run_m1_llm_for_criterion",
-        "_build_llm_messages_for_criterion",
         "_parse_llm_json_array",
         "_make_item_for_llm",
         "_row_target_text_hash",
@@ -140,13 +139,19 @@ class TestSharedHelpersOrigin:
 
     def test_run_m1_llm_accepts_stage_kwarg_el(self):
         """Direct check: the function bound to el.run_m1_llm_for_criterion
-        must accept the ``stage`` keyword parameter introduced in Commit 1."""
+        must accept the ``stage`` and ``build_messages`` keyword parameters
+        introduced in Commit 1 and Commit 2 respectively."""
         import inspect
         from conftest import get_el
         sig = inspect.signature(get_el().run_m1_llm_for_criterion)
         assert "stage" in sig.parameters, (
             "el.run_m1_llm_for_criterion lacks the 'stage' parameter; "
             "a stale local definition is shadowing the shared import."
+        )
+        assert "build_messages" in sig.parameters, (
+            "el.run_m1_llm_for_criterion lacks the 'build_messages' parameter "
+            "(Conv 6 / Commit 2 contract). A stale local definition is "
+            "shadowing the shared import, or _common/llm_client.py is out of date."
         )
 
     def test_run_m1_llm_accepts_stage_kwarg_il(self):
@@ -157,6 +162,50 @@ class TestSharedHelpersOrigin:
             "il.run_m1_llm_for_criterion lacks the 'stage' parameter; "
             "a stale local definition is shadowing the shared import."
         )
+        assert "build_messages" in sig.parameters, (
+            "il.run_m1_llm_for_criterion lacks the 'build_messages' parameter "
+            "(Conv 6 / Commit 2 contract). A stale local definition is "
+            "shadowing the shared import, or _common/llm_client.py is out of date."
+        )
+
+
+class TestPerPluginPrompts:
+    """Conv 6 / Commit 2 contract: PROMPT_VERSION and the prompt builder
+    live in per-plugin ``prompt.py`` modules so EL and IL prompts can
+    evolve independently. The plugin-level ``__module__`` of the prompt
+    builder must point to the per-plugin module, not to ``_common``.
+
+    These tests would catch a regression that accidentally moved the
+    prompt builder back into ``_common/llm_client.py`` (re-coupling the
+    two stages' prompts) or that forgot to wire the per-plugin re-exports
+    through ``plugin.py``.
+    """
+
+    def test_el_prompt_module_origin(self):
+        from conftest import get_el
+        mod = get_el()
+        fn = mod._build_llm_messages_for_criterion
+        assert fn.__module__ == "plugins.06_el.prompt", (
+            f"el._build_llm_messages_for_criterion resolves to {fn.__module__!r}, "
+            f"expected 'plugins.06_el.prompt'."
+        )
+
+    def test_il_prompt_module_origin(self):
+        from conftest import get_il
+        mod = get_il()
+        fn = mod._build_llm_messages_for_criterion
+        assert fn.__module__ == "plugins.07_il.prompt", (
+            f"il._build_llm_messages_for_criterion resolves to {fn.__module__!r}, "
+            f"expected 'plugins.07_il.prompt'."
+        )
+
+    def test_el_prompt_version_string(self):
+        from conftest import get_el
+        assert get_el().PROMPT_VERSION == "EL_v1_jsonlist"
+
+    def test_il_prompt_version_string(self):
+        from conftest import get_il
+        assert get_il().PROMPT_VERSION == "IL_v1_jsonlist"
 
 
 class TestEnvironmentInfo:

@@ -61,7 +61,6 @@ from plugins._common.llm_client import (
     _normalize_space,
     chunked,
     _parse_llm_json_array,
-    _build_llm_messages_for_criterion,
     run_m1_llm_for_criterion,
     _make_item_for_llm,
     _row_target_text_hash,
@@ -69,6 +68,12 @@ from plugins._common.llm_client import (
     _dump_cache_to_jsonl,
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
+
+# Per-plugin prompt module (Conv 6 / Commit 2). PROMPT_VERSION and the
+# prompt builder live here, deliberately separate from IL's so that the
+# two stages' prompts can evolve independently. The names are re-exported
+# at module level for backward compatibility with tests and UI code.
+from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
 
 # ------------------------------ constants -------------------------------------
@@ -85,7 +90,9 @@ DEFAULT_USE_CACHE = os.environ.get("SCREENA_EL_USE_CACHE", "1").strip() not in {
 
 RENDER_CHUNK = 400
 
-PROMPT_VERSION = "EL_v1_jsonlist"
+# PROMPT_VERSION moved to plugins/06_el/prompt.py in Conv 6 / Commit 2;
+# imported via `from .prompt import PROMPT_VERSION` at the top of this
+# module, so el.PROMPT_VERSION continues to work for tests and UI code.
 
 EL_CACHE_REL = "cache/EL_cache.jsonl"
 REPORTS_DIR_REL = "reports"
@@ -496,6 +503,7 @@ def run_el_screen(
                 crit_pack,
                 to_call,
                 stage="EL",
+                build_messages=_build_llm_messages_for_criterion,
                 model=model,
                 trunc_chars=trunc_chars,
                 batch_size=batch_size,
