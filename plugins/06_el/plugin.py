@@ -671,10 +671,15 @@ def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str], un
 from .ui import (
     DataTable,
     ELView,
-    StandaloneELPlugin,
     _export_el_xlsx,
     _now_stamp,
 )
+
+# Standalone shell extracted in Conv 6 / Commit 4. Imported here so
+# el.StandaloneELPlugin remains reachable through the plugin module
+# namespace (existing consumers, scripts, and tests don't need to
+# change their import paths).
+from .standalone import StandaloneELPlugin
 
 
 # ------------------------------ plugin wrapper --------------------------------

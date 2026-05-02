@@ -235,29 +235,43 @@ class TestPerPluginUI:
         from conftest import PROJECT_ROOT
         ui_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "06_el" / "ui.py")
         plugin_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "06_el" / "plugin.py")
+        standalone_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "06_el" / "standalone.py")
         assert "ELView" in ui_classes, "ELView must be defined in plugins/06_el/ui.py"
         assert "ELView" not in plugin_classes, (
             "ELView must NOT be defined in plugins/06_el/plugin.py "
             "(orphan from incomplete Commit 3 extraction)"
         )
-        assert "StandaloneELPlugin" in ui_classes
+        # Conv 6 / Commit 4: StandaloneELPlugin moved out of ui.py
+        # into its own standalone.py.
+        assert "StandaloneELPlugin" in standalone_classes, (
+            "StandaloneELPlugin must be defined in plugins/06_el/standalone.py "
+            "(Conv 6 / Commit 4)"
+        )
+        assert "StandaloneELPlugin" not in ui_classes, (
+            "StandaloneELPlugin must NOT be in plugins/06_el/ui.py after Commit 4"
+        )
         assert "StandaloneELPlugin" not in plugin_classes
         assert "DataTable" in ui_classes
         assert "DataTable" not in plugin_classes
+        assert "DataTable" not in standalone_classes
 
     def test_il_view_in_ui_not_plugin(self):
         from conftest import PROJECT_ROOT
         ui_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "07_il" / "ui.py")
         plugin_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "07_il" / "plugin.py")
+        standalone_classes = self._class_defs_in(PROJECT_ROOT / "plugins" / "07_il" / "standalone.py")
         assert "ILView" in ui_classes, "ILView must be defined in plugins/07_il/ui.py"
         assert "ILView" not in plugin_classes, (
             "ILView must NOT be defined in plugins/07_il/plugin.py "
             "(orphan from incomplete Commit 3 extraction)"
         )
-        assert "StandaloneILPlugin" in ui_classes
+        # Conv 6 / Commit 4: StandaloneILPlugin moved out of ui.py.
+        assert "StandaloneILPlugin" in standalone_classes
+        assert "StandaloneILPlugin" not in ui_classes
         assert "StandaloneILPlugin" not in plugin_classes
         assert "DataTable" in ui_classes
         assert "DataTable" not in plugin_classes
+        assert "DataTable" not in standalone_classes
 
     def test_el_view_reachable_via_plugin_module(self):
         """Smoke check: the plugin module must re-export ELView so existing

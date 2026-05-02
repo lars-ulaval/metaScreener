@@ -685,7 +685,6 @@ def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str], un
 from .ui import (
     DataTable,
     ILView,
-    StandaloneILPlugin,
     _build_final_report_xlsx_bytes,
     _compute_final_outcome,
     _export_il_xlsx,
@@ -696,6 +695,11 @@ from .ui import (
     _now_stamp,
     _stage_prefix,
 )
+
+# Standalone shell extracted in Conv 6 / Commit 4. Imported here so
+# il.StandaloneILPlugin remains reachable through the plugin module
+# namespace.
+from .standalone import StandaloneILPlugin
 
 
 # ------------------------------ plugin wrapper --------------------------------
