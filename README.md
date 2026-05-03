@@ -229,32 +229,35 @@ All dependencies are listed in `requirements.txt`.
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| Windows 10+ | ✅ Developed and tested | Primary development platform |
-| macOS 12+ | 🔄 In progress | Tkinter is included with Python on macOS; testing underway |
-| Linux (Ubuntu 24.04) | ✅ Tested (Docker, headless) | Test suite executes via Dockerfile in repo |
+| Windows 10+ | ✅ Verified by CI | `windows-latest` (Windows Server 2022 runner), Python 3.10–3.13 |
+| macOS 14+ (Apple Silicon) | ✅ Verified by CI | `macos-14` runner, Python 3.10–3.13 |
+| Linux (Ubuntu 22.04 / 24.04) | ✅ Verified by CI | `ubuntu-22.04` and `ubuntu-24.04` LTS runners, Python 3.10–3.13 |
 
-The application is pure Python with no compiled extensions. It is expected to work on any platform supporting Python 3.10+ and Tkinter. Cross-platform validation is currently being conducted and will be documented here upon completion.
+The application is pure Python with no compiled extensions and runs on any platform supporting Python 3.10+ and Tkinter. Cross-platform compatibility is continuously verified by the GitHub Actions matrix on every push; see the [live CI status](https://github.com/lars-ulaval/metaScreener/actions/workflows/test.yml) for current run results.
 
 ---
 
 ## Testing
 
-The project includes 73 automated tests covering the deterministic components of the pipeline. No OpenAI API key, network access, or graphical display server is required.
+The project includes 104 automated tests covering the deterministic components of the pipeline as well as quote-based evidence gating, plugin imports, bundle integrity, repo metadata consistency, and per-stage regression goldens. No OpenAI API key, network access, or graphical display server is required.
 
 ```bash
 pip install pytest
 python -m pytest tests/ -v
 ```
 
-The test suite covers four areas:
+The test suite covers seven areas:
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
-| `test_criteria_parser.py` | 16 | Free-text parsing, operator/stage inference |
-| `test_deterministic_filters.py` | 11 | EH/IH `_eval_criterion` for all operator types |
-| `test_evidence_gating.py` | 17 | Quote validation, SHA-256 hashing, cache key construction |
-| `test_bundle_integrity.py` | 10 | Bundle ZIP structure, manifest schema, hash verification |
-| `test_imports.py` | 9 | Module import smoke tests, plugin_manager sanitizer |
+| `test_criteria_parser.py` | 16 | Free-text criteria parsing, operator/stage inference |
+| `test_deterministic_filters.py` | 15 | EH/IH `_eval_criterion` for all operator types |
+| `test_evidence_gating.py` | 23 | Quote validation, SHA-256 hashing, cache key construction |
+| `test_bundle_integrity.py` | 12 | Bundle ZIP structure, manifest schema, hash verification |
+| `test_imports.py` | 27 | Module imports, plugin shim regression, cache-key invariants |
+| `test_metadata.py` | 2 | Repo metadata consistency (version match, README CI badge) |
+| Per-stage regression suites | 9 | Byte-identity goldens for the EH, IH, EL, IL, and Harmoniser plugins (one file per stage) |
+| **Total** | **104** | |
 
 ### Refactoring safety: static import audit
 
