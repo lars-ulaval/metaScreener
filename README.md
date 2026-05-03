@@ -290,12 +290,26 @@ Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 
 Copy `.env.example` to `.env` and set your API key. The application will prompt for confirmation on each launch.
 
-### LLM endpoint compatibility
+## Using local LLM providers
 
-metaScreener targets any **OpenAI-compatible API endpoint**. This includes:
-- OpenAI (GPT-4o, GPT-4o-mini, etc.)
-- Azure OpenAI
-- Locally hosted models via compatible inference frameworks (e.g., Ollama, LM Studio, vLLM)
+metaScreener targets any **OpenAI-compatible API endpoint**. The default backend is OpenAI's hosted API, but the same Python client transparently supports:
+
+- **Hosted commercial APIs** — Azure OpenAI, DeepSeek, and others that mirror OpenAI's chat completions schema.
+- **Locally hosted models** — open-weight models served via compatible inference frameworks such as Ollama, llama.cpp, and vLLM.
+
+Switching providers requires no code change: set the `OPENAI_BASE_URL` environment variable to the target endpoint and ensure `OPENAI_API_KEY` is non-empty (most local servers ignore the key value but require it to be set). The **Model** field in metaScreener's EL/IL Settings panels then selects which backend model to use. Three commonly used local-model paths are described below.
+
+### Ollama
+
+[Ollama](https://ollama.com/) exposes an OpenAI-compatible chat completions endpoint at `http://localhost:11434/v1`. After installing Ollama and pulling a model (e.g., `ollama pull llama3.1`), set `OPENAI_BASE_URL=http://localhost:11434/v1` and `OPENAI_API_KEY=ollama` (or any non-empty placeholder). In the EL/IL Settings panels, set **Model** to the local model name (e.g., `llama3.1`).
+
+### llama.cpp
+
+[llama.cpp](https://github.com/ggerganov/llama.cpp)'s `llama-server` binary exposes an OpenAI-compatible endpoint at `http://localhost:8080/v1` by default. Start the server with `./llama-server --model your-model.gguf` and set `OPENAI_BASE_URL=http://localhost:8080/v1` with `OPENAI_API_KEY=llama-cpp` (or any non-empty placeholder). The **Model** field can be set to any value when running llama.cpp directly, since the server uses whichever model is currently loaded.
+
+### vLLM and DeepSeek
+
+For higher-throughput self-hosted inference, [vLLM](https://github.com/vllm-project/vllm) exposes an OpenAI-compatible API tuned for batched GPU workloads; consult the vLLM documentation for the deployment-specific `OPENAI_BASE_URL`. As a hosted alternative, [DeepSeek](https://platform.deepseek.com/) provides an OpenAI-compatible endpoint at `https://api.deepseek.com/v1` with substantially larger context windows than GPT-4o-mini, useful when working with very long records. Use your DeepSeek API key as `OPENAI_API_KEY` for the hosted route.
 
 > **Note**: open-weight model compatibility with the evidence gating protocol (which requires models to produce verbatim substring quotations) has not been formally tested. If you test with a local model, we welcome your feedback via the issue tracker.
 
