@@ -31,6 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plugins/_parking_lot/` (historical drafts folder, retained in git history)
 - Timestamped backup `.py` files in `prisma_hub/` and `plugins/*/` directories
 
+### Deferred
+
+- Per-plugin `screen.py` files contain stage-tuned copies of helpers
+  (`_safe_str`, `_decode_bytes`, `_load_bundle`, etc.) that overlap
+  with `plugins/_common/` versions. Substitution would require a
+  unified `_common/parser.py` + `_common/bundle.py` whose behavior
+  preserves all four stages' (EH, IH, EL, IL) byte-identity goldens
+  simultaneously. Deferred pending broader empirical experience
+  across diverse corpora.
+
 ## [3.0.1] - 2026-04-04
 
 Initial GitHub-tagged release. See https://github.com/lars-ulaval/metaScreener/releases/tag/v3.0.1
