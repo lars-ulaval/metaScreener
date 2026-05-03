@@ -61,8 +61,28 @@ from openpyxl.worksheet.datavalidation import DataValidation
 # Constants
 # --------------------------------------------------------------------------
 
-DECISION_OPTIONS = ("include", "exclude", "uncertain")
-DECISION_FORMULA = '"' + ",".join(DECISION_OPTIONS) + '"'
+# Per-criterion dropdown options are rendered as full sentences quoting
+# the criterion text verbatim. The rater never has to translate operators
+# in their head: they pick the sentence that matches the abstract. The
+# polarity question (is this an inclusion or exclusion criterion?) becomes
+# irrelevant to the rater — they just judge whether the criterion's claim
+# is true of the paper.
+#
+# Canonical short codes used internally for the kappa join:
+#   yes    — criterion's claim is true of the paper
+#   no     — criterion's claim is not true of the paper
+#   unsure — abstract is insufficient to decide
+#
+# These short codes are deliberately distinct from the prior
+# include/exclude/uncertain vocabulary so any old code path that lingers
+# fails loudly rather than silently miscoercing values.
+CANONICAL_CODES = ("yes", "no", "unsure")
+DROPDOWN_UNSURE_TEXT = "I cannot tell from the abstract alone."
+
+# The data-validation list is written to a hidden sheet ("_dropdowns")
+# and referenced as a named range, because Excel's inline-list formula
+# is capped at 255 characters and our criterion sentences exceed that.
+DROPDOWN_SHEET = "_dropdowns"
 
 # Columns the rater needs to read in each Decisions sheet, in display order.
 # Each tuple is (csv_key, display_label, column_width_chars).
@@ -284,6 +304,67 @@ def _set_header_row(ws, headers: List[str]) -> None:
     ws.row_dimensions[1].height = 28
 
 
+def build_dropdown_options(criterion: dict) -> Tuple[str, str, str]:
+    """Construct the three dropdown sentences for one criterion.
+
+    Returns (yes_text, no_text, unsure_text). The criterion text is
+    quoted verbatim from the criterion's ``label`` field — the clean
+    predicate without the "IC-1 -" identifier prefix that ``source_text``
+    carries. The wrapper does the polarity work, so the rater never has
+    to think about whether the criterion is an inclusion or exclusion
+    rule: they just read the abstract and pick the sentence that matches.
+
+    The criterion's ``label`` field is required. Falls back to
+    ``source_text`` only if ``label`` is empty (defensive).
+    """
+    label = (criterion.get("label") or "").strip()
+    if not label:
+        label = (criterion.get("source_text") or "").strip()
+    if not label:
+        raise ValueError(
+            f"Criterion {criterion.get('id', '?')!r} has neither label nor "
+            "source_text; cannot construct dropdown text."
+        )
+    yes_text = f"YES - this is true: {label}"
+    no_text = f"NO - this is not true: {label}"
+    return yes_text, no_text, DROPDOWN_UNSURE_TEXT
+
+
+def _ensure_dropdown_sheet(wb):
+    """Get or create the hidden _dropdowns sheet on the workbook."""
+    if DROPDOWN_SHEET in wb.sheetnames:
+        return wb[DROPDOWN_SHEET]
+    ws = wb.create_sheet(DROPDOWN_SHEET)
+    ws.sheet_state = "hidden"
+    # Row 1 documents the sheet's purpose so a curious rater who unhides
+    # it sees something self-explanatory rather than orphaned strings.
+    ws.cell(row=1, column=1, value=(
+        "Internal: dropdown options for the Decisions sheets. "
+        "Do not edit; the data validations on the Decisions sheets "
+        "reference these cells by named range."
+    ))
+    ws.column_dimensions["A"].width = 80
+    return ws
+
+
+def _register_dropdown_options(wb, options: Tuple[str, str, str]) -> str:
+    """Append a 3-cell vertical block of options to the dropdown sheet
+    and return an absolute Excel range reference (e.g.,
+    ``_dropdowns!$A$3:$A$5``) suitable as a DataValidation formula1.
+    """
+    ws = _ensure_dropdown_sheet(wb)
+    # Find the next empty row in column A (skipping the documentation row).
+    next_row = max(2, ws.max_row + 1)
+    for offset, text in enumerate(options):
+        ws.cell(row=next_row + offset, column=1, value=text)
+    # Sheet names containing special characters need single-quoting in
+    # references, but DROPDOWN_SHEET is a safe identifier so no quoting
+    # needed. Build the range absolutely.
+    start = next_row
+    end = next_row + len(options) - 1
+    return f"{DROPDOWN_SHEET}!$A${start}:$A${end}"
+
+
 def _build_readme_sheet(
     ws,
     rater_id: str,
@@ -307,8 +388,22 @@ def _build_readme_sheet(
 
     lines = [
         "",
-        f"You have been assigned {n_records_total} records across two pipeline "
-        f"stages, totalling {n_decisions_total} decisions to make. The breakdown:",
+        "What this is",
+        "",
+        "metaScreener is the screening tool described in the JORS submission "
+        "we are co-authoring. The reviewers asked us, as a compulsory "
+        "revision, to evaluate how well the LLM's screening decisions agree "
+        "with human judgement. This grid is the input to that evaluation. "
+        "We are NOT validating metaScreener as a tool here (JORS evaluates "
+        "the software itself). We are validating the LLM's per-criterion "
+        "calls within metaScreener, against ours.",
+        "",
+        f"The corpus shown is the demonstration corpus from the manuscript "
+        f"(776 records on HMD-VR studies). You see only the records that "
+        f"reached the LLM-adjudicated stages after deterministic filters "
+        f"removed records by language, year, and document type. You are "
+        f"assigned {n_records_total} records across the two LLM stages, "
+        f"totalling {n_decisions_total} decisions:",
     ]
     for stage in STAGE_DISPLAY_ORDER:
         if stage not in per_stage_totals:
@@ -324,21 +419,53 @@ def _build_readme_sheet(
         )
     lines += [
         "",
-        "Records highlighted in pale yellow are the overlap subset - also "
-        "rated independently by the other two co-authors. Please do NOT "
-        "confer with the other raters while filling this in. The overlap "
-        "subset measures inter-rater agreement, which only works if each "
-        "rater decides independently.",
+        "Why these criteria and not others",
         "",
-        "How to fill this in:",
-        "  1. Open each Decisions sheet (Decisions_EL, then Decisions_IL).",
+        "The published demonstration uses 8 eligibility criteria total. "
+        "5 of them are deterministic (language match, year threshold, "
+        "document-type filter, keyword presence) and never reach the LLM "
+        "- they are filtered by code. Validating regex against a human "
+        "would be a category error: the regex always agrees with itself. "
+        "The 3 criteria you see (IC-1, EC-2, EC-3) are exactly the LLM-"
+        "adjudicated ones. We are not cherry-picking; we are showing every "
+        "criterion the LLM was asked to judge.",
+        "",
+        "Why abstracts only",
+        "",
+        "metaScreener's LLM stages send title + abstract + keywords to the "
+        "model (this is the standard title-and-abstract screening level in "
+        "PRISMA workflows). To compare fairly, you should rate against the "
+        "same evidence the LLM had. Reading full text would inflate your "
+        "evidence base relative to the LLM's and bias the agreement metric. "
+        "Use abstracts as the default. If an abstract is genuinely "
+        "insufficient and you want to glance at the methods section to "
+        "decide, do so - but note in the Notes column when you escalated, "
+        "so we can see the pattern.",
+        "",
+        "Why DOIs are included",
+        "",
+        "Two reasons: (1) titles can collide between studies, and the DOI "
+        "uniquely identifies each record; (2) audit-trail: metaScreener's "
+        "design commitment is full traceability of every decision to its "
+        "source record. The DOI links are an escape hatch in case you want "
+        "to check the source, not a requirement.",
+        "",
+        "How to fill this in",
+        "",
+        "  1. Open each Decisions sheet (Decisions_EL first, then Decisions_IL).",
         "  2. For each row, read the Title and Abstract.",
-        "  3. For each criterion column, pick include / exclude / uncertain "
-        "from the dropdown. Add free-text notes if you want - optional.",
-        "  4. Save the file (keep the same filename).",
-        "  5. Send the file back to Alejandro (marec3@ulaval.ca).",
+        "  3. For each criterion column, pick one option from the dropdown. "
+        "The options are full sentences that quote the criterion verbatim:",
+        "        YES - this is true: <criterion text>",
+        "        NO - this is not true: <criterion text>",
+        "        I cannot tell from the abstract alone.",
+        "     You never have to translate operators. Just read the abstract "
+        "and pick the sentence that matches.",
+        "  4. Add free-text notes if you want - optional.",
+        "  5. Save the file (keep the same filename and the .xlsx format).",
+        "  6. Send the file back to Alejandro (marec3@ulaval.ca).",
         "",
-        "What the criteria mean (full text on the Reference sheet):",
+        "What the criteria say (full text also on the Reference sheet):",
     ]
     for stage in STAGE_DISPLAY_ORDER:
         for c in criteria_by_stage.get(stage, []):
@@ -348,40 +475,64 @@ def _build_readme_sheet(
             lines.append(f"  - {cid} ({polarity}, stage {stage}): {label}")
     lines += [
         "",
-        "Decision values (apply the SAME meaning regardless of polarity):",
-        "  - include    - the abstract clearly satisfies the criterion as written.",
-        "  - exclude    - the abstract clearly does NOT satisfy it.",
-        "  - uncertain  - abstract is ambiguous; full text would be needed.",
-        "",
-        "Note: Inclusion criteria (IC-*) and exclusion criteria (EC-*) are "
-        "rated the same way. 'include' means 'this criterion's condition is "
-        "met by the record,' regardless of whether the criterion is itself "
-        "an inclusion or exclusion rule. The validation analysis pairs your "
-        "decisions with the LLM's per-criterion call and computes agreement.",
+        "Important: please do NOT confer with the other raters while "
+        "filling this in. Records highlighted in pale yellow are the "
+        "overlap subset - also rated independently by the other two "
+        "co-authors. The overlap subset measures inter-rater agreement, "
+        "which only works if each rater decides independently.",
         "",
         "Estimated time: ~45 minutes if read carefully. Skim mode is fine "
-        "for obvious yes/no calls; reserve careful reading for the genuinely "
-        "uncertain ones.",
+        "for obvious cases; reserve careful reading for the genuinely "
+        "borderline ones.",
+        "",
+        "What happens with your decisions",
+        "",
+        "When all three filled grids return, an ingestion script joins "
+        "your per-criterion decisions with the LLM's per-criterion call "
+        "from the published bundle, and computes Cohen's kappa (you-vs-LLM) "
+        "and Fleiss' kappa (inter-human agreement on the overlap subset) "
+        "for each criterion. Those numbers go into a methodology document "
+        "in the manuscript revision. Your individual decisions are "
+        "preserved in the audit trail; the published numbers are aggregate.",
     ]
     for i, text in enumerate(lines, start=2):
         cell = ws.cell(row=i, column=1, value=text)
         cell.alignment = Alignment(wrap_text=True, vertical="top")
-        if any(text.startswith(p) for p in (
-            "How to fill this in:", "What the criteria",
-            "Decision values", "Note:", "Records highlighted",
+        if any(text == p or text.startswith(p) for p in (
+            "What this is",
+            "Why these criteria and not others",
+            "Why abstracts only",
+            "Why DOIs are included",
+            "How to fill this in",
+            "What the criteria say",
+            "Important:",
+            "What happens with your decisions",
         )):
             cell.font = Font(bold=True)
     ws.sheet_view.showGridLines = False
 
 
 def _build_decisions_sheet(
+    wb,
     ws,
     sheet_title: str,
     records: List[dict],
     criteria: List[dict],
     overlap_a_ids: set,
 ) -> None:
-    """One row per record. Per-criterion decision dropdown + notes column."""
+    """One row per record. Per-criterion decision dropdown + notes column.
+
+    Each criterion gets its own data-validation list with three
+    full-sentence options that quote the criterion text verbatim:
+      - "YES - this is true: <criterion text>"
+      - "NO - this is not true: <criterion text>"
+      - "I cannot tell from the abstract alone."
+
+    The options live in a hidden workbook sheet named DROPDOWN_SHEET and
+    are referenced by named range, because Excel's inline-list data
+    validation formula is capped at 255 characters and the criterion
+    sentences exceed that limit when wrapped.
+    """
     ws.title = sheet_title
 
     # Build header: record cols + per-criterion (decision, notes) pairs.
@@ -442,18 +593,23 @@ def _build_decisions_sheet(
     # Freeze header + first column.
     ws.freeze_panes = "B2"
 
-    # Data validation on each decision column.
+    # Data validation on each decision column. We write each criterion's
+    # three-option dropdown to the hidden _dropdowns sheet and reference
+    # the cells by absolute address. This avoids Excel's 255-char inline
+    # list limit and keeps the criterion text fully visible to the rater.
     n_rows = len(records) + 1  # header + data
     col = len(RECORD_COLUMNS) + 1
-    for _c in criteria:
+    for c in criteria:
         col_letter = get_column_letter(col)
+        options = build_dropdown_options(c)
+        dropdown_range = _register_dropdown_options(wb, options)
         dv = DataValidation(
             type="list",
-            formula1=DECISION_FORMULA,
+            formula1=dropdown_range,
             allow_blank=True,
             showErrorMessage=True,
             errorTitle="Invalid decision",
-            error="Choose include, exclude, or uncertain from the dropdown.",
+            error="Choose one of the three options from the dropdown.",
         )
         dv.add(f"{col_letter}2:{col_letter}{n_rows}")
         ws.add_data_validation(dv)
@@ -524,6 +680,7 @@ def build_workbook(
         overlap_a_ids = {(r.get("local_id") or "").strip() for r in overlap_records}
         ws = wb.create_sheet(STAGE_SHEET_TITLE[stage])
         _build_decisions_sheet(
+            wb=wb,
             ws=ws,
             sheet_title=STAGE_SHEET_TITLE[stage],
             records=all_records,

@@ -58,15 +58,15 @@ fil = _import("eval_grid_filler_synthetic")
 
 class TestCohenKappa:
     def test_perfect_agreement_returns_one(self):
-        pairs = [("include", "include")] * 10 + [("exclude", "exclude")] * 5
+        pairs = [("yes", "yes")] * 10 + [("no", "no")] * 5
         result = ein.cohen_kappa(pairs)
         assert result["n"] == 15
         assert math.isclose(result["agreement_observed"], 1.0)
         assert math.isclose(result["kappa"], 1.0)
 
     def test_perfect_disagreement(self):
-        # Every "include" by A is "exclude" by B and vice versa.
-        pairs = [("include", "exclude")] * 5 + [("exclude", "include")] * 5
+        # Every "yes" by A is "no" by B and vice versa.
+        pairs = [("yes", "no")] * 5 + [("no", "yes")] * 5
         result = ein.cohen_kappa(pairs)
         assert result["n"] == 10
         assert math.isclose(result["agreement_observed"], 0.0)
@@ -74,12 +74,12 @@ class TestCohenKappa:
         assert math.isclose(result["kappa"], -1.0)
 
     def test_chance_agreement_zero(self):
-        # 25 each of (incl,incl), (incl,excl), (excl,incl), (excl,excl).
+        # 25 each of (yes,yes), (yes,no), (no,yes), (no,no).
         pairs = (
-            [("include", "include")] * 25
-            + [("include", "exclude")] * 25
-            + [("exclude", "include")] * 25
-            + [("exclude", "exclude")] * 25
+            [("yes", "yes")] * 25
+            + [("yes", "no")] * 25
+            + [("no", "yes")] * 25
+            + [("no", "no")] * 25
         )
         result = ein.cohen_kappa(pairs)
         # P_o = 50/100 = 0.5; P_e = 0.5*0.5 + 0.5*0.5 = 0.5; kappa = 0.
@@ -92,8 +92,8 @@ class TestCohenKappa:
         assert math.isnan(result["kappa"])
 
     def test_unanimous_single_class_returns_nan(self):
-        # All raters always say "include" -> P_e = 1 -> kappa undefined.
-        pairs = [("include", "include")] * 20
+        # All raters always say "yes" -> P_e = 1 -> kappa undefined.
+        pairs = [("yes", "yes")] * 20
         result = ein.cohen_kappa(pairs)
         assert math.isnan(result["kappa"])
 
@@ -163,25 +163,44 @@ class TestFleissKappa:
 
 class TestNormalizeDecision:
     def test_canonical_passthrough(self):
-        assert ein.normalize_decision("include") == "include"
-        assert ein.normalize_decision("exclude") == "exclude"
-        assert ein.normalize_decision("uncertain") == "uncertain"
+        # Bare canonical short codes (used by synthetic test inputs and
+        # already-normalized data) pass through unchanged.
+        assert ein.normalize_decision("yes") == "yes"
+        assert ein.normalize_decision("no") == "no"
+        assert ein.normalize_decision("unsure") == "unsure"
 
     def test_case_and_whitespace_tolerated(self):
-        assert ein.normalize_decision("Include") == "include"
-        assert ein.normalize_decision("  EXCLUDE  ") == "exclude"
-        assert ein.normalize_decision("\tUncertain\n") == "uncertain"
+        assert ein.normalize_decision("YES") == "yes"
+        assert ein.normalize_decision("  NO  ") == "no"
+        assert ein.normalize_decision("\tUnsure\n") == "unsure"
+
+    def test_full_dropdown_sentences_canonicalize(self):
+        # The actual values raters will produce: full sentences quoting
+        # the criterion text. The prefix is what we match on.
+        yes_sentence = (
+            "YES - this is true: The paper considers immersive virtual "
+            "reality OR a virtual simulation using a head-mounted display "
+            "(HMD)."
+        )
+        no_sentence = (
+            "NO - this is not true: The paper's primary focus is the "
+            "rubber hand illusion paradigm."
+        )
+        unsure_sentence = "I cannot tell from the abstract alone."
+        assert ein.normalize_decision(yes_sentence) == "yes"
+        assert ein.normalize_decision(no_sentence) == "no"
+        assert ein.normalize_decision(unsure_sentence) == "unsure"
 
     def test_empty_returns_none(self):
         assert ein.normalize_decision(None) is None
         assert ein.normalize_decision("") is None
         assert ein.normalize_decision("   ") is None
 
-    def test_typo_raises(self):
-        with pytest.raises(ValueError, match="not in canonical"):
-            ein.normalize_decision("includ")
-        with pytest.raises(ValueError, match="not in canonical"):
-            ein.normalize_decision("yes")
+    def test_unrecognised_raises(self):
+        with pytest.raises(ValueError, match="not recognised"):
+            ein.normalize_decision("maybe")
+        with pytest.raises(ValueError, match="not recognised"):
+            ein.normalize_decision("include")  # old vocabulary, no longer valid
 
 
 # --------------------------------------------------------------------------
@@ -190,13 +209,15 @@ class TestNormalizeDecision:
 
 class TestLlmStatusMapping:
     def test_mapping_covers_canonical_statuses(self):
-        assert ein.LLM_STATUS_TO_DECISION["MET"] == "include"
-        assert ein.LLM_STATUS_TO_DECISION["FAILED"] == "exclude"
-        assert ein.LLM_STATUS_TO_DECISION["UNCERTAIN"] == "uncertain"
+        assert ein.LLM_STATUS_TO_DECISION["MET"] == "yes"
+        assert ein.LLM_STATUS_TO_DECISION["FAILED"] == "no"
+        assert ein.LLM_STATUS_TO_DECISION["UNCERTAIN"] == "unsure"
 
     def test_join_with_llm_uses_status_not_decision(self):
         # An EL exclusion criterion: status=MET, decision=not_meet.
-        # Join must map status=MET to canonical=include (not exclude).
+        # Join must map status=MET to canonical=yes (the criterion's
+        # claim holds), not to exclude/no. Polarity is in the criterion
+        # author's wording, not in the rater's vocabulary.
         evidence = {
             "EL": {"A001": {"EC-2": {"status": "MET", "decision": "not_meet",
                                       "confidence": 0.9, "quote": "vr",
@@ -205,18 +226,18 @@ class TestLlmStatusMapping:
         humans = [{
             "stage": "EL", "a_id": "A001", "criterion_id": "EC-2",
             "rater_id": "R1", "set": "disjoint",
-            "human_decision": "include", "human_notes": "",
+            "human_decision": "yes", "human_notes": "",
         }]
         out = ein.join_with_llm(humans, evidence)
         assert out[0]["llm_status"] == "MET"
-        assert out[0]["llm_decision_canonical"] == "include"
+        assert out[0]["llm_decision_canonical"] == "yes"
         assert out[0]["agree"] == "True"
 
     def test_join_missing_evidence_marked_disagreement(self):
         humans = [{
             "stage": "IL", "a_id": "A099", "criterion_id": "IC-1",
             "rater_id": "R1", "set": "disjoint",
-            "human_decision": "include", "human_notes": "",
+            "human_decision": "yes", "human_notes": "",
         }]
         out = ein.join_with_llm(humans, {"IL": {}})
         assert out[0]["llm_status"] == "MISSING"
@@ -260,16 +281,12 @@ class TestWorkbookReader:
         # Use the synthetic filler.
         src = empty_grids / "eval_grid_AReyes.xlsx"
         filled = tmp_path / "filled" / "eval_grid_AReyes.xlsx"
-        evidence_by_stage = {
-            "EL": fil.load_evidence_for_stage(TESTS_DATA / "el_eval_fixture.csv", "EL"),
-            "IL": fil.load_evidence_for_stage(TESTS_DATA / "il_eval_fixture.csv", "IL"),
-        }
         # Synthetic fixture has no real LLM decisions in its evidence_json,
-        # so we'll inject canonical decisions manually for synthetic-fill purposes.
-        # All a_ids -> 'include' for IC-1, EC-2, EC-3.
+        # so we inject canonical decisions manually for synthetic-fill.
+        # All a_ids -> 'yes' for IC-1, EC-2, EC-3.
         manual_evidence = {
-            "EL": {f"A{i:03d}": {"EC-2": "include", "EC-3": "include"} for i in range(1, 31)},
-            "IL": {f"A{i:03d}": {"IC-1": "include"} for i in range(1, 31)},
+            "EL": {f"A{i:03d}": {"EC-2": "yes", "EC-3": "yes"} for i in range(1, 31)},
+            "IL": {f"A{i:03d}": {"IC-1": "yes"} for i in range(1, 31)},
         }
         n = fil.fill_workbook(
             src_path=src, dst_path=filled,
@@ -282,8 +299,8 @@ class TestWorkbookReader:
             path=filled, rater_id="AReyes",
             expected_per_stage=manifest_by_rater["AReyes"],
         )
-        # Every row should have a valid decision.
-        assert all(r["human_decision"] in ("include", "exclude", "uncertain")
+        # Every row should have a valid decision in the new vocabulary.
+        assert all(r["human_decision"] in ("yes", "no", "unsure")
                    for r in rows)
         # Manifest expects rater_AReyes to rate <expected> a_ids per stage,
         # times the number of criteria on that stage.
@@ -294,30 +311,31 @@ class TestWorkbookReader:
         assert len(rows) == n_expected
 
     def test_workbook_with_typo_decision_raises(self, empty_grids, manifest_by_rater, tmp_path):
-        # Write a typo into one decision cell.
+        # Write an unrecognised value into one decision cell. The value is
+        # neither a canonical short code ("yes"/"no"/"unsure") nor a
+        # YES/NO/I-cannot-tell sentence prefix, so normalize_decision
+        # rejects it.
         src = empty_grids / "eval_grid_AReyes.xlsx"
         target = tmp_path / "typo.xlsx"
         shutil.copy(src, target)
         wb = load_workbook(target)
         ws = wb["Decisions_IL"]
-        # Find Decision: IC-1 column.
         headers = [c.value for c in ws[1]]
         col = headers.index("Decision: IC-1") + 1
-        # Fill all decisions valid, then break one.
+        # Fill all decisions with a valid canonical short code, then break one.
         for r in range(2, ws.max_row + 1):
-            ws.cell(row=r, column=col).value = "include"
+            ws.cell(row=r, column=col).value = "yes"
         # Also fill EL columns.
-        for stage_sheet in ("Decisions_EL",):
-            ws2 = wb[stage_sheet]
-            hd = [c.value for c in ws2[1]]
-            for cid in ("EC-2", "EC-3"):
-                cidx = hd.index(f"Decision: {cid}") + 1
-                for r in range(2, ws2.max_row + 1):
-                    ws2.cell(row=r, column=cidx).value = "include"
-        # The typo:
-        ws.cell(row=2, column=col).value = "yess"
+        ws2 = wb["Decisions_EL"]
+        hd = [c.value for c in ws2[1]]
+        for cid in ("EC-2", "EC-3"):
+            cidx = hd.index(f"Decision: {cid}") + 1
+            for r in range(2, ws2.max_row + 1):
+                ws2.cell(row=r, column=cidx).value = "yes"
+        # The typo: an unrecognised value.
+        ws.cell(row=2, column=col).value = "maybe"
         wb.save(target)
-        with pytest.raises(ValueError, match="not in canonical"):
+        with pytest.raises(ValueError, match="not recognised"):
             ein.read_filled_workbook(
                 path=target, rater_id="AReyes",
                 expected_per_stage=manifest_by_rater["AReyes"],
@@ -346,16 +364,12 @@ class TestEndToEnd:
         assert rc == 0
 
         # Synthesize evidence for synthetic fixtures that lack evidence_json.
+        # IL has only IC-1; EL has EC-2 and EC-3. Use new yes/no vocabulary.
         manual_evidence = {
-            "EL": {f"A{i:03d}": {"EC-2": "include", "EC-3": "exclude"}
+            "EL": {f"A{i:03d}": {"EC-2": "yes", "EC-3": "no"}
                    for i in range(1, 31)},
-            "IL": {f"A{i:03d}": ("exclude" if i % 4 == 0 else "include")
+            "IL": {f"A{i:03d}": {"IC-1": ("no" if i % 4 == 0 else "yes")}
                    for i in range(1, 31)},
-        }
-        # Restructure manual_evidence: IL needs criterion-level dict.
-        manual_evidence["IL"] = {
-            f"A{i:03d}": {"IC-1": ("exclude" if i % 4 == 0 else "include")}
-            for i in range(1, 31)
         }
 
         filled_dir = tmp_path / "filled"
@@ -403,11 +417,8 @@ class TestEndToEnd:
     def test_decisions_csv_schema(self, pipeline):
         with (pipeline / "eval_decisions_v1.csv").open(encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        # 3 raters * (overlap*1 + disjoint*1) decisions across IL + EL,
-        # times the per-stage criterion count. Just confirm non-empty and
-        # all rows have populated human_decision.
         assert rows
-        assert all(r["human_decision"] in ("include", "exclude", "uncertain")
+        assert all(r["human_decision"] in ("yes", "no", "unsure")
                    for r in rows)
 
     def test_results_csv_has_agree_flag(self, pipeline):
@@ -449,11 +460,11 @@ def _patch_fixture_with_evidence(
         if a_id in per_aid:
             criteria_dict = per_aid[a_id]
             ev = {}
-            status_map = {"include": "MET", "exclude": "FAILED", "uncertain": "UNCERTAIN"}
+            status_map = {"yes": "MET", "no": "FAILED", "unsure": "UNCERTAIN"}
             for cid, canonical in criteria_dict.items():
                 ev[cid] = {
                     "status": status_map[canonical],
-                    "decision": "meet" if canonical == "include" else "not_meet",
+                    "decision": "meet" if canonical == "yes" else "not_meet",
                     "confidence": 0.85,
                     "quote": "synthetic quote",
                     "quote_valid": True,

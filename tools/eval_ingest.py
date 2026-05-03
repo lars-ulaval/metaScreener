@@ -72,17 +72,36 @@ from openpyxl import load_workbook
 # Constants
 # --------------------------------------------------------------------------
 
-CANONICAL_DECISIONS = ("include", "exclude", "uncertain")
+# Canonical short codes used internally. The XLSX dropdowns (built by
+# eval_grid_generator.py) present full sentences quoting the criterion
+# text verbatim - "YES - this is true: <criterion>", "NO - this is not
+# true: <criterion>", "I cannot tell from the abstract alone." The
+# normalize_decision() function below collapses those long strings to
+# the canonical codes here.
+#
+# These codes are deliberately distinct from any prior include/exclude/
+# uncertain vocabulary in the codebase so that any stale code path
+# fails loudly rather than silently miscoercing values.
+CANONICAL_DECISIONS = ("yes", "no", "unsure")
 
 # Map LLM evidence_json status -> canonical decision.
-# The status field is the polarity-aware terminal call (already takes the
-# criterion's threshold and inclusion/exclusion polarity into account),
-# making it the correct join key for the human's "include / exclude /
-# uncertain" rating, regardless of whether the criterion is IC- or EC-.
+# The status field is the polarity-aware terminal call (already takes
+# the criterion's threshold and inclusion/exclusion polarity into
+# account), making it the correct join key for the human's yes/no/unsure
+# rating, regardless of whether the criterion is IC- or EC-.
 LLM_STATUS_TO_DECISION = {
-    "MET":       "include",
-    "FAILED":    "exclude",
-    "UNCERTAIN": "uncertain",
+    "MET":       "yes",
+    "FAILED":    "no",
+    "UNCERTAIN": "unsure",
+}
+
+# Prefix patterns the rater dropdown options begin with. normalize_decision
+# matches these case-insensitively. The criterion-specific tail of each
+# YES/NO option is ignored - we only need the polarity prefix to canonicalize.
+DROPDOWN_PREFIXES = {
+    "yes":    ("yes -", "yes:", "yes,"),
+    "no":     ("no -", "no:", "no,"),
+    "unsure": ("i cannot tell", "cannot tell"),
 }
 
 STAGE_EVIDENCE_COL = {"EL": "el_evidence_json", "IL": "il_evidence_json"}
@@ -174,23 +193,44 @@ def load_llm_evidence(
 # --------------------------------------------------------------------------
 
 def normalize_decision(value) -> Optional[str]:
-    """Coerce an Excel cell value to canonical decision or None.
+    """Coerce an Excel cell value to a canonical decision short code.
 
-    Empty/None -> None (caller decides if that's an error).
-    Otherwise: lowercase, strip whitespace; reject anything not in the
-    canonical vocabulary.
+    The XLSX dropdowns present full sentences:
+      "YES - this is true: <criterion text>"
+      "NO - this is not true: <criterion text>"
+      "I cannot tell from the abstract alone."
+
+    This function strips whitespace, lowercases, and matches against the
+    DROPDOWN_PREFIXES map to produce one of "yes" / "no" / "unsure".
+
+    Returns None if the cell is empty or whitespace-only (caller decides
+    whether that's an error). Raises ValueError if the cell contains
+    text that does not match any canonical prefix - typically a sign
+    that the rater typed a custom value or that the file was corrupted.
+
+    Backwards-tolerant: also accepts the bare canonical codes ("yes",
+    "no", "unsure") as direct values, in case a downstream tool feeds
+    pre-normalized data through this function.
     """
     if value is None:
         return None
-    s = str(value).strip().lower()
+    s = str(value).strip()
     if not s:
         return None
-    if s not in CANONICAL_DECISIONS:
-        raise ValueError(
-            f"Decision value {value!r} is not in canonical vocabulary "
-            f"{CANONICAL_DECISIONS}"
-        )
-    return s
+    s_lower = s.lower()
+    # Direct canonical match (e.g., synthetic test data, programmatic input).
+    if s_lower in CANONICAL_DECISIONS:
+        return s_lower
+    # Prefix-based match for full-sentence dropdown values.
+    for canonical, prefixes in DROPDOWN_PREFIXES.items():
+        for prefix in prefixes:
+            if s_lower.startswith(prefix):
+                return canonical
+    raise ValueError(
+        f"Decision value {value!r} is not recognised. Expected a YES/NO/"
+        "I-cannot-tell dropdown sentence, or one of "
+        f"{CANONICAL_DECISIONS}."
+    )
 
 
 def read_filled_workbook(

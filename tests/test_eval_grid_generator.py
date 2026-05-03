@@ -94,6 +94,34 @@ class TestLoaders:
             egg.load_llm_criteria(bad)
 
 
+class TestDropdownOptions:
+    def test_build_dropdown_options_uses_label(self):
+        criterion = {
+            "id": "IC-1",
+            "label": "The paper considers immersive virtual reality.",
+            "source_text": "IC-1 - The paper considers immersive virtual reality.",
+        }
+        yes, no, unsure = egg.build_dropdown_options(criterion)
+        # Uses label (clean predicate), not source_text (has identifier prefix).
+        assert yes == "YES - this is true: The paper considers immersive virtual reality."
+        assert no == "NO - this is not true: The paper considers immersive virtual reality."
+        assert unsure == "I cannot tell from the abstract alone."
+
+    def test_build_dropdown_options_falls_back_to_source_text(self):
+        criterion = {
+            "id": "IC-X",
+            "label": "",
+            "source_text": "Some predicate without label.",
+        }
+        yes, no, _ = egg.build_dropdown_options(criterion)
+        assert "Some predicate without label." in yes
+        assert "Some predicate without label." in no
+
+    def test_build_dropdown_options_raises_on_empty_text(self):
+        with pytest.raises(ValueError, match="cannot construct"):
+            egg.build_dropdown_options({"id": "IC-X"})
+
+
 # --------------------------------------------------------------------------
 # Single-stage stratification + partition logic
 # --------------------------------------------------------------------------
@@ -249,11 +277,17 @@ class TestEndToEnd:
         ]
 
     def test_each_workbook_has_expected_sheets(self, generated):
+        # Visible sheets: Read Me First, Decisions_EL, Decisions_IL, Reference.
+        # The hidden _dropdowns sheet is also present (holds the per-criterion
+        # dropdown options that the data validations reference by named range).
+        expected_visible = ["Read Me First", "Decisions_EL", "Decisions_IL", "Reference"]
         for path in generated.glob("*.xlsx"):
             wb = load_workbook(path)
-            assert wb.sheetnames == [
-                "Read Me First", "Decisions_EL", "Decisions_IL", "Reference",
-            ]
+            visible = [s for s in wb.sheetnames if wb[s].sheet_state != "hidden"]
+            assert visible == expected_visible, f"{path.name}: visible sheets = {visible}"
+            # The hidden dropdown sheet must exist and be hidden.
+            assert "_dropdowns" in wb.sheetnames, f"{path.name}: missing _dropdowns sheet"
+            assert wb["_dropdowns"].sheet_state == "hidden"
 
     def test_decisions_sheets_do_not_expose_llm_columns(self, generated):
         # Critical: blind adjudication. None of the il_*/el_* columns from
@@ -273,14 +307,24 @@ class TestEndToEnd:
                     f"LLM cols leaked into {path.name}/{sheet_name}: {headers}"
 
     def test_decisions_sheets_have_dropdown_validation(self, generated):
+        # Each Decisions sheet has a DataValidation per criterion, each
+        # referencing a 3-cell range on the hidden _dropdowns sheet.
         for path in generated.glob("*.xlsx"):
             wb = load_workbook(path)
             for sheet_name in ("Decisions_EL", "Decisions_IL"):
                 ws = wb[sheet_name]
                 assert ws.data_validations.dataValidation
-                formulas = {dv.formula1 for dv in ws.data_validations.dataValidation}
-                assert any("include" in f and "exclude" in f and "uncertain" in f
-                           for f in formulas)
+                # Every validation formula points into the _dropdowns sheet.
+                for dv in ws.data_validations.dataValidation:
+                    assert dv.formula1.startswith("_dropdowns!"), \
+                        f"{path.name}/{sheet_name}: formula1 doesn't reference _dropdowns: {dv.formula1!r}"
+            # The dropdown sheet itself contains the YES/NO/I-cannot-tell
+            # sentences for every criterion. Sanity-check the prefixes.
+            dws = wb["_dropdowns"]
+            cells = [c.value for c in dws["A"] if c.value]
+            assert any(str(v).startswith("YES - this is true:") for v in cells)
+            assert any(str(v).startswith("NO - this is not true:") for v in cells)
+            assert any(str(v) == "I cannot tell from the abstract alone." for v in cells)
 
     def test_decisions_per_stage_row_counts_sum_correctly(self, generated):
         # Both fixtures: 30 records, overlap=6 -> per-rater overlap=6, unique=8,
