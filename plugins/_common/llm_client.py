@@ -135,6 +135,7 @@ def run_m1_llm_for_criterion(
     crit_idx: Optional[int] = None,
     crit_total: Optional[int] = None,
     block_tag: str = "exclude",
+    temperature: float = 0.0,
 ) -> Dict[Tuple[str, str], Dict[str, Any]]:
     """
     Returns (a_id, criterion_id) -> llm_decision_dict (used/decision/confidence/field/quote/span/valid_quote).
@@ -143,6 +144,15 @@ def run_m1_llm_for_criterion(
     The ``stage`` keyword (e.g. ``"EL"`` or ``"IL"``) is used for log prefixes
     and the courtesy ``"stage"`` field on emitted progress events. No semantic
     logic depends on its value.
+
+    The ``temperature`` keyword controls the OpenAI sampling temperature
+    forwarded to ``client.chat.completions.create``. Default ``0.0`` is
+    appropriate for screening tasks where we want deterministic outputs;
+    callers may raise it for tasks where some response variability is
+    desired. Note that strict determinism is not guaranteed even at 0.0
+    due to hardware-level floating-point non-determinism in model
+    inference; the cache layer (keyed on temperature for non-zero
+    values) is the primary reproducibility safeguard.
     """
     log_prefix = f"[{stage}-LLM]"
     if not model:
@@ -170,7 +180,7 @@ def run_m1_llm_for_criterion(
         return client.chat.completions.create(
             model=model,
             messages=msgs,
-            temperature=0.0,
+            temperature=temperature,
         )
 
     out: Dict[Tuple[str, str], Dict[str, Any]] = {}
@@ -384,13 +394,23 @@ def _row_target_text_hash(row: Dict[str, str], targets: List[str], trunc_chars: 
         parts.append(v)
     return _sha_text("|".join(parts))
 
-def _cache_key(*, prompt_version: str, model: str, cid: str, a_id: str, text_hash: str, trunc_chars: int) -> str:
+def _cache_key(*, prompt_version: str, model: str, cid: str, a_id: str,
+               text_hash: str, trunc_chars: int,
+               temperature: float = 0.0) -> str:
     """Compose a cache key from the per-stage ``prompt_version`` and the
     invocation parameters. EL/IL plugins expose stage-curried wrappers
     that bake in their own ``PROMPT_VERSION`` so that legacy call sites
     and tests continue to work unchanged.
+
+    The ``temperature`` parameter is appended to the hashed string ONLY
+    when non-zero. This preserves the existing cache for the common
+    ``temperature=0.0`` case (Conv 7 option (b) per CONV7_handoff.md
+    sec 5.3) while preventing silent cache reuse across temperature
+    changes for non-zero values.
     """
     base = f"{prompt_version}|{model}|{cid}|{a_id}|{text_hash}|{trunc_chars}"
+    if temperature != 0.0:
+        base += f"|temp={temperature}"
     return _sha_text(base)
 
 def _load_cache_from_jsonl(text: str) -> Dict[str, Dict[str, Any]]:
