@@ -341,6 +341,40 @@ class TestPerPluginScreen:
             f"thin-shim target is <=150 (Conv 6 / Commit 5)."
         )
 
+    def test_il_engine_in_screen_not_plugin(self):
+        from conftest import PROJECT_ROOT
+        screen_names = self._all_top_level_names(PROJECT_ROOT / "plugins" / "07_il" / "screen.py")
+        plugin_names = self._all_top_level_names(PROJECT_ROOT / "plugins" / "07_il" / "plugin.py")
+        # Engine entry point must live in screen.py
+        assert "run_il_screen" in screen_names
+        assert "run_il_screen" not in plugin_names, (
+            "run_il_screen must NOT be defined in plugin.py "
+            "(thin shim should re-export it from .screen)"
+        )
+        # Dataclasses must live in screen.py
+        for name in ("Criterion", "ParseReport", "CriteriaLoadReport", "BundleInfo"):
+            assert name in screen_names, f"{name} must be in plugins/07_il/screen.py"
+            assert name not in plugin_names, f"{name} must NOT be in plugins/07_il/plugin.py"
+        # Stage-curried _cache_key must live in screen.py
+        assert "_cache_key" in screen_names
+        assert "_cache_key" not in plugin_names
+
+    def test_il_thin_shim_size(self):
+        """plugin.py should be a thin shim (under 175 lines including
+        re-exports + IL-specific constants for ui.py's final-report
+        aggregation). If this test fails, engine code may have crept
+        back in or the re-export block has bloated."""
+        from conftest import PROJECT_ROOT
+        path = PROJECT_ROOT / "plugins" / "07_il" / "plugin.py"
+        line_count = sum(1 for _ in open(path, "r", encoding="utf-8"))
+        # IL allows slightly more than EL because it carries
+        # FINAL_REPORT_NAME / FINAL_REPORT_REL / CONTRACT_STAGE_SHEET_COLS
+        # constants for ui.py's final-report aggregation helpers.
+        assert line_count <= 175, (
+            f"plugins/07_il/plugin.py has {line_count} lines; "
+            f"thin-shim target is <=175 (Conv 6 / Commit 6)."
+        )
+
 
 class TestEnvironmentInfo:
     """Report environment info (not assertions — for CI logs)."""
