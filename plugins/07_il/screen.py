@@ -320,11 +320,13 @@ def _parse_criteria_harmonized_csv(csv_text: str, stage_filter: str) -> Criteria
 # this stage's PROMPT_VERSION so call sites and the existing evidence-gating
 # tests continue to work unchanged. The shared function takes prompt_version
 # as a keyword parameter; this wrapper passes IL's value transparently.
-def _cache_key(*, model: str, cid: str, a_id: str, text_hash: str, trunc_chars: int) -> str:
+def _cache_key(*, model: str, cid: str, a_id: str, text_hash: str,
+               trunc_chars: int, temperature: float = 0.0) -> str:
     return _shared_cache_key(
         prompt_version=PROMPT_VERSION,
         model=model, cid=cid, a_id=a_id,
         text_hash=text_hash, trunc_chars=trunc_chars,
+        temperature=temperature,
     )
 
 # _make_item_for_llm, _row_target_text_hash, _load_cache_from_jsonl,
@@ -339,6 +341,7 @@ def run_il_screen(
     model: str,
     trunc_chars: int,
     batch_size: int,
+    temperature: float = 0.0,
     use_cache: bool,
     cache_in: Optional[Dict[str, Dict[str, Any]]],
     cancel_event: threading.Event,
@@ -453,7 +456,8 @@ def run_il_screen(
             if not a_id:
                 continue
             th = per_row_hash.get((a_id, c.id), "")
-            k = _cache_key(model=model, cid=c.id, a_id=a_id, text_hash=th, trunc_chars=trunc_chars)
+            k = _cache_key(model=model, cid=c.id, a_id=a_id, text_hash=th,
+                           trunc_chars=trunc_chars, temperature=temperature)
             if use_cache and k in cache_out:
                 # reuse cached evidence
                 ev = dict(cache_out[k])
@@ -481,6 +485,7 @@ def run_il_screen(
                 crit_idx=ci,
                 crit_total=len(crits),
                 block_tag="exclude",
+                temperature=temperature,
             )
             # merge + write to cache
             for (a_id, cid), ev in res.items():
@@ -489,7 +494,8 @@ def run_il_screen(
                 if not r:
                     continue
                 th = per_row_hash.get((a_id, cid), "")
-                k = _cache_key(model=model, cid=cid, a_id=a_id, text_hash=th, trunc_chars=trunc_chars)
+                k = _cache_key(model=model, cid=cid, a_id=a_id, text_hash=th,
+                               trunc_chars=trunc_chars, temperature=temperature)
                 if use_cache:
                     cache_out[k] = dict(ev)
 

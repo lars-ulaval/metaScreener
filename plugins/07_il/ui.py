@@ -498,6 +498,7 @@ class ILView(ttk.Frame):
 
         # Settings
         self.var_model = tk.StringVar(value=DEFAULT_MODEL)
+        self.var_temp = tk.DoubleVar(value=0.0)
         self.var_batch = tk.StringVar(value=str(DEFAULT_BATCH_SIZE))
         self.var_trunc = tk.StringVar(value=str(DEFAULT_TRUNC_CHARS))
         self.var_use_cache = tk.BooleanVar(value=DEFAULT_USE_CACHE)
@@ -585,13 +586,17 @@ class ILView(ttk.Frame):
         ttk.Label(settings, text="Model").grid(row=0, column=0, sticky="w", padx=6, pady=2)
         ttk.Entry(settings, textvariable=self.var_model, width=24).grid(row=0, column=1, sticky="ew", padx=6, pady=2)
 
-        ttk.Label(settings, text="Batch size").grid(row=1, column=0, sticky="w", padx=6, pady=2)
-        ttk.Entry(settings, textvariable=self.var_batch, width=10).grid(row=1, column=1, sticky="w", padx=6, pady=2)
+        ttk.Label(settings, text="Temperature").grid(row=1, column=0, sticky="w", padx=6, pady=2)
+        ttk.Spinbox(settings, textvariable=self.var_temp, from_=0.0, to=2.0, increment=0.1, format="%.2f", width=10).grid(row=1, column=1, sticky="w", padx=6, pady=2)
+        ttk.Label(settings, text="(0.0 = deterministic; non-zero invalidates cache)").grid(row=2, column=1, sticky="w", padx=6, pady=(0, 4))
 
-        ttk.Label(settings, text="Trunc chars").grid(row=2, column=0, sticky="w", padx=6, pady=2)
-        ttk.Entry(settings, textvariable=self.var_trunc, width=10).grid(row=2, column=1, sticky="w", padx=6, pady=2)
+        ttk.Label(settings, text="Batch size").grid(row=3, column=0, sticky="w", padx=6, pady=2)
+        ttk.Entry(settings, textvariable=self.var_batch, width=10).grid(row=3, column=1, sticky="w", padx=6, pady=2)
 
-        ttk.Checkbutton(settings, text="Use cache (bundle cache/IL_cache.jsonl)", variable=self.var_use_cache).grid(row=3, column=0, columnspan=2, sticky="w", padx=6, pady=2)
+        ttk.Label(settings, text="Trunc chars").grid(row=4, column=0, sticky="w", padx=6, pady=2)
+        ttk.Entry(settings, textvariable=self.var_trunc, width=10).grid(row=4, column=1, sticky="w", padx=6, pady=2)
+
+        ttk.Checkbutton(settings, text="Use cache (bundle cache/IL_cache.jsonl)", variable=self.var_use_cache).grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=2)
 
         settings.columnconfigure(1, weight=1)
 
@@ -1020,6 +1025,10 @@ class ILView(ttk.Frame):
         # parse settings
         model = (self.var_model.get() or DEFAULT_MODEL).strip()
         try:
+            temperature = float(self.var_temp.get())
+        except Exception:
+            temperature = 0.0
+        try:
             batch_size = int(self.var_batch.get())
         except Exception:
             batch_size = DEFAULT_BATCH_SIZE
@@ -1053,6 +1062,7 @@ class ILView(ttk.Frame):
                     model=model,
                     trunc_chars=trunc_chars,
                     batch_size=batch_size,
+                    temperature=temperature,
                     use_cache=use_cache,
                     cache_in=self.cache_map if use_cache else {},
                     cancel_event=self._cancel,  # ✅ ILView uses self._cancel

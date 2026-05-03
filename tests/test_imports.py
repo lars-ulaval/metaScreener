@@ -161,6 +161,10 @@ class TestSharedHelpersOrigin:
         )
 
     def test_run_m1_llm_accepts_stage_kwarg_il(self):
+        """Direct check: the function bound to il.run_m1_llm_for_criterion
+        must accept the ``stage``, ``build_messages``, and ``temperature``
+        keyword parameters introduced in Conv 6 / Commit 1, Conv 6 /
+        Commit 2, and Conv 7 / Commit 2 respectively."""
         import inspect
         from conftest import get_il
         sig = inspect.signature(get_il().run_m1_llm_for_criterion)
@@ -171,6 +175,11 @@ class TestSharedHelpersOrigin:
         assert "build_messages" in sig.parameters, (
             "il.run_m1_llm_for_criterion lacks the 'build_messages' parameter "
             "(Conv 6 / Commit 2 contract). A stale local definition is "
+            "shadowing the shared import, or _common/llm_client.py is out of date."
+        )
+        assert "temperature" in sig.parameters, (
+            "il.run_m1_llm_for_criterion lacks the 'temperature' parameter "
+            "(Conv 7 / Commit 2 contract). A stale local definition is "
             "shadowing the shared import, or _common/llm_client.py is out of date."
         )
 
@@ -390,8 +399,6 @@ class TestTemperatureCacheInvalidation:
     the common ``temperature=0.0`` case (option (b) per
     CONV7_handoff.md sec 5.3) while preventing silent cache reuse
     across temperature changes for non-zero values.
-
-    The IL test lands in Conv 7 / Commit 3.
     """
 
     def test_temperature_change_invalidates_cache_el(self):
@@ -415,6 +422,31 @@ class TestTemperatureCacheInvalidation:
         )
         assert k_warm != k_default, (
             "el._cache_key: non-default temperature must produce a "
+            "different key (prevents silent cache reuse across "
+            "temperature changes)."
+        )
+
+    def test_temperature_change_invalidates_cache_il(self):
+        """il._cache_key with temperature=0.0 (or omitted) must produce
+        the SAME key (preserves existing cache); with temperature!=0.0
+        it must produce a DIFFERENT key (prevents silent cache reuse).
+        """
+        from conftest import get_il
+        mod = get_il()
+        base_args = dict(
+            model="gpt-4o-mini", cid="IC-1", a_id="A001",
+            text_hash="abc123", trunc_chars=1500,
+        )
+        k_default = mod._cache_key(**base_args)
+        k_zero = mod._cache_key(**base_args, temperature=0.0)
+        k_warm = mod._cache_key(**base_args, temperature=0.7)
+        assert k_default == k_zero, (
+            "il._cache_key: temperature=0.0 must produce the same key as "
+            "omitting temperature entirely (preserves existing cache "
+            "entries captured before Conv 7 / Commit 3)."
+        )
+        assert k_warm != k_default, (
+            "il._cache_key: non-default temperature must produce a "
             "different key (prevents silent cache reuse across "
             "temperature changes)."
         )
