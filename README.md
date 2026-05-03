@@ -7,9 +7,8 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19360125.svg)](https://doi.org/10.5281/zenodo.19360125)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%2B-blue.svg)](#platform-compatibility)
 [![Platform: macOS/Linux](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)](#platform-compatibility)
-[![Tests](https://img.shields.io/badge/Tests-73%20passed-brightgreen.svg)](#testing)
+[![CI](https://github.com/lars-ulaval/metaScreener/actions/workflows/test.yml/badge.svg)](https://github.com/lars-ulaval/metaScreener/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/metascreener-lars-ulaval.svg)](https://pypi.org/project/metascreener-lars-ulaval/)
-[![Tested on](https://img.shields.io/badge/Tested%20on-Ubuntu%2024.04%20%7C%20Windows%2010-brightgreen.svg)](#platform-compatibility)
 
 ---
 
