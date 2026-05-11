@@ -19,9 +19,11 @@ quickstart pointers, see the [project README](../README.md).
   matrices, an explanation of the kappa paradox observed on the
   exclusion criteria, and limitations.
 
-- **Usage guide** — forthcoming. A walkthrough of the seven plugins
-  with screenshots, from corpus ingestion through to the final
-  bundle export. Will live at `docs/usage.md` once available.
+- **[Usage guide](usage.md)** — walkthrough of the seven plugins
+  from corpus ingestion through to the final bundle export, with
+  per-plugin inputs, outputs, configuration knobs, and common
+  gotchas. Uses the sample data in [`docs_/samples/`](../docs_/samples/)
+  as the running example.
 
 - **FAQ** — forthcoming. Answers to common questions about
   configuration, model selection, bundle compatibility, and known
