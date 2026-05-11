@@ -89,11 +89,58 @@ CANONICAL_DECISIONS = ("yes", "no", "unsure")
 # the criterion's threshold and inclusion/exclusion polarity into
 # account), making it the correct join key for the human's yes/no/unsure
 # rating, regardless of whether the criterion is IC- or EC-.
-LLM_STATUS_TO_DECISION = {
-    "MET":       "yes",
-    "FAILED":    "no",
-    "UNCERTAIN": "unsure",
-}
+# --------------------------------------------------------------------------
+# LLM status -> canonical decision: POLARITY-AWARE.
+# --------------------------------------------------------------------------
+#
+# metaScreener's `status` field describes whether a record PASSES OR FAILS
+# the screening RULE, not whether the criterion's claim holds of the paper.
+# These coincide for inclusion criteria but invert for exclusion criteria.
+#
+#   For an INCLUSION criterion (e.g., "the paper considers HMD VR"):
+#     status=MET    => paper passes the inclusion check
+#                   => the criterion's claim IS true of the paper
+#                   => canonical decision: "yes"
+#     status=FAILED => paper fails the inclusion check
+#                   => the criterion's claim is NOT true
+#                   => canonical: "no"
+#
+#   For an EXCLUSION criterion (e.g., "primary focus is rubber hand illusion"):
+#     status=MET    => paper passes the exclusion check (survives, not excluded)
+#                   => the criterion's claim is NOT true of the paper
+#                   => canonical: "no"
+#     status=FAILED => paper fails the exclusion check (gets excluded)
+#                   => the criterion's claim IS true of the paper
+#                   => canonical: "yes"
+#
+# UNCERTAIN -> "unsure" regardless of polarity.
+#
+# The human rater always answers "is the criterion's claim true of this
+# paper?" (yes/no/unsure). The polarity-aware mapping above ensures the
+# LLM-side and human-side decisions are about the same question, so the
+# resulting kappa measures actual agreement on the underlying judgement
+# rather than artefacts of polarity translation.
+_STATUS_MAP_INCLUDE = {"MET": "yes", "FAILED": "no", "UNCERTAIN": "unsure"}
+_STATUS_MAP_EXCLUDE = {"MET": "no",  "FAILED": "yes", "UNCERTAIN": "unsure"}
+
+
+def status_to_canonical(status: str, polarity: str) -> str:
+    """Map an LLM evidence_json status to a canonical decision short code,
+    taking the criterion's polarity into account.
+
+    Args:
+        status: One of "MET", "FAILED", "UNCERTAIN" (case-insensitive).
+                Unknown statuses map to "unsure" (conservative default).
+        polarity: One of "include", "exclude" (case-insensitive).
+                  Unknown polarities default to "include" semantics.
+
+    See module-level documentation for the full semantics.
+    """
+    s = str(status).strip().upper()
+    p = str(polarity).strip().lower()
+    table = _STATUS_MAP_EXCLUDE if p == "exclude" else _STATUS_MAP_INCLUDE
+    return table.get(s, "unsure")
+
 
 # Prefix patterns the rater dropdown options begin with. normalize_decision
 # matches these case-insensitively. The criterion-specific tail of each
@@ -376,10 +423,19 @@ def read_filled_workbook(
 def join_with_llm(
     human_rows: List[dict],
     llm_evidence: Dict[str, Dict[str, Dict[str, dict]]],
+    criteria_polarity: Dict[str, str],
 ) -> List[dict]:
     """Pair each human-decision row with the LLM's status for the same key.
 
-    llm_evidence is {stage: {a_id: {criterion_id: evidence_dict}}}.
+    Args:
+        human_rows: long-format rows from read_filled_workbook (one per
+            (rater, stage, a_id, criterion) tuple).
+        llm_evidence: {stage: {a_id: {criterion_id: evidence_dict}}}.
+        criteria_polarity: {criterion_id: "include" | "exclude"}. Required
+            for polarity-aware status mapping. Missing entries default to
+            "include" semantics, which matches the legacy single-map
+            behaviour for that one degenerate case.
+
     Returns rows with the full RESULT_FIELDS schema. Records where the
     LLM evidence is missing for a (stage, a_id, criterion) tuple get
     llm_status='MISSING' and agree=False (treated as disagreement so the
@@ -390,16 +446,17 @@ def join_with_llm(
         stage = r["stage"]
         a_id = r["a_id"]
         cid = r["criterion_id"]
+        polarity = criteria_polarity.get(cid, "include")
         ev = llm_evidence.get(stage, {}).get(a_id, {}).get(cid)
         if ev is None:
             llm_status = "MISSING"
-            llm_can = "uncertain"  # default sink; see comment above
+            llm_can = "unsure"  # default sink; see comment above
             quote = ""
             quote_valid = ""
             confidence = ""
         else:
             llm_status = str(ev.get("status", "")).strip().upper()
-            llm_can = LLM_STATUS_TO_DECISION.get(llm_status, "uncertain")
+            llm_can = status_to_canonical(llm_status, polarity)
             quote = str(ev.get("quote", "") or "")
             quote_valid_raw = ev.get("quote_valid", None)
             quote_valid = "" if quote_valid_raw is None else str(bool(quote_valid_raw)).lower()
@@ -681,11 +738,15 @@ def write_summary_text(
     lines.append("=" * 70)
     lines.append("")
     lines.append(f"Raters: {n_raters}")
-    lines.append("Categories: include, exclude, uncertain")
+    lines.append(f"Categories: {', '.join(CANONICAL_DECISIONS)}")
     lines.append("")
-    lines.append("LLM-status -> canonical decision mapping:")
-    for k, v in LLM_STATUS_TO_DECISION.items():
-        lines.append(f"  {k:<10} -> {v}")
+    lines.append("LLM-status -> canonical decision (polarity-aware):")
+    lines.append("  For INCLUSION criteria (IC-*):")
+    for k, v in _STATUS_MAP_INCLUDE.items():
+        lines.append(f"    {k:<10} -> {v}")
+    lines.append("  For EXCLUSION criteria (EC-*):")
+    for k, v in _STATUS_MAP_EXCLUDE.items():
+        lines.append(f"    {k:<10} -> {v}")
     lines.append("")
 
     # Iterate stages in display order, criteria sorted.
@@ -745,6 +806,10 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     )
     p.add_argument("--manifest", required=True, type=Path,
                    help="Path to partition_manifest.csv from eval_grid_generator.py.")
+    p.add_argument("--criteria", required=True, type=Path,
+                   help="Path to criteria_harmonized CSV. Used to load each "
+                        "criterion's polarity (include/exclude), which is "
+                        "required for polarity-aware LLM-status mapping.")
     p.add_argument("--filled-grids-dir", required=True, type=Path,
                    help="Directory containing eval_grid_<rater>.xlsx (filled).")
     p.add_argument("--el-filtered", type=Path, default=None,
@@ -756,6 +821,24 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def load_criteria_polarity(path: Path) -> Dict[str, str]:
+    """Load {criterion_id: polarity} from a harmonized criteria CSV.
+
+    Polarity is one of "include" or "exclude" (the criterion's `type` field).
+    Required by join_with_llm() so that LLM-status mapping is polarity-aware.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"Criteria CSV not found: {path}")
+    out: Dict[str, str] = {}
+    with path.open(encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            cid = (r.get("id") or "").strip()
+            polarity = (r.get("type") or "").strip().lower()
+            if cid:
+                out[cid] = polarity
+    return out
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -764,6 +847,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     raters = sorted(by_rater.keys())
     if len(raters) < 2:
         print(f"[error] need >=2 raters in manifest, got {raters}", file=sys.stderr)
+        return 2
+
+    # Load criteria polarities for polarity-aware LLM-status mapping.
+    try:
+        criteria_polarity = load_criteria_polarity(args.criteria)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"[error] {exc}", file=sys.stderr)
         return 2
 
     # Load LLM evidence per stage as required by the manifest.
@@ -797,8 +887,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         all_human_rows.extend(rater_rows)
         print(f"[ok] read {wb_path.name}: {len(rater_rows)} decisions")
 
-    # Join with LLM evidence.
-    joined = join_with_llm(all_human_rows, llm_evidence)
+    # Join with LLM evidence (polarity-aware).
+    joined = join_with_llm(all_human_rows, llm_evidence, criteria_polarity)
 
     # Write the three evidence CSVs.
     args.output_dir.mkdir(parents=True, exist_ok=True)

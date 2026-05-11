@@ -208,16 +208,44 @@ class TestNormalizeDecision:
 # --------------------------------------------------------------------------
 
 class TestLlmStatusMapping:
-    def test_mapping_covers_canonical_statuses(self):
-        assert ein.LLM_STATUS_TO_DECISION["MET"] == "yes"
-        assert ein.LLM_STATUS_TO_DECISION["FAILED"] == "no"
-        assert ein.LLM_STATUS_TO_DECISION["UNCERTAIN"] == "unsure"
+    """Polarity-aware LLM status -> canonical decision mapping.
 
-    def test_join_with_llm_uses_status_not_decision(self):
-        # An EL exclusion criterion: status=MET, decision=not_meet.
-        # Join must map status=MET to canonical=yes (the criterion's
-        # claim holds), not to exclude/no. Polarity is in the criterion
-        # author's wording, not in the rater's vocabulary.
+    metaScreener's `status` field describes whether a record passes or fails
+    the screening rule, not whether the criterion's claim holds. These
+    coincide for inclusion criteria but invert for exclusion criteria.
+    """
+
+    def test_status_to_canonical_inclusion(self):
+        assert ein.status_to_canonical("MET", "include") == "yes"
+        assert ein.status_to_canonical("FAILED", "include") == "no"
+        assert ein.status_to_canonical("UNCERTAIN", "include") == "unsure"
+
+    def test_status_to_canonical_exclusion(self):
+        # For exclusion criteria, status=MET means "passes the exclusion
+        # check" = "not excluded" = "criterion's claim is NOT true."
+        assert ein.status_to_canonical("MET", "exclude") == "no"
+        assert ein.status_to_canonical("FAILED", "exclude") == "yes"
+        assert ein.status_to_canonical("UNCERTAIN", "exclude") == "unsure"
+
+    def test_status_to_canonical_case_insensitive(self):
+        assert ein.status_to_canonical("met", "include") == "yes"
+        assert ein.status_to_canonical("Failed", "Exclude") == "yes"
+        assert ein.status_to_canonical(" UNCERTAIN ", "include") == "unsure"
+
+    def test_status_to_canonical_unknown_status_defaults_unsure(self):
+        assert ein.status_to_canonical("WEIRD", "include") == "unsure"
+        assert ein.status_to_canonical("", "exclude") == "unsure"
+
+    def test_status_to_canonical_unknown_polarity_defaults_inclusion(self):
+        # Defensive default — if the criteria CSV has a typo, we still
+        # produce a reasonable answer rather than crashing.
+        assert ein.status_to_canonical("MET", "") == "yes"
+        assert ein.status_to_canonical("MET", "unknown") == "yes"
+
+    def test_join_with_llm_exclusion_criterion(self):
+        # Reproduces the real-data semantics: EC-2 with status=MET means
+        # "passes the exclusion check" = paper is NOT about navigation =
+        # canonical "no". A human who said "no" should agree with the LLM.
         evidence = {
             "EL": {"A001": {"EC-2": {"status": "MET", "decision": "not_meet",
                                       "confidence": 0.9, "quote": "vr",
@@ -226,9 +254,29 @@ class TestLlmStatusMapping:
         humans = [{
             "stage": "EL", "a_id": "A001", "criterion_id": "EC-2",
             "rater_id": "R1", "set": "disjoint",
+            "human_decision": "no", "human_notes": "",
+        }]
+        criteria_polarity = {"EC-2": "exclude"}
+        out = ein.join_with_llm(humans, evidence, criteria_polarity)
+        assert out[0]["llm_status"] == "MET"
+        assert out[0]["llm_decision_canonical"] == "no"
+        assert out[0]["agree"] == "True"
+
+    def test_join_with_llm_inclusion_criterion(self):
+        # IC-1 with status=MET means "passes the inclusion check" = paper IS
+        # about HMD VR = canonical "yes".
+        evidence = {
+            "IL": {"A001": {"IC-1": {"status": "MET", "decision": "meet",
+                                      "confidence": 0.9, "quote": "HMD",
+                                      "quote_valid": True}}}
+        }
+        humans = [{
+            "stage": "IL", "a_id": "A001", "criterion_id": "IC-1",
+            "rater_id": "R1", "set": "disjoint",
             "human_decision": "yes", "human_notes": "",
         }]
-        out = ein.join_with_llm(humans, evidence)
+        criteria_polarity = {"IC-1": "include"}
+        out = ein.join_with_llm(humans, evidence, criteria_polarity)
         assert out[0]["llm_status"] == "MET"
         assert out[0]["llm_decision_canonical"] == "yes"
         assert out[0]["agree"] == "True"
@@ -239,9 +287,18 @@ class TestLlmStatusMapping:
             "rater_id": "R1", "set": "disjoint",
             "human_decision": "yes", "human_notes": "",
         }]
-        out = ein.join_with_llm(humans, {"IL": {}})
+        out = ein.join_with_llm(humans, {"IL": {}}, {"IC-1": "include"})
         assert out[0]["llm_status"] == "MISSING"
         assert out[0]["agree"] == "False"
+
+    def test_load_criteria_polarity_from_csv(self):
+        polarities = ein.load_criteria_polarity(
+            GOLDEN / "criteria_harmonized_v3.1.0.csv"
+        )
+        # Sanity: published criteria all have known polarities.
+        assert polarities.get("IC-1") == "include"
+        assert polarities.get("EC-2") == "exclude"
+        assert polarities.get("EC-3") == "exclude"
 
 
 # --------------------------------------------------------------------------
@@ -386,21 +443,27 @@ class TestEndToEnd:
         # The ingestor reads evidence_json from the fixtures themselves.
         # The synthetic fixtures have empty il_evidence_json/el_evidence_json
         # ('{}'). We need to write modified fixtures so the ingest can
-        # find LLM evidence to compare against.
+        # find LLM evidence to compare against. Polarity-aware so that the
+        # canonical->status inverse mapping matches what the polarity-aware
+        # ingestor will read back out.
+        crit_polarity = {"IC-1": "include", "EC-2": "exclude", "EC-3": "exclude"}
         modified_il = tmp_path / "il_with_evidence.csv"
         modified_el = tmp_path / "el_with_evidence.csv"
         _patch_fixture_with_evidence(
             TESTS_DATA / "il_eval_fixture.csv", modified_il,
             ev_col="il_evidence_json", per_aid=manual_evidence["IL"],
+            criteria_polarity=crit_polarity,
         )
         _patch_fixture_with_evidence(
             TESTS_DATA / "el_eval_fixture.csv", modified_el,
             ev_col="el_evidence_json", per_aid=manual_evidence["EL"],
+            criteria_polarity=crit_polarity,
         )
 
         out_dir = tmp_path / "out"
         rc = ein.main([
             "--manifest",         str(empty_dir / "partition_manifest.csv"),
+            "--criteria",         str(GOLDEN / "criteria_harmonized_v3.1.0.csv"),
             "--filled-grids-dir", str(filled_dir),
             "--el-filtered",      str(modified_el),
             "--il-filtered",      str(modified_il),
@@ -448,10 +511,20 @@ def _patch_fixture_with_evidence(
     dst_csv: Path,
     ev_col: str,
     per_aid,
+    criteria_polarity: dict = None,
 ) -> None:
     """Copy a fixture CSV, replacing the evidence_json column with synthesized
-    JSON keyed by a_id and criterion. Only used by tests."""
+    JSON keyed by a_id and criterion. Polarity-aware: the inverse mapping
+    from canonical decision back to LLM status depends on the criterion's
+    polarity (mirror of tools/eval_ingest.py:status_to_canonical)."""
     import csv, json
+    polarity = criteria_polarity or {}
+    # status_map per polarity. For inclusion: canonical yes -> status MET
+    # (paper passes inclusion = criterion's claim is true). For exclusion:
+    # canonical yes -> status FAILED (criterion's claim is true = paper IS
+    # about it = fails the exclusion check = excluded).
+    status_map_include = {"yes": "MET", "no": "FAILED", "unsure": "UNCERTAIN"}
+    status_map_exclude = {"yes": "FAILED", "no": "MET", "unsure": "UNCERTAIN"}
     with src_csv.open(encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
     fields = list(rows[0].keys())
@@ -460,10 +533,11 @@ def _patch_fixture_with_evidence(
         if a_id in per_aid:
             criteria_dict = per_aid[a_id]
             ev = {}
-            status_map = {"yes": "MET", "no": "FAILED", "unsure": "UNCERTAIN"}
             for cid, canonical in criteria_dict.items():
+                pol = polarity.get(cid, "include")
+                smap = status_map_exclude if pol == "exclude" else status_map_include
                 ev[cid] = {
-                    "status": status_map[canonical],
+                    "status": smap[canonical],
                     "decision": "meet" if canonical == "yes" else "not_meet",
                     "confidence": 0.85,
                     "quote": "synthetic quote",

@@ -37,15 +37,36 @@ from openpyxl import load_workbook
 
 
 CANONICAL_DECISIONS = ("yes", "no", "unsure")
-LLM_STATUS_TO_DECISION = {"MET": "yes", "FAILED": "no", "UNCERTAIN": "unsure"}
 STAGE_EVIDENCE_COL = {"EL": "el_evidence_json", "IL": "il_evidence_json"}
 STAGE_SHEET_TITLE = {"EL": "Decisions_EL", "IL": "Decisions_IL"}
 DROPDOWN_UNSURE_TEXT = "I cannot tell from the abstract alone."
 
+# Polarity-aware status mapping (mirrors tools/eval_ingest.py).
+_STATUS_MAP_INCLUDE = {"MET": "yes", "FAILED": "no", "UNCERTAIN": "unsure"}
+_STATUS_MAP_EXCLUDE = {"MET": "no",  "FAILED": "yes", "UNCERTAIN": "unsure"}
 
-def load_evidence_for_stage(filtered_csv: Path, stage: str) -> Dict[str, Dict[str, str]]:
-    """Return {a_id: {criterion_id: canonical_decision_from_llm}}."""
+
+def _status_to_canonical(status: str, polarity: str) -> str:
+    s = str(status).strip().upper()
+    p = str(polarity).strip().lower()
+    table = _STATUS_MAP_EXCLUDE if p == "exclude" else _STATUS_MAP_INCLUDE
+    return table.get(s, "unsure")
+
+
+def load_evidence_for_stage(
+    filtered_csv: Path,
+    stage: str,
+    criteria_polarity: Optional[Dict[str, str]] = None,
+) -> Dict[str, Dict[str, str]]:
+    """Return {a_id: {criterion_id: canonical_decision_from_llm}}.
+
+    If criteria_polarity is supplied (recommended), the per-criterion
+    status mapping is polarity-aware: for exclusion criteria, MET maps to
+    "no" rather than "yes". Without it, all criteria are assumed inclusion
+    (legacy behaviour; only safe for inclusion-only test fixtures).
+    """
     import csv
+    polarity = criteria_polarity or {}
     out: Dict[str, Dict[str, str]] = {}
     ev_col = STAGE_EVIDENCE_COL[stage]
     with filtered_csv.open(encoding="utf-8") as fh:
@@ -59,7 +80,8 @@ def load_evidence_for_stage(filtered_csv: Path, stage: str) -> Dict[str, Dict[st
             for cid, v in parsed.items():
                 if isinstance(v, dict):
                     status = str(v.get("status", "")).strip().upper()
-                    out[a_id][cid] = LLM_STATUS_TO_DECISION.get(status, "unsure")
+                    pol = polarity.get(cid, "include")
+                    out[a_id][cid] = _status_to_canonical(status, pol)
     return out
 
 
