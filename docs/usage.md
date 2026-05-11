@@ -129,6 +129,9 @@ makes it easy to spot records that landed in only one database.
 
 ### Plugin 03 - Criteria Parser
 
+![Plugin 03 main view, with sample criteria loaded and the harmonised table populated on the right](images/usage/plugin03_criteria_parser.png)
+> *Figure: Plugin 03 (Criteria Parser / Harmoniser) after loading `docs_/samples/ic_ec_12.txt`. The left panel holds the editable free-text criteria; the right panel shows the inferred harmonised criteria table with stage and operator assignments per row. The log at the bottom records each step of parsing and the optional LLM refinement pass.*
+
 **Purpose.** Converts free-text inclusion and exclusion criteria
 into a structured, machine-executable criteria table that the
 downstream plugins consume. The output is the `criteria_harmonized.csv`
@@ -215,6 +218,9 @@ fr matches EC-1").
 
 ### Plugin 05 - IH (Inclusion by Heuristic)
 
+![Plugin 05 IH after running on the demonstration corpus, showing 566 surviving records](images/usage/plugin05_ih.png)
+> *Figure: Plugin 05 (IH) after running on the post-EH bundle. The IH Criteria panel (top left) lists the deterministic inclusion rules that matched (IC-3 = language English, IC-4 = year ≥ 2018). The right panel previews the 566 surviving records; the status line reports `OUT: 566 CLEAN:85 FLAGGED:0`. All inclusion-pass records carry forward to Plugin 06.*
+
 **Purpose.** Retains only records that match at least one
 deterministic inclusion rule.
 
@@ -238,6 +244,9 @@ matched.
   evidence.
 
 ### Plugin 06 - EL (Exclusion by LLM)
+
+![Plugin 06 EL configuration view, with model and gating parameters visible](images/usage/plugin06_el.png)
+> *Figure: Plugin 06 (EL) ready to run on the post-IH bundle. The EL Criteria panel (top left) shows the two LLM-adjudicated exclusion criteria (EC-2, EC-3, both with `operator = llm`). The EL Settings panel (lower left) exposes the model selector, the temperature (0.0 = deterministic; any non-zero value invalidates the response cache), the batch size, the truncation length applied to long abstracts, and the cache toggle. The top progress bar shows criterion 2/2 batch 1/2 in flight.*
 
 **Purpose.** Applies LLM-based eligibility adjudication against the
 exclusion criteria, using title, abstract, and keywords as evidence.
