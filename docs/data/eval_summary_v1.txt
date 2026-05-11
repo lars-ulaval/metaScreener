@@ -1,0 +1,62 @@
+metaScreener LLM-screening human validation: agreement metrics
+======================================================================
+
+Raters: 3
+Categories: yes, no, unsure
+
+LLM-status -> canonical decision (polarity-aware):
+  For INCLUSION criteria (IC-*):
+    MET        -> yes
+    FAILED     -> no
+    UNCERTAIN  -> unsure
+  For EXCLUSION criteria (EC-*):
+    MET        -> no
+    FAILED     -> yes
+    UNCERTAIN  -> unsure
+
+----------------------------------------------------------------------
+Stage EL, criterion EC-2
+
+  Cohen's kappa (human vs LLM): -0.0466  (N=85, P_observed=0.8353, P_expected=0.8426)
+  Fleiss' kappa (inter-human, overlap subset): -0.1331  (items=15, raters=3, P_observed=0.6889, P_expected=0.7254)
+
+  Confusion matrix (rows: human, cols: LLM):
+                        yes         no     unsure
+    yes                   0          2          0
+    no                    1         71          2
+    unsure                0          9          0
+
+----------------------------------------------------------------------
+Stage EL, criterion EC-3
+
+  Cohen's kappa (human vs LLM): 0.1010  (N=85, P_observed=0.8706, P_expected=0.8561)
+  Fleiss' kappa (inter-human, overlap subset): -0.0547  (items=15, raters=3, P_observed=0.8667, P_expected=0.8736)
+
+  Confusion matrix (rows: human, cols: LLM):
+                        yes         no     unsure
+    yes                   0          1          2
+    no                    0         74          3
+    unsure                0          5          0
+
+----------------------------------------------------------------------
+Stage IL, criterion IC-1
+
+  Cohen's kappa (human vs LLM): 0.2775  (N=84, P_observed=0.5595, P_expected=0.3903)
+  Fleiss' kappa (inter-human, overlap subset): 0.2609  (items=15, raters=3, P_observed=0.6000, P_expected=0.4588)
+
+  Confusion matrix (rows: human, cols: LLM):
+                        yes         no     unsure
+    yes                  37          1         13
+    no                    2          2         16
+    unsure                4          1          8
+
+----------------------------------------------------------------------
+Limitations:
+  - Validation N is bounded by the demonstration corpus universe;
+    extending kappa across multiple corpora is future work.
+  - Overlap subset is randomly selected with stratification on
+    stage_outcome; with N=15 per stage the inter-human kappa is
+    sensitive to small absolute disagreement counts.
+  - Human raters were the three paper authors. Independent
+    multi-disciplinary adjudication is not represented here.
+

@@ -1,0 +1,6 @@
+seed=42
+raters=AReyes,JKiss,JVoisin
+EL_n_overlap=15
+EL_criteria=EC-2,EC-3
+IL_n_overlap=15
+IL_criteria=IC-1

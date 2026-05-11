@@ -1,0 +1,89 @@
+stage,a_id,criterion_id,set,rater_id,human_decision,human_notes,llm_status,llm_decision_canonical,llm_quote,llm_quote_valid,llm_confidence,agree
+EL,A253,EC-2,disjoint,JKiss,yes,,MET,no,Computer science; Architecture; Human–computer interaction; Context (archaeology); Flexibility (engineering); Software architecture; Software; Cognitive architecture; Reference architecture; Multimedia; Software engineering; Cognition,true,0.900,False
+EL,A284,EC-2,disjoint,JKiss,yes,,MET,no,Virtual reality,true,0.900,False
+EL,A311,EC-2,overlap,JKiss,yes,,MET,no,Brain–computer interface; Computer science; Interface (matter); Task (project management); Human–computer interaction; User interface; Control (management); Multimedia; Artificial intelligence; Operating system; Engineering; Systems engineering,true,0.900,False
+EL,A312,EC-2,disjoint,JKiss,unsure,not 100% virtual maze but more teleoperation robot to navigate so it is part of it but not the main focus,MET,no,Teleoperation; Brain–computer interface; GRASP; Motor imagery; Robot; Computer science; Electroencephalography; Haptic technology; Task (project management); Artificial intelligence; Tactile sensor; Telerobotics,true,0.900,False
+EL,A328,EC-2,disjoint,AReyes,no,,UNCERTAIN,unsure,Motor imagery; Electroencephalography; Computer science; Brain activity and meditation; Sensorimotor rhythm; Population; Resting state fMRI; Interface (matter); Artificial intelligence; Machine learning,false,0.900,False
+EL,A344,EC-2,disjoint,JKiss,unsure,Brain-controlled robotic arms,MET,no,Augmented reality,true,0.800,False
+EL,A345,EC-2,disjoint,JVoisin,no,,UNCERTAIN,unsure,Augmented reality,false,0.850,False
+EL,A349,EC-2,overlap,JKiss,yes,,MET,no,Brain–computer interface; Stimulus (psychology); Augmented reality; Computer science; Humanoid robot; Robot; Psychology; Human–computer interaction; Artificial intelligence; Neuroscience; Cognitive psychology; Electroencephalography,true,0.900,False
+EL,A351,EC-2,overlap,JKiss,yes,Mainly hands free objects control,MET,no,Brain–computer interface; Computer science; Electrooculography; Stimulus (psychology); Virtual reality; Visualization; Artificial intelligence; Computer vision; Interface (matter); Eye movement; Gaze; Eye tracking,true,0.900,False
+EL,A371,EC-2,overlap,JKiss,unsure,,MET,no,Gadget; Process (computing); Computer science; Resource (disambiguation); Field (mathematics); Protocol (science); Multimedia; Subject (documents); Mathematics education; Psychology; World Wide Web; Operating system,true,0.900,False
+EL,A372,EC-2,disjoint,JKiss,unsure,,MET,no,Industrial Revolution; History; Mathematics education; Engineering; Psychology; Archaeology,true,0.800,False
+EL,A395,EC-2,disjoint,JKiss,unsure,Modelisation of building...,MET,no,Plan (archaeology); Computer science; Floor plan; Artificial intelligence; Geology; Engineering drawing; Engineering; Paleontology,true,0.850,False
+EL,A423,EC-2,overlap,JVoisin,unsure,,MET,no,Social media; Internet privacy; Advertising; Computer science; Business; Public relations; Political science; World Wide Web,true,0.900,False
+EL,A452,EC-2,overlap,JKiss,unsure,,MET,no,Computer science; World Wide Web; Mathematics education; Multimedia; Linguistics; Psychology; Philosophy,true,0.800,False
+EL,A499,EC-2,disjoint,AReyes,no,Explicitly collaborative — fails EC-2's 'no social interaction or collaboration' clause irrespective of the maze part.,FAILED,yes,Virtual reality; Computer-Assisted Instruction; Pedagogy; Computer science; Human–computer interaction,true,0.700,False
+EL,A544,EC-2,disjoint,JKiss,unsure,,MET,no,Virtual reality,true,0.900,False
+EL,A546,EC-2,overlap,JKiss,unsure,,MET,no,Embodied cognition; Affordance; Gesture; Computer science; Virtual reality; Human–computer interaction; Set (abstract data type); Agency (philosophy); Focus (optics); Dimension (graph theory); Multimedia; Artificial intelligence,true,0.900,False
+EL,A547,EC-2,disjoint,JVoisin,unsure,,MET,no,Simulator sickness; Immersion (mathematics); Virtual reality; Illusion; Computer science; Instructional simulation; Multimedia; Psychology; Human–computer interaction; Cognitive psychology; Mathematics; Pure mathematics,true,0.900,False
+EL,A560,EC-2,disjoint,JVoisin,unsure,,MET,no,Touchscreen; Gesture; Test (biology); Psychology; Embodied cognition; Multimedia; Computer science; Human–computer interaction; Artificial intelligence; Biology; Paleontology,true,0.900,False
+EL,A568,EC-2,disjoint,JVoisin,unsure,,MET,no,Foreign language; Process (computing); Language acquisition; Mathematics education; Control (management); Psychology; Multimedia; Artificial intelligence; Linguistics; Philosophy,true,0.800,False
+EL,A610,EC-2,disjoint,JVoisin,unsure,,MET,no,Augmented reality; Computer science; Metacognition; Instructional design; Set (abstract data type); Educational technology; Scaffold; Mathematics education; Human–computer interaction; Psychology; Multimedia; Cognition,true,0.800,False
+EL,A284,EC-3,disjoint,JKiss,yes,,UNCERTAIN,unsure,The Internet,true,0.100,False
+EL,A286,EC-3,disjoint,AReyes,no,,UNCERTAIN,unsure,Augmented reality,true,0.100,False
+EL,A290,EC-3,disjoint,JVoisin,no,,UNCERTAIN,unsure,Virtual reality,true,0.100,False
+EL,A301,EC-3,overlap,AReyes,no,,UNCERTAIN,unsure,Neurorehabilitation,true,0.100,False
+EL,A301,EC-3,overlap,JKiss,yes,,UNCERTAIN,unsure,Neurorehabilitation,true,0.100,False
+EL,A301,EC-3,overlap,JVoisin,no,,UNCERTAIN,unsure,Neurorehabilitation,true,0.100,False
+EL,A303,EC-3,disjoint,JKiss,yes,rehabilitate the upper limb,UNCERTAIN,unsure,Motor imagery,true,0.100,False
+EL,A312,EC-3,disjoint,JKiss,yes,,MET,no,Teleoperation; Brain–computer interface; GRASP; Motor imagery; Robot; Computer science; Electroencephalography; Haptic technology; Task (project management); Artificial intelligence; Tactile sensor; Telerobotics,true,0.900,False
+EL,A344,EC-3,disjoint,JKiss,unsure,,MET,no,Brain–computer interface; Computer science; Interface (matter); Asynchronous communication; Robotic arm; Robotics; Artificial intelligence; Flexibility (engineering); Task (project management); Visualization; Augmented reality; Human–computer interaction,true,0.900,False
+EL,A423,EC-3,overlap,JVoisin,unsure,,MET,no,Social media; Internet privacy; Advertising; Computer science; Business; Public relations; Political science; World Wide Web,true,0.900,False
+EL,A546,EC-3,overlap,JKiss,yes,,MET,no,Embodied cognition; Affordance; Gesture; Computer science; Virtual reality; Human–computer interaction; Set (abstract data type); Agency (philosophy); Focus (optics); Dimension (graph theory); Multimedia; Artificial intelligence,true,0.900,False
+EL,A547,EC-3,disjoint,JVoisin,unsure,,MET,no,Simulator sickness; Immersion (mathematics); Virtual reality; Illusion; Computer science; Instructional simulation; Multimedia; Psychology; Human–computer interaction; Cognitive psychology; Mathematics; Pure mathematics,true,0.900,False
+EL,A560,EC-3,disjoint,JVoisin,unsure,,MET,no,Touchscreen; Gesture; Test (biology); Psychology; Embodied cognition; Multimedia; Computer science; Human–computer interaction; Artificial intelligence; Biology; Paleontology,true,0.900,False
+EL,A568,EC-3,disjoint,JVoisin,unsure,,MET,no,Vocabulary; Computer science; Foreign language; Process (computing); Language acquisition; Mathematics education; Control (management); Psychology; Multimedia; Artificial intelligence; Linguistics; Philosophy,true,0.900,False
+EL,A610,EC-3,disjoint,JVoisin,unsure,,MET,no,Augmented reality,true,0.900,False
+IL,A009,IC-1,overlap,AReyes,yes,VR contrasted against textbook and passive video as instructional medium — immersive-VR reading is the natural one.,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A009,IC-1,overlap,JKiss,yes,,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A009,IC-1,overlap,JVoisin,yes,,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A015,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Computer science,true,0.100,False
+IL,A022,IC-1,disjoint,AReyes,no,Applied-linguistics handbook chapter; no VR/HMD.,UNCERTAIN,unsure,Linguistics; Sociology of language; Sociology; Sociolinguistics; Meaning (existential); Anthropological linguistics; Sociocultural linguistics; Language education; Comprehension approach; Applied linguistics; Psychology; Pedagogy,true,0.100,False
+IL,A247,IC-1,disjoint,AReyes,no,3D virtual world of Tokyo for JFL — MUVE-style; no HMD/immersive-VR delivery mentioned.,UNCERTAIN,unsure,3D virtual world,false,0.800,False
+IL,A301,IC-1,disjoint,AReyes,no,EEG-BCI paradigms review; no VR/HMD component.,UNCERTAIN,unsure,Brain–computer interface,true,0.400,False
+IL,A304,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Simulation,true,0.200,False
+IL,A309,IC-1,disjoint,JVoisin,no,,UNCERTAIN,unsure,Lucid dream,true,0.100,False
+IL,A311,IC-1,overlap,AReyes,no,"AR via head-mounted AR glasses, not VR. Called NO under the AR-excluded reading of IC-1.",UNCERTAIN,unsure,Brain–computer interface; Computer science; Interface (matter); Task (project management); Human–computer interaction; User interface; Control (management); Multimedia; Artificial intelligence; Operating system; Engineering; Systems engineering,true,0.200,False
+IL,A311,IC-1,overlap,JKiss,yes,,UNCERTAIN,unsure,Brain–computer interface; Computer science; Interface (matter); Task (project management); Human–computer interaction; User interface; Control (management); Multimedia; Artificial intelligence; Operating system; Engineering; Systems engineering,true,0.200,False
+IL,A311,IC-1,overlap,JVoisin,yes,,UNCERTAIN,unsure,Brain–computer interface; Computer science; Interface (matter); Task (project management); Human–computer interaction; User interface; Control (management); Multimedia; Artificial intelligence; Operating system; Engineering; Systems engineering,true,0.200,False
+IL,A312,IC-1,disjoint,AReyes,no,MI-BCI teleoperation of a remote robotic arm; no VR/HMD simulation.,UNCERTAIN,unsure,Teleoperation; Brain–computer interface; GRASP; Motor imagery; Robot; Computer science; Electroencephalography; Haptic technology; Task (project management); Artificial intelligence; Tactile sensor; Telerobotics,true,0.200,False
+IL,A318,IC-1,disjoint,JVoisin,unsure,,MET,yes,Virtual reality; Brain–computer interface,true,0.800,False
+IL,A322,IC-1,overlap,AReyes,no,"AR via HoloLens, not VR. Called NO under the AR-excluded reading of IC-1.",UNCERTAIN,unsure,Brain–computer interface; Robotic arm; Computer science; Interface (matter); Workspace; Artificial intelligence; Computer vision; Robot; Robotics; Human–computer interaction; Augmented reality; Object (grammar),true,0.300,False
+IL,A322,IC-1,overlap,JKiss,yes,,UNCERTAIN,unsure,Brain–computer interface; Robotic arm; Computer science; Interface (matter); Workspace; Artificial intelligence; Computer vision; Robot; Robotics; Human–computer interaction; Augmented reality; Object (grammar),true,0.300,False
+IL,A322,IC-1,overlap,JVoisin,yes,,UNCERTAIN,unsure,Brain–computer interface; Robotic arm; Computer science; Interface (matter); Workspace; Artificial intelligence; Computer vision; Robot; Robotics; Human–computer interaction; Augmented reality; Object (grammar),true,0.300,False
+IL,A324,IC-1,overlap,AReyes,unsure,No abstract; 'virtually embodied feedback' in MI-BCI could be HMD-VR or desktop-VR.,MET,yes,Virtual reality,true,0.800,False
+IL,A324,IC-1,overlap,JVoisin,unsure,,MET,yes,Virtual reality,true,0.800,False
+IL,A328,IC-1,overlap,AReyes,no,MI-BCI inefficiency review; no VR/HMD component.,UNCERTAIN,unsure,Motor imagery,true,0.400,False
+IL,A328,IC-1,overlap,JVoisin,no,,UNCERTAIN,unsure,Motor imagery,true,0.400,False
+IL,A338,IC-1,overlap,AReyes,unsure,'3D VR mandala installation' is ambiguous between HMD and projection/CAVE-style installation; EEG hookup doesn't disambiguate.,MET,yes,Virtual reality,true,0.900,False
+IL,A345,IC-1,disjoint,AReyes,no,"AR-SSVEP-BCI for human-robot interaction; AR, not VR. Called NO under the AR-excluded reading.",UNCERTAIN,unsure,Augmented reality,false,0.950,False
+IL,A347,IC-1,overlap,AReyes,no,"Translucent HMD used for AR overlays driving a brain-controlled wheelchair — AR, not VR/virtual simulation. NO under the AR-excluded reading.",MET,yes,Augmented reality,true,0.950,False
+IL,A348,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Notation; Computer science; SIGNAL (programming language); Function (biology); Mathematics; Programming language; Arithmetic; Biology; Evolutionary biology,true,0.200,False
+IL,A349,IC-1,disjoint,AReyes,no,"AR-SSVEP-BCI controlling a humanoid robot in a (physical) maze; AR, not VR/HMD virtual simulation.",MET,yes,Augmented reality; Computer science; Humanoid robot; Robot; Psychology; Human–computer interaction; Artificial intelligence; Neuroscience; Cognitive psychology; Electroencephalography,true,0.900,False
+IL,A372,IC-1,disjoint,AReyes,no,"General higher-ed/4IR paper; 'immersive technologies' is one of several IT trends listed, not the primary focus, and HMD-VR is not described.",UNCERTAIN,unsure,Industrial Revolution; History; Mathematics education; Engineering; Psychology; Archaeology,true,0.100,False
+IL,A395,IC-1,disjoint,AReyes,no,"3D building reconstruction from floor plans — CAD/computer-vision, not VR/HMD.",UNCERTAIN,unsure,Plan (archaeology); Computer science; Floor plan; Artificial intelligence; Geology; Engineering drawing; Engineering; Paleontology,true,0.100,False
+IL,A447,IC-1,overlap,AReyes,no,"3D MUVEs (Second Life-type) — typically desktop, no HMD/immersive-VR delivery.",MET,yes,Virtual reality,true,0.800,False
+IL,A455,IC-1,disjoint,AReyes,no,"Same paper as A447 / similar — 3D MUVEs are desktop-style, no HMD/immersive-VR delivery.",MET,yes,Virtual reality,true,0.900,False
+IL,A503,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Virtual world,true,0.200,False
+IL,A545,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Virtual reality; Augmented reality,false,0.850,False
+IL,A547,IC-1,disjoint,JKiss,yes,,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A560,IC-1,disjoint,AReyes,no,Touchscreen-app study; no VR/HMD.,UNCERTAIN,unsure,Computer science,true,0.100,False
+IL,A561,IC-1,disjoint,AReyes,unsure,Title mentions 'VR educational products' but no abstract — HMD/immersive status undetermined.,MET,yes,Virtual reality,true,0.800,False
+IL,A569,IC-1,disjoint,AReyes,no,Online K-12 learning during COVID; no VR/HMD.,UNCERTAIN,unsure,Disengagement theory; Psychology; Thematic analysis; Student engagement; Competence (human resources); Self-determination theory; Lifelong learning; Mathematics education; Perspective (graphical); Educational technology; Pedagogy; Autonomy,true,0.100,False
+IL,A572,IC-1,disjoint,JKiss,yes,,UNCERTAIN,unsure,Situational ethics; Mathematics education; Psychology; Significant difference; Affect (linguistics); Control (management); Computer science; Social psychology; Artificial intelligence; Mathematics; Communication; Statistics,true,0.100,False
+IL,A573,IC-1,overlap,AReyes,yes,Google Earth VR — HMD-based VR application.,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A573,IC-1,overlap,JKiss,yes,,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A573,IC-1,overlap,JVoisin,yes,,UNCERTAIN,unsure,Virtual reality,true,0.200,False
+IL,A575,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Computer science,true,0.100,False
+IL,A582,IC-1,disjoint,JVoisin,no,,UNCERTAIN,unsure,Computer science,true,0.100,False
+IL,A610,IC-1,disjoint,AReyes,no,"AR for STEM (title); systematic review of AR, not VR/HMD.",UNCERTAIN,unsure,Augmented reality; Computer science; Metacognition; Instructional design; Set (abstract data type); Educational technology; Scaffold; Mathematics education; Human–computer interaction; Psychology; Multimedia; Cognition,true,0.200,False
+IL,A614,IC-1,disjoint,AReyes,no,"AR (explicit in title); systematic review of ARGBL, not VR/HMD virtual simulation.",UNCERTAIN,unsure,Augmented reality; Computer science; Educational technology,false,0.400,False
+IL,A615,IC-1,disjoint,JVoisin,yes,,UNCERTAIN,unsure,Virtual reality; Psychology; Computer science; Human–computer interaction,false,0.800,False
+IL,A616,IC-1,overlap,AReyes,no,Eye-contact-and-memory study; no VR component.,UNCERTAIN,unsure,Eye contact; Psychology; Social cognition,false,0.300,False
+IL,A616,IC-1,overlap,JVoisin,no,,UNCERTAIN,unsure,Eye contact; Psychology; Social cognition,false,0.300,False
+IL,A622,IC-1,disjoint,AReyes,no,"AR for automotive engineering training (title); no abstract, but AR is explicit.",UNCERTAIN,unsure,Augmented reality; Computer science; Human–computer interaction,false,0.700,False
+IL,A636,IC-1,disjoint,JKiss,unsure,,FAILED,no,Computer science; Language acquisition; Mathematics education; Natural language processing; Linguistics; Artificial intelligence; Psychology; Philosophy,true,0.900,False
+IL,A642,IC-1,overlap,JKiss,yes,"I consider that virtual world is immersive by nature. However, in the lit... many researchers mentioned that is not enough...so it is the reason why I mention this nuance here  and my remark is true for the whole document.",FAILED,no,Affordance; Moderation; Computer science; Language acquisition; Relation (database); Cognitive psychology; Psychology; Linguistics; Mathematics education; Human–computer interaction; Machine learning; Database,true,0.800,False
+IL,A642,IC-1,overlap,JVoisin,yes,,FAILED,no,Affordance; Moderation; Computer science; Language acquisition; Relation (database); Cognitive psychology; Psychology; Linguistics; Mathematics education; Human–computer interaction; Machine learning; Database,true,0.800,False
+IL,A760,IC-1,disjoint,JVoisin,unsure,,MET,yes,Virtual reality; Cognitive load; Computer science; Embodied cognition; Human–computer interaction; Instructional simulation; Cognition; Mobile device; Curriculum; Multimedia; Psychology; Artificial intelligence,true,0.950,False
