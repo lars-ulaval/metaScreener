@@ -26,6 +26,17 @@ In a demonstration use case comprising 776 candidate records, the pipeline reduc
 
 ---
 
+## Documentation
+
+Full project documentation lives in [`docs/`](docs/index.md):
+
+- [Installation guide](docs/installation.md) — detailed setup, configuration reference, verification, troubleshooting, upgrading.
+- [LLM-screening human validation](docs/llm-evaluation.md) — methodology, agreement metrics, and limitations from the demonstration-corpus validation study.
+
+See the [documentation index](docs/index.md) for the full table of contents.
+
+---
+
 ## Pipeline architecture
 
 metaScreener organises its screening workflow into seven plugins across four functional groups:
