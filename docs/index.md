@@ -25,9 +25,10 @@ quickstart pointers, see the [project README](../README.md).
   gotchas. Uses the sample data in [`docs_/samples/`](../docs_/samples/)
   as the running example.
 
-- **FAQ** — forthcoming. Answers to common questions about
-  configuration, model selection, bundle compatibility, and known
-  edge cases. Will live at `docs/faq.md` once available.
+- **[FAQ](faq.md)** — answers to common questions about
+  configuration, costs and caching, the bundle pipeline, LLM
+  stages and human validation, reproducibility, and known edge
+  cases.
 
 ## Evidence files
 

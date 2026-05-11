@@ -87,3 +87,124 @@ class TestMetadataConsistency:
             "(actions/workflows/test.yml) or a static 'Tested on' "
             "badge listing Ubuntu and Windows."
         )
+
+
+# Pattern for a non-image markdown link [text](url-or-path). The
+# negative lookbehind excludes image links (which start with `![`).
+# The captured group is the URL or relative path.
+_MARKDOWN_LINK_RE = re.compile(r"(?<!\!)\[[^\]]+\]\(([^)]+)\)")
+
+
+def _markdown_files_in_repo():
+    """Return all tracked-by-convention Markdown files: README.md plus
+    everything under docs/ (recursively). Sample docs under docs_/ are
+    out of scope: they are intentionally minimal and may carry
+    placeholder references.
+    """
+    out = [PROJECT_ROOT / "README.md"]
+    docs_dir = PROJECT_ROOT / "docs"
+    if docs_dir.is_dir():
+        out.extend(sorted(docs_dir.rglob("*.md")))
+    return out
+
+
+def _split_link_target(target):
+    """Split a markdown link target on the '#' anchor separator.
+
+    Returns (path_part, anchor_part). Either may be empty:
+      "foo.md"        -> ("foo.md", "")
+      "foo.md#bar"    -> ("foo.md", "bar")
+      "#bar"          -> ("", "bar")
+    """
+    if "#" in target:
+        path, _, anchor = target.partition("#")
+        return path, anchor
+    return target, ""
+
+
+class TestDocsCrossReferences:
+    """Cross-reference integrity for the documentation surface.
+
+    Catches the most common broken-link regressions when docs are
+    moved, renamed, or referenced before they exist. Operates as
+    pure-text linting against repo-root files; no application
+    imports.
+    """
+
+    def test_internal_markdown_links_resolve(self):
+        """Every relative link inside README.md and docs/*.md must
+        point to an existing file (or be an external http(s) URL,
+        a mailto: URL, or an in-page anchor). Catches typos and
+        forward-references to files that have not been created yet.
+        """
+        problems = []
+        for md_path in _markdown_files_in_repo():
+            try:
+                text = md_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for match in _MARKDOWN_LINK_RE.finditer(text):
+                raw_target = match.group(1).strip()
+                # External or scheme-prefixed URLs: skip.
+                if raw_target.startswith(("http://", "https://", "mailto:")):
+                    continue
+                # Pure in-page anchors: skip (a referenced heading
+                # would require parsing the same file's headings; out
+                # of scope for this test).
+                if raw_target.startswith("#"):
+                    continue
+                path_part, _anchor = _split_link_target(raw_target)
+                if not path_part:
+                    continue
+                # Resolve relative to the .md file's directory.
+                referenced = (md_path.parent / path_part).resolve()
+                if not referenced.exists():
+                    problems.append(
+                        f"{md_path.relative_to(PROJECT_ROOT)} -> "
+                        f"{raw_target} (resolves to {referenced})"
+                    )
+        assert not problems, (
+            "Broken internal markdown links:\n  "
+            + "\n  ".join(problems)
+        )
+
+    def test_every_doc_listed_in_index(self):
+        """Every .md file under docs/ (except docs/index.md itself)
+        must be referenced by docs/index.md. This keeps the
+        documentation hub honest as new docs are added.
+        """
+        docs_dir = PROJECT_ROOT / "docs"
+        if not docs_dir.is_dir():
+            pytest.skip("docs/ directory not present")
+        index_path = docs_dir / "index.md"
+        assert index_path.exists(), "docs/index.md must exist"
+        index_text = index_path.read_text(encoding="utf-8")
+
+        missing = []
+        for md_path in sorted(docs_dir.rglob("*.md")):
+            if md_path.name == "index.md":
+                continue
+            # Reference can use either bare filename or relative path
+            # from docs/index.md; we accept either.
+            rel = md_path.relative_to(docs_dir).as_posix()
+            bare = md_path.name
+            if rel not in index_text and bare not in index_text:
+                missing.append(rel)
+
+        assert not missing, (
+            "Docs not referenced from docs/index.md:\n  "
+            + "\n  ".join(missing)
+        )
+
+    def test_readme_links_to_docs_index(self):
+        """The README must surface the documentation hub. After C4,
+        README.md contains a Documentation section that links to
+        docs/index.md; this test catches a regression where the
+        section is removed or the link rotted.
+        """
+        readme = _read("README.md")
+        assert "docs/index.md" in readme, (
+            "README.md must contain a link to docs/index.md "
+            "(the documentation hub). Was the Documentation section "
+            "removed or the link path changed?"
+        )
