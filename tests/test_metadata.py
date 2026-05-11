@@ -30,15 +30,6 @@ class TestMetadataConsistency:
         Released entry must agree on the current version. The
         [Unreleased] block does NOT count - that's the holding pen
         for the next release.
-
-        NOTE: At Conv 7 start, pyproject/CITATION are at 3.1.0
-        (preparing for the v3.1.0 release in Conv 10) but CHANGELOG's
-        most-recent Released entry is still [3.0.1]. This test is
-        marked xfail until Conv 10 cuts the v3.1.0 tag and creates
-        the matching CHANGELOG entry. The xfail documents the
-        pending-release state without breaking the suite; when
-        Conv 10 lands, removing the xfail() call activates the
-        equality assertions below.
         """
         pyproject = _read("pyproject.toml")
         citation = _read("CITATION.cff")
@@ -55,14 +46,6 @@ class TestMetadataConsistency:
         assert m_cff, "CITATION.cff has no version field"
         assert m_chl, "CHANGELOG.md has no released version entry"
 
-        pytest.xfail(
-            "Pending Conv 10 release: pyproject/CITATION at 3.1.0 but "
-            "CHANGELOG most-recent-Released still 3.0.1. Test will pass "
-            "once the v3.1.0 tag is cut and CHANGELOG entry created."
-        )
-
-        # When Conv 10 removes the xfail above, these assertions
-        # become active and enforce three-way version agreement.
         assert m_pyp.group(1) == m_cff.group(1) == m_chl.group(1), (
             f"Version drift: pyproject={m_pyp.group(1)!r}, "
             f"CITATION={m_cff.group(1)!r}, CHANGELOG={m_chl.group(1)!r}"
