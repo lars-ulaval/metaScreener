@@ -78,17 +78,41 @@ class TestMetadataConsistency:
 _MARKDOWN_LINK_RE = re.compile(r"(?<!\!)\[[^\]]+\]\(([^)]+)\)")
 
 
+# Subdirectories of docs/ that hold internal working documents rather
+# than published documentation. These are deliberately NOT advertised on
+# docs/index.md and may reference paths, commits, or drafts that do not
+# resolve from a clean checkout, so both cross-reference tests skip them.
+DOCS_INTERNAL_DIRS = ("internal",)
+
+
+def _is_internal_doc(md_path):
+    """True if md_path lives under one of the DOCS_INTERNAL_DIRS."""
+    docs_dir = PROJECT_ROOT / "docs"
+    try:
+        rel = md_path.relative_to(docs_dir)
+    except ValueError:
+        return False
+    return rel.parts[:1] and rel.parts[0] in DOCS_INTERNAL_DIRS
+
+
+def _published_docs_markdown_files():
+    """Return every published Markdown file under docs/, recursively,
+    excluding internal working documents (see DOCS_INTERNAL_DIRS).
+    """
+    docs_dir = PROJECT_ROOT / "docs"
+    if not docs_dir.is_dir():
+        return []
+    return [p for p in sorted(docs_dir.rglob("*.md")) if not _is_internal_doc(p)]
+
+
 def _markdown_files_in_repo():
     """Return all tracked-by-convention Markdown files: README.md plus
-    everything under docs/ (recursively). Sample docs under docs_/ are
-    out of scope: they are intentionally minimal and may carry
-    placeholder references.
+    the published files under docs/ (recursively). Sample docs under
+    docs_/ are out of scope: they are intentionally minimal and may
+    carry placeholder references. Internal working documents under
+    docs/internal/ are out of scope for the same reason.
     """
-    out = [PROJECT_ROOT / "README.md"]
-    docs_dir = PROJECT_ROOT / "docs"
-    if docs_dir.is_dir():
-        out.extend(sorted(docs_dir.rglob("*.md")))
-    return out
+    return [PROJECT_ROOT / "README.md"] + _published_docs_markdown_files()
 
 
 def _split_link_target(target):
@@ -152,9 +176,13 @@ class TestDocsCrossReferences:
         )
 
     def test_every_doc_listed_in_index(self):
-        """Every .md file under docs/ (except docs/index.md itself)
-        must be referenced by docs/index.md. This keeps the
+        """Every published .md file under docs/ (except docs/index.md
+        itself) must be referenced by docs/index.md. This keeps the
         documentation hub honest as new docs are added.
+
+        Internal working documents under docs/internal/ are exempt:
+        they are not part of the published documentation surface and
+        should not have to be advertised on the public index.
         """
         docs_dir = PROJECT_ROOT / "docs"
         if not docs_dir.is_dir():
@@ -164,7 +192,7 @@ class TestDocsCrossReferences:
         index_text = index_path.read_text(encoding="utf-8")
 
         missing = []
-        for md_path in sorted(docs_dir.rglob("*.md")):
+        for md_path in _published_docs_markdown_files():
             if md_path.name == "index.md":
                 continue
             # Reference can use either bare filename or relative path
