@@ -396,7 +396,7 @@ If you use metaScreener in your research, please cite:
   title     = {metaScreener: A Plugin-Based Desktop Application for Human-in-the-Loop Systematic Literature Screening},
   journal   = {Journal of Open Research Software},
   year      = {2026},
-  note      = {Submitted},
+  note      = {Under revision},
   doi       = {10.5281/zenodo.19360124}
 }
 ```
