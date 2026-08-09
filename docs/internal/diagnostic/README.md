@@ -27,12 +27,24 @@
 2026-08-08 against `365325c`; documents 04, 05 and 06 were added by later waves, and six
 fix waves (0–5) have landed since.
 
-**The register is the single authority for counts and status.** As of wave 6 it holds
-**127 rows**, F-01..F-130 with a permanent gap at F-56–F-58 — **4 Critical · 35 High ·
-58 Medium · 30 Low**. Forty-six rows are closed and eighty-one are open. Note that most
-closures are recorded in `CHANGELOG.md` rather than in the row: see
-[`03_findings.md` § "How this register is counted, and which rows are closed"](03_findings.md)
-before reading any row as open, and count **rows**, never the maximum ID.
+**The register is the single authority for counts and status.** As of wave 6b it holds
+**129 rows**, F-01..F-132 with a permanent gap at F-56–F-58. **45 are closed and 84 are
+open**, and every closed row now names the commit that closed it — a row's status is the
+marker in its **Effort** cell (`(done)`, `(scheduled)`, `(backlog)`, `(parked)`, or nothing
+for open-and-unscheduled).
+
+| | Total | Closed | **Open** |
+|---|---:|---:|---:|
+| **Critical** | 4 | 3 | **1** |
+| **High** | 36 | 16 | **20** |
+| **Medium** | 57 | 14 | **43** |
+| **Low** | 32 | 12 | **20** |
+| **Total** | 129 | 45 | **84** |
+
+Of the 84 open, 1 is scheduled (F-79, wave 4b), 5 are backlog and 2 are parked; the rest are
+unscheduled. These totals are a derived snapshot and nothing checks them against the table —
+that is **F-131**. Count **rows**, never the maximum ID. See
+[`03_findings.md` § "How this register is counted, and which rows are closed"](03_findings.md).
 
 **The highest-severity open finding is F-86** (from `06_llm_integration.md` C-1):
 `plugins/_common/llm_client.py::run_m1_llm_for_criterion` builds its acceptance map from

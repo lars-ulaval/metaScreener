@@ -438,3 +438,105 @@ row count and maximum ID; the `C-n` → `F-nn` table in full; the golden-hash re
 and the independent `git diff main...HEAD -- tests/golden/`; the before/after suite counts;
 the three tool exit codes; confirmation that the branch diff touches only `.md` files; and
 every point of disagreement above. Do not merge, tag or push.
+
+---
+
+# Wave 6b — the closure ledger
+
+*Same branch, same scope rules. Wave 6 closed with "annotating the 29 rows individually is a
+wave in itself and was deliberately not attempted here … It is the obvious next wave." This
+is that wave.*
+
+## What was done
+
+**Part 1 — annotation.** Closing evidence was established from the repository (commit log,
+`CHANGELOG.md`, the wave briefs) for every row the ledger called closed, and written into
+the row in the existing F-09/F-40/F-61 form. **32 rows annotated: 28 marked `(done)`, four
+deliberately not.** Every closure was verified against HEAD rather than inferred from a
+commit subject — the row's stated fix read, decomposed, and checked clause by clause.
+
+**Part 2 — honest totals.** Status is now the marker in the **Effort** cell, a closed
+vocabulary of `(done)` / `(scheduled)` / `(backlog)` / `(parked)` / nothing. This extends
+the convention the register already used on 19 rows rather than inventing a parallel one,
+which was the decisive consideration: a new status column or summary block would have been a
+*second* enumeration to drift, which is the failure the constraint was warning about. The
+severity block became an open/closed matrix explicitly labelled a derived snapshot, carrying
+its own derivation rule so drift is detectable and attributable. Counting rule 3 records
+what "open" includes and why the scheduled/backlog/parked states are broken out.
+
+**Part 3 — two transcription errors** in `06_llm_integration.md`, **corrected in place**
+rather than annotated. The wave-6 rule was annotate-what-was-true-at-the-time; neither of
+these was ever true of anything. A misspelled environment variable records no observation
+and a cross-reference to the wrong candidate records no finding, so annotating them would
+only have preserved a dead end — a reader grepping `METESCREENER_CACHE_DIR` still finds
+nothing. A footnote records both and carries the register coordinates, since §B9's namespace
+has been swept since.
+
+## Where the ledger was wrong
+
+The wave-6 ledger derived *closed* as **(cited in `CHANGELOG.md`) ∪ (annotated in-row)** and
+treated the remainder as open. Both inputs are human bookkeeping; the commit log is the only
+mechanically-generated record, and the ledger never consulted it. Four rows overturned:
+
+| Row | Ledger said | Truth | Why |
+|---|---|---|---|
+| **F-47** | open | **closed** (`30ceb3f`) | Fixed in a commit and recorded in *neither* input. The method cannot see a closure whose author skipped the paperwork, and the bias runs toward small findings — a one-line `.gitignore` fix is exactly what feels too trivial to changelog. |
+| **F-11** | open | **narrowed** (`93c9827`) | Its headline — "zero test coverage … not even an import smoke test" — is false at HEAD. `ui.py` and `pipeline.py` remain untested and `pipeline.py` is imported by nothing, so the row stays open with a corrected finding. |
+| **F-43** | closed | **partial** | `04a6fdb` added the DOI to `CITATION.cff`, which is all the *fix cell* asked for, but the *finding* names `.zenodo.json` too and nothing touched it. Not marked done. |
+| **F-27**, **F-66** | open | **open** — right answer, no reasoning | Both fell into the residual bucket by default, and both have commits naming them in the subject line. |
+
+**The obvious repair would have been worse than the defect.** Reconciling against
+`git log | grep F-nn` closes F-27 and F-66, whose defects are fully present at HEAD.
+`e56fb0a fix(F-27)` repaired an F-27-*shaped* divergence that F-34 had introduced 34 minutes
+earlier — its commit message, its code comment and its test docstring each say so, and none
+of those survives a subject-line grep. `b586230 test(F-66)` asserts the build spec can reach
+every dependency; F-66 is about whether a *user* learns when it could not. **A commit tag is
+a pointer to a finding, not a claim of closure.** The only method that settles a row is to
+read its stated fix and check it against HEAD.
+
+Net effect on the count was zero — F-43 out, F-47 in — which is luck, not method, and is
+worth saying so plainly.
+
+## What regenerating the totals found
+
+The printed count line said **20 High · 36 Medium** where the table said **21 · 35**. The
+cause is **F-26**, whose severity cell reads `**Medium** → **High**`: the line recorded the
+severity it was *filed* at rather than the one it was *raised* to in wave 2. The error
+predates wave 6, which inherited and propagated it — wave 6's own published
+"4 Critical · 35 High · 58 Medium · 30 Low" is wrong for this reason.
+
+This is the register's own totals exhibiting the defect the register exists to track: two
+representations of one fact, maintained by hand, with nothing comparing them — F-69's shape,
+in the document the project plans from. Logged as **F-131**, with the fix (parse the table,
+assert the totals) recorded as code and therefore out of scope here.
+
+**F-132** was logged from the same pass: verifying F-50's closure showed the identical
+copy-paste artefact surviving twice more in the very function F-50 corrected. F-50's *text*
+is genuinely fixed, so it is closed; its *purpose* was not achieved, and a closure that
+leaves two siblings standing is worth the record.
+
+## Where I disagree with the wave-6b brief
+
+1. **"roughly 29 register rows"** — 29 is exact and was verified, but it is the wrong
+   number to work from, because it is a count of rows *recorded* as closed rather than rows
+   *that are* closed. The set to annotate was 30: the 29, minus F-43 (partial), plus F-47.
+
+2. **A verification agent reported the ledger's own inputs as miscounted — "17 annotated is
+   really 16" and "29 is really 31". Both are wrong, and I checked rather than accepted
+   them.** The 17 is right: the agent's grep matched only ``Fixed in `` and so missed F-76,
+   which uses `Done in`, and F-67, whose effort cell reads `(done, 4a)`. The 29 is right
+   too: the agent's 31 double-counted by missing F-76 in the annotated set and by treating
+   `F-79` as a closure when both its `[Unreleased]` mentions are forward references — "the
+   EH/IH report CSVs keep their old terminator **until** the deliverable-format wave
+   (F-79)". Recorded because a wave that had accepted the correction would have annotated
+   two rows that are not closed.
+
+3. **"Report the count of rows whose closure could not be attributed to a commit."** That
+   count is **zero** — every one of the 29 has an identifiable `fix(F-nn)` or `docs(...)`
+   commit, and F-47's was found in the commit log alone. The prompt's contingency for an
+   unattributable closure was not needed. Worth stating because its absence is itself
+   evidence: this repository's commit discipline is good enough that the commit log is a
+   better closure record than either document that was being used as one.
+
+4. **Wave 6's own published totals are wrong**, as above. I am correcting my own work from
+   the previous wave, not the brief's.
