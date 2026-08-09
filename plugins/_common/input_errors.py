@@ -109,9 +109,15 @@ def write_input_errors_csv(errors: Iterable[InputError]) -> str:
     The header is written even for an empty list: a file that exists and
     says "no records were dropped" is a different claim from no file, and
     only the first one is auditable.
+
+    F-67: the line terminator is the csv module's default ``\\r\\n``, not
+    ``\\n``. With ``lineterminator="\\n"`` the writer does not quote a field
+    containing a lone CR, and a dropped record whose text carried a stray
+    ``\\r`` produced a file ``csv.reader`` refuses to parse — an audit trail
+    destroyed by the very content it exists to record.
     """
     buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=INPUT_ERRORS_FIELDS, lineterminator="\n")
+    w = csv.DictWriter(buf, fieldnames=INPUT_ERRORS_FIELDS)
     w.writeheader()
     for row in to_rows(errors):
         w.writerow(row)

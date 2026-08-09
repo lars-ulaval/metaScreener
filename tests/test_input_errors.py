@@ -119,6 +119,42 @@ class TestReaderAcceptsLegacySchemas:
 
 
 # ---------------------------------------------------------------------------
+# F-67: hostile content must not break the file's structure
+# ---------------------------------------------------------------------------
+
+class TestLoneCarriageReturnSurvives:
+    """F-67. csv.writer with lineterminator="\\n" does not quote a field
+    containing a lone CR, so a dropped record whose text carried a stray
+    \\r produced an input_errors.csv that csv.reader refuses to parse —
+    and read_input_errors() then reported it as empty (F-68). The audit
+    file must be parseable whatever the dropped record contained."""
+
+    HOSTILE = InputError(stage="Harmoniser", record_number=3,
+                         reason="wrong_column_count",
+                         raw="pre\rpost | 2022 | SURPLUS",
+                         observed_len=4, expected_len=3)
+
+    def test_lone_cr_field_is_parseable_by_csv_reader(self):
+        text = write_input_errors_csv([self.HOSTILE])
+        rows = list(csv.reader(io.StringIO(text)))
+        assert len(rows) == 2, (
+            "F-67: a lone CR in the raw field was emitted unquoted, so the "
+            "file is not valid CSV and csv.reader cannot parse it."
+        )
+
+    def test_lone_cr_field_round_trips_byte_preserved(self):
+        [back] = read_input_errors(write_input_errors_csv([self.HOSTILE]))
+        assert back == self.HOSTILE
+        assert back.raw == "pre\rpost | 2022 | SURPLUS"
+
+    def test_merge_output_stays_parseable_with_hostile_prior(self):
+        prior = write_input_errors_csv([self.HOSTILE])
+        merged = merge_input_errors_csv(
+            prior, [InputError("EH", 5, "missing_local_id", "clean")])
+        assert [e.stage for e in read_input_errors(merged)] == ["Harmoniser", "EH"]
+
+
+# ---------------------------------------------------------------------------
 # appending, never overwriting
 # ---------------------------------------------------------------------------
 
