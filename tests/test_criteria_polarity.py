@@ -74,6 +74,25 @@ class TestBlankPolarityIsRejected:
         assert any("IC-1" in w for w in rep.warnings)
         assert any("type" in w.lower() for w in rep.warnings)
 
+    def test_warning_names_the_csv_row_number(self):
+        """The user has to find the offending cell in a spreadsheet, so the
+        message carries the 1-based line number including the header."""
+        rep = get_il()._parse_criteria_harmonized_csv(
+            _csv(_row("IL", "IC-1", "include"),
+                 _row("IL", "IC-2", "include"),
+                 _row("IL", "IC-3", "")),
+            stage_filter="IL",
+        )
+        assert len(rep.warnings) == 1
+        assert "row 4" in rep.warnings[0], rep.warnings[0]
+        assert "IC-3" in rep.warnings[0]
+
+    def test_warning_says_what_to_do(self):
+        rep = get_il()._parse_criteria_harmonized_csv(
+            _csv(_row("IL", "IC-1", "")), stage_filter="IL"
+        )
+        assert "criteria_harmonized.csv" in rep.warnings[0]
+
     def test_el_blank_type_row_is_skipped_with_a_warning(self):
         """Mirror case: EL's default happened to match its polarity, but a
         blank cell is still an unspecified criterion, not an exclusion."""

@@ -244,7 +244,9 @@ def _parse_criteria_harmonized_csv(csv_text: str, stage_filter: str) -> Criteria
     crits: List[Criterion] = []
     warnings: List[str] = []
 
-    for r in rows:
+    # row_no is the 1-based line number in criteria_harmonized.csv,
+    # counting the header, so it matches what a spreadsheet shows.
+    for row_no, r in enumerate(rows, start=2):
         stage = _safe_str(get(r, "stage")).strip().upper()
         if stage != stage_filter.upper():
             continue
@@ -265,10 +267,12 @@ def _parse_criteria_harmonized_csv(csv_text: str, stage_filter: str) -> Criteria
         ctype = _safe_str(get(r, "type", "ctype")).strip().lower()
         if ctype not in ("include", "exclude"):
             warnings.append(
-                "[criteria] %s: type is %s, expected 'include' or 'exclude' "
-                "-> criterion SKIPPED (its polarity cannot be determined, and "
-                "guessing it could invert the screening decision)."
-                % (cid, repr(ctype) if ctype else "empty")
+                "[criteria] row %d (%s): type is %s, expected 'include' or "
+                "'exclude' -> criterion SKIPPED. Its polarity cannot be "
+                "determined, and guessing it could invert the screening "
+                "decision. Fix the type cell in criteria_harmonized.csv "
+                "and re-load the bundle."
+                % (row_no, cid, repr(ctype) if ctype else "empty")
             )
             continue
         operator = _safe_str(get(r, "operator")).strip().lower() or "llm"
