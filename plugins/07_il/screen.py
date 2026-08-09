@@ -156,6 +156,39 @@ def _csv_read(text: str) -> Tuple[List[str], List[Dict[str, str]]]:
         out.append(d)
     return header, out
 
+def _csv_read_strict(text: str) -> Tuple[List[str], List[Dict[str, str]], List[Dict[str, Any]]]:
+    """_csv_read for the corpus: a ragged row is rejected and recorded, not
+    silently padded or truncated to the header width.
+
+    F-72. EH/IH have always rejected such rows as ``bad_column_count``
+    (plugins/_common/parser.py:305-307); repairing the same file here meant
+    the corpus depended on which stage opened it, and the repair left no
+    entry in the audit trail. ``_csv_read`` keeps its lenient behaviour for
+    the criteria table and report re-reads; only data/current.csv comes
+    through this strict variant.
+    """
+    f = io.StringIO(text)
+    reader = csv.reader(f)
+    rows = list(reader)
+    if not rows:
+        return [], [], []
+    header = [h.strip() for h in rows[0]]
+    expected = len(header)
+    out: List[Dict[str, str]] = []
+    skipped: List[Dict[str, Any]] = []
+    for r in rows[1:]:
+        if not any((c or "").strip() for c in r):
+            continue
+        if len(r) != expected:
+            skipped.append({
+                "reason": f"bad_column_count:{len(r)}!=expected:{expected}",
+                "row": {"raw": " | ".join(_safe_str(c) for c in r)},
+            })
+            continue
+        out.append({h: r[j] for j, h in enumerate(header)})
+    return header, out, skipped
+
+
 def _write_csv(path: str, header: List[str], rows: List[Dict[str, Any]]):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="") as f:
@@ -193,9 +226,8 @@ def _load_bundle(zip_path: str) -> BundleInfo:
         if current_full not in members:
             raise FileNotFoundError("Bundle missing data/current.csv")
         current_txt = _decode_bytes(_read_zip_bytes(zf, current_full))
-        header, rows = _csv_read(current_txt)
-
-        skipped: List[Dict[str, Any]] = []
+        # F-72: strict read — ragged rows divert to the skip list.
+        header, rows, skipped = _csv_read_strict(current_txt)
         # Minimal sanity: require local_id
         if "local_id" not in header:
             # Try common fallbacks

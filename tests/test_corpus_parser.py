@@ -101,3 +101,55 @@ class TestParityWithTheLLMStages:
                 el_kept.append(lid)
 
         assert [r["local_id"] for r in eh_rep.rows] == el_kept
+
+
+class TestRaggedRowsAreRejectedAtTheLLMStages:
+    """F-72. EL/IL's corpus reader padded a short row with "" and truncated a
+    long one to the header width, where EH/IH skip the same row as
+    bad_column_count (plugins/_common/parser.py:305-307). The same
+    data/current.csv therefore yielded different record sets depending on
+    which stage opened it, and the repair left nothing in the audit trail.
+    Both LLM stages now apply EH/IH's reject-and-record policy.
+
+    Uses the diagnostic's fixture: a 4-cell row and a 2-cell row against a
+    3-column header (05_report_production.md, probe P5).
+    """
+
+    RAGGED = ("local_id,a,b\n"
+              "X1,1,2,3\n"      # surplus cell   -> must be rejected
+              "X2,1\n"          # missing cell   -> must be rejected
+              "X3,1,2\n")       # integral       -> must survive
+
+    CRITERIA = ("stage,id,type,scope,label,operator,target,what,"
+                "threshold,enabled,source_text\n")
+
+    def _bundle_zip(self, tmp_path, name):
+        import json
+        import zipfile
+        zp = tmp_path / name
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("manifest.json", json.dumps({}))
+            zf.writestr("data/current.csv", self.RAGGED)
+            zf.writestr("criteria/criteria_harmonized.csv", self.CRITERIA)
+        return str(zp)
+
+    def _assert_policy(self, bundle):
+        assert [r["local_id"] for r in bundle.parse.rows] == ["X3"], (
+            "F-72: a ragged row was silently repaired into the corpus "
+            "instead of being rejected the way EH/IH reject it."
+        )
+        reasons = [e.get("reason", "") for e in bundle.parse.skipped]
+        assert sum("bad_column_count" in r for r in reasons) == 2, (
+            f"F-72: the rejected rows must reach the skip list that becomes "
+            f"data/input_errors.csv (got reasons: {reasons})."
+        )
+
+    def test_el_rejects_and_records(self, tmp_path):
+        from conftest import get_el
+        self._assert_policy(get_el()._load_bundle(
+            self._bundle_zip(tmp_path, "el.zip")))
+
+    def test_il_rejects_and_records(self, tmp_path):
+        from conftest import get_il
+        self._assert_policy(get_il()._load_bundle(
+            self._bundle_zip(tmp_path, "il.zip")))
