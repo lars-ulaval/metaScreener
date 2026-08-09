@@ -215,7 +215,7 @@ python run.py
 
 ## Sample data
 
-The `samples/` directory contains minimal sample inputs for testing:
+The repository's `samples/` directory contains minimal sample inputs for testing (included in a source clone or download; not part of a pip install):
 
 | File | Description |
 |------|-------------|

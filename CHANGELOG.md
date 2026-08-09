@@ -162,6 +162,17 @@ and ruled out — the disabled flag is honoured at load, before any stage
 evaluates anything.
 
 ### Fixed
+- The documentation no longer implies that pip installs include the sample
+  data (F-83). The samples were described as "bundled" while no
+  distributable contains them: the `[tool.setuptools.package-data]` entry
+  for the old sample folder was a no-op — package-data applies only to
+  packages selected by `packages.find`, which names `metascreener*` and
+  `plugins*` — verified against the built 3.1.0 wheel and sdist, which
+  contain no sample paths. Per the wave-5 decision the samples stay
+  repository-only: the installation guide, README and usage guide now say
+  they ship with a source clone or download and are absent from a PyPI
+  install, and the dead package-data line is gone (removed with the F-54
+  rename).
 - The `data/input_errors.csv` writer now quotes a field containing a lone
   carriage return (F-67). With the old line-terminator setting the csv module
   left such a field unquoted, so a dropped citation whose text carried a stray

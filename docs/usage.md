@@ -1,7 +1,9 @@
 # Usage guide
 
 This guide walks through running metaScreener end-to-end on the
-bundled sample corpus. After installing the application (see the
+sample corpus that ships with the repository — a pip install does
+not include it; clone or download the source to follow along. After
+installing the application (see the
 [installation guide](installation.md)), launch the GUI with
 `python run.py` from the project root; the main window opens with
 the plugin list on the left and the bundle slot on the right.

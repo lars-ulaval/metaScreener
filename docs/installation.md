@@ -89,9 +89,11 @@ metascreener
 ```
 
 The PyPI distribution bundles everything needed to run, but does not
-include the test suite, the golden fixtures, or the tooling under
-`tools/`. Choose Option B (install from source) if you intend to
-contribute, run the tests, or inspect the audit scripts.
+include the sample inputs under `samples/`, the test suite, the golden
+fixtures, or the tooling under `tools/`. The samples exist only in the
+repository — clone or download the source to get them. Choose Option B
+(install from source) if you intend to follow the documented
+walkthroughs, contribute, run the tests, or inspect the audit scripts.
 
 ## Option B — Install from source
 
@@ -243,8 +245,10 @@ failures are the typical cause on Linux.
 
 ### Run a smoke test with the sample corpus
 
-Sample inputs are bundled at `samples/`. To verify an end-to-end
-LLM-free pipeline:
+Sample inputs ship with the repository at `samples/` — present in a
+source clone or download, but not in a PyPI install. If you installed
+via pip (Option A), download the samples from the repository first.
+To verify an end-to-end LLM-free pipeline:
 
 1. Launch the GUI.
 2. In Plugin 03 (Criteria Parser), load `samples/ic_ec_12.txt`.
