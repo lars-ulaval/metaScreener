@@ -173,6 +173,22 @@ EL/IL output bytes and require a golden re-capture; measured in wave 4a, it
 does not — the ladder's first attempt is byte-identical for UTF-8 input,
 which every golden is, and the suite passed with no golden movement.
 
+### Note on F-72 / F-24: one defect, logged twice, closed once
+
+F-72 (from the report-production diagnostic) and the pre-existing F-24 are
+the same defect — EL/IL padding or truncating ragged corpus rows that EH/IH
+reject as `bad_column_count`. The diagnostic re-derived it from source
+without recognising the earlier row. Both are closed by `58518c9`. The
+second logging was not pure duplication: F-24 recorded only the policy
+divergence ("different record sets depending on which stage happens to
+run"), while F-72 added the audit-trail half — the repair left no entry in
+what becomes `data/input_errors.csv`, so a silently corrected record was
+invisible — and it is that consequence the fix's tests pin. A duplication
+sweep of the remaining wave-4 rows (F-67..F-82 against F-01..F-66) found no
+further pair: the F-68→F-03, F-74→F-03 and F-82→F-53 relationships are
+residuals of or adjacencies to already-closed or distinct findings, and are
+cross-referenced inside those rows.
+
 ### Note on F-74: the EH/IH and EL/IL export buttons are not symmetrical
 
 After F-71 and F-74, the two "Export input_errors.csv…" buttons export
