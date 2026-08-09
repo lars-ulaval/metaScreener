@@ -12,6 +12,48 @@ Created on Sat Sep  6 09:51:50 2025
 import tkinter as tk
 from tkinter import ttk
 
+
+# --------------------------------------------------------------------------
+# Acceptance rules (pure, no Tk - unit-tested in tests/test_api_key_validation.py)
+# --------------------------------------------------------------------------
+
+LOCAL_PROVIDER_HINT = (
+    "This does not look like an OpenAI key. It will be used as entered - "
+    "correct if you have set OPENAI_BASE_URL to a local or third-party "
+    "endpoint (Ollama, llama.cpp, vLLM, DeepSeek)."
+)
+
+
+def sanitize_api_key(s):
+    """Trim whitespace/newlines and one layer of surrounding quotes."""
+    return (s or "").strip().strip('"').strip("'")
+
+
+def looks_like_openai_key(key: str) -> bool:
+    """True for a key shaped like OpenAI's own. Advisory only."""
+    key = key or ""
+    return key.startswith("sk-") and len(key) >= 20
+
+
+def validate_api_key(key):
+    """Decide whether `key` may be used, and what to tell the user.
+
+    Returns (accepted, message). The only rejection is an empty value:
+    metaScreener targets any OpenAI-compatible endpoint, and local servers
+    (Ollama, llama.cpp, vLLM) require the variable to be set but ignore its
+    value, so placeholders like "ollama" are legitimate. A key that does not
+    look like OpenAI's is accepted with an advisory message rather than
+    refused - that refusal made the entire documented local-provider
+    workflow unreachable through the GUI.
+    """
+    key = sanitize_api_key(key)
+    if not key:
+        return False, "Please enter a key."
+    if not looks_like_openai_key(key):
+        return True, LOCAL_PROVIDER_HINT
+    return True, ""
+
+
 class ApiKeyDialog(tk.Toplevel):
     """
     Modal dialog that asks for OPENAI_API_KEY.
@@ -58,12 +100,22 @@ class ApiKeyDialog(tk.Toplevel):
                         variable=self.remember_var)\
             .grid(row=2, column=0, sticky="w", pady=(10, 0))
 
-        # validation message (red)
-        self.msg_label = tk.Label(frm, textvariable=self.msg_var, fg="red")
-        self.msg_label.grid(row=3, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(
+            frm,
+            text=("Using a local or third-party endpoint? Set OPENAI_BASE_URL and enter\n"
+                  "any non-empty placeholder here (e.g. \"ollama\") - most local servers\n"
+                  "require the variable to be set but ignore its value."),
+            foreground="#555555",
+            justify="left",
+        ).grid(row=3, column=0, sticky="w", pady=(8, 0))
+
+        # validation message: red when the key is refused, grey when advisory
+        self.msg_label = tk.Label(frm, textvariable=self.msg_var, fg="red",
+                                  wraplength=460, justify="left")
+        self.msg_label.grid(row=4, column=0, sticky="w", pady=(6, 0))
 
         btns = ttk.Frame(frm)
-        btns.grid(row=4, column=0, sticky="e", pady=(16, 0))
+        btns.grid(row=5, column=0, sticky="e", pady=(16, 0))
         ttk.Button(btns, text="Cancel", command=self._on_cancel).pack(side="right")
         ttk.Button(btns, text="Save", command=self._on_save).pack(side="right", padx=(0, 8))
 
@@ -105,20 +157,25 @@ class ApiKeyDialog(tk.Toplevel):
 
     def _sanitize(self, s: str) -> str:
         # trim spaces/newlines and surrounding quotes
-        return (s or "").strip().strip('"').strip("'")
+        return sanitize_api_key(s)
 
     def _is_valid(self, key: str) -> bool:
-        # be permissive but helpful: most OpenAI keys start with 'sk-'
-        return key.startswith("sk-") and len(key) >= 20
+        # Advisory only - see validate_api_key. Kept as a method because
+        # it is part of this class's historical surface.
+        return looks_like_openai_key(key)
 
     def _on_save(self):
         key = self._sanitize(self.entry.get())
-        if not key:
-            self.msg_var.set("Please enter a key.")
+        accepted, message = validate_api_key(key)
+        if not accepted:
+            self.msg_label.configure(fg="red")
+            self.msg_var.set(message)
             return
-        if not self._is_valid(key):
-            self.msg_var.set("This doesn't look right. Keys usually start with 'sk-' and are long.")
-            return
+        if message:
+            # Advisory, not a refusal: show it and continue.
+            self.msg_label.configure(fg="#555555")
+            self.msg_var.set(message)
+            self.update_idletasks()
         self.value = key
         self.destroy()
 
