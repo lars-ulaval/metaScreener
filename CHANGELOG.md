@@ -15,7 +15,8 @@ so the only way to know whether your review was affected is to check the
 conditions below against what you actually did.
 
 They are ordered by how likely they are to have changed **which records were
-included or excluded**.
+included or excluded**. The last three entries are defects this release
+*records* rather than fixes; each says so, and each is scheduled.
 
 **1. An inclusion criterion could be applied backwards (IL stage).**
 If a criterion's `type` cell was blank in `criteria_harmonized.csv`, the IL
@@ -110,6 +111,37 @@ recorded a hash that did not match the file it named, and nothing verified it.
 No screening result is affected. But if you verified a bundle's digests and they
 matched, that check was not meaningful, and if they did not match, that was this
 defect rather than evidence of tampering. *(F-05)*
+
+**11. The record of what was dropped could be written in a form nothing can
+read.** A `csv` writer used for `data/input_errors.csv` does not quote a field
+containing a lone carriage return, so a citation dropped for being malformed —
+if its own text carried a stray CR — produced a file that the standard CSV
+reader refuses to parse. The reader then swallowed that failure and reported an
+empty list, so the bundle says no citations were dropped rather than saying it
+cannot tell. No screening result is affected; the exclusion trail is. **Re-check
+if:** you need to report how many records were excluded as unparseable and your
+corpus came from a source that mixes line endings. **Not yet fixed** — scheduled
+for the next wave. *(F-67, F-68)*
+
+**12. The final workbook's four stage sheets have always been empty.**
+`reports/ScreenA_Report.xlsx` carries five sheets: one per stage plus FINAL. The
+four stage sheets were built with a column header and a row builder that were
+written against different schemas, so every data cell has always come out blank.
+The row *count* is right, which is why this was not noticed — the sheets look
+populated until a cell is inspected. The FINAL sheet's outcomes are unaffected.
+**Re-check if:** you used the per-stage sheets of an exported `ScreenA_Report.xlsx`
+for anything. Read the per-stage `reports/*_FULL.csv` files instead, which carry
+the same information and are correct. **Not yet fixed** — scheduled for the next
+wave. *(F-69)*
+
+**13. The final workbook's FINAL sheet has no metadata for excluded records.**
+The FINAL sheet lists every record with its per-stage outcome, and those
+outcomes are correct. But its title, abstract and keyword columns are filled
+from the record table as it stands at the *end* of the pipeline, so every record
+excluded at EH, IH or EL appears with the right verdict and no way to tell which
+citation it is. Precisely the records you must justify in a PRISMA flow are the
+ones with no metadata. **Re-check if:** you used the FINAL sheet to write up
+exclusions. **Not yet fixed** — scheduled for the next wave. *(F-70)*
 
 Not on this list, deliberately: no released version applied a criterion that had
 been switched off in the criteria table. That was investigated during this wave
