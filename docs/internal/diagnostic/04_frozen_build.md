@@ -13,16 +13,23 @@ from the committed tree, unmodified, before any change was made.
 | Prediction (register, inferred) | Measured |
 |---|---|
 | F-09: `pandas`, `openpyxl`, `langdetect`, `rapidfuzz`, `PIL`, `pytesseract` absent from the bundle | **Half right.** `langdetect`, `rapidfuzz`, `pytesseract` absent. `pandas`, `openpyxl`, `PIL` present — by accident, see below |
-| F-09: Plugins 01/02/03/04/05 fail silently; symptom is missing tabs | **Wrong.** All seven plugin modules import and all seven tabs are added. Every heavy dependency is behind a `try/except` feature flag or a lazy in-function import |
+| F-09: Plugins 01/02/03/04/05 fail silently; symptom is missing tabs | **Wrong.** All seven plugin modules import and all seven tabs render — confirmed by visual observation, both builds. Every heavy dependency is behind a `try/except` feature flag or a lazy in-function import |
 | F-40: `hookspath=[]` disables `hook-plugins.py`; enabling it is the fix | **Understated.** Setting `hookspath=['.']` alone changes nothing at all — the hook never fires, because nothing statically imports `plugins` |
 | F-35: plugin failures `print()` to a stdout the windowed build discards | **Conditionally true.** Output survives when the exe is launched from a terminal; it is lost on the double-click path a reviewer would actually use |
 | F-19: the custom plugin loader is unnecessary, stock `importlib` suffices | **Not supported by this evidence.** See the correction below |
 
-**Verdict: yes, a reviewer could download and run this today** — after the
-two-line spec fix in `d8d8a96`. Before it, the app still started and still
-showed all seven tabs; what was missing was three optional dependencies, and
-the failure mode was silent feature degradation rather than the predicted
-missing tabs.
+**Verdict: the distributable is fit to ship, confirmed rather than inferred.**
+After the two-line spec fix in `d8d8a96`, both the console and the windowed
+executable build, launch, and render all seven tabs — the latter observed
+visually, not deduced from process output (see *Tab count — verified*). All six
+third-party dependencies the plugins use are bundled, three of them no longer by
+accident.
+
+Before the fix the app also started and showed all seven tabs; what was missing
+was three optional dependencies, and the failure mode was silent feature
+degradation rather than the predicted missing tabs. That is the one caveat on
+"fit to ship": nothing here checks that a build has the dependencies it needs, so
+the next mis-specified build will look exactly as healthy as this one (F-66).
 
 ---
 
@@ -154,12 +161,30 @@ relaunching both builds, not assumed. **F-19's verdict should move from
   the windowed build aborts startup with no visible reason, because
   `discover()` has no `try/except` and the traceback goes to a stdout nobody
   sees.
-- **Tab count not visually confirmed.** All seven plugin modules demonstrably
-  imported and none was skipped — `discover()` is unguarded, so a failure would
-  have aborted startup with a traceback, and `_load_plugins` prints
-  `[PLUGIN] Skipping` when an entrypoint is unusable; neither appeared in any
-  run of either build. The literal count of rendered tabs was not observed,
-  because this session had no way to see the window.
+## Tab count — verified
+
+**Seven tabs, both builds. Observed visually by A. Reyes-Consuelo (maintainer),
+who launched each executable and counted the rendered notebook tabs:**
+
+1. Reference Markers (experimental)
+2. References-of-X — AI v1
+3. Harmoniser — Criteria
+4. Screen A — EH
+5. Screen A — IH
+6. Screen A — EL
+7. Screen A — IL
+
+Plugin 01's experimental banner renders. This is a human visual observation of
+the running GUI, not an inference from process output — the distinction that
+the method note below exists to preserve.
+
+It confirms the indirect evidence gathered from inside the process, which was
+correct: both `PLUGIN LOADER:` banners printed; `discover()` is unguarded, so a
+failed plugin import would have aborted startup with a traceback and none
+appeared; and `_load_plugins` prints `[PLUGIN] Skipping` for an unusable
+entrypoint, which never appeared either. Each of those was consistent with all
+seven plugins loading, and none of them could have shown how many tabs were
+drawn. The two lines of evidence agree.
 
 ## Note on method: what a process cannot observe about itself
 
