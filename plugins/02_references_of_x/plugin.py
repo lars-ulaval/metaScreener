@@ -26,8 +26,8 @@ from metascreener.plugin_api import PluginMeta, BasePlugin
 
 from .ui import ReferencesOfXView  # type: ignore
 
-def create_plugin(app):
-    """Factory expected by the Hub."""
+def make_plugin(app):
+    """Factory expected by the Hub (metascreener/main.py:157)."""
     return RefXPlugin(app, PluginMeta(id="refx", title="References of X"))
 
 

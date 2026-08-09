@@ -35,7 +35,8 @@ from .exporters import _export_csv
 from .ui import HarmoniserView
 
 
-def create_plugin(app):
+def make_plugin(app):
+    """Factory the plugin manager looks for (metascreener/main.py:157)."""
     return HarmoniserPlugin(app, PluginMeta(id="harmoniser", title="Harmoniser (Criteria)"))
 
 

@@ -9,7 +9,8 @@ import tkinter.messagebox as messagebox
 from metascreener.plugin_api import PluginMeta, BasePlugin
 
 
-def create_plugin(app):
+def make_plugin(app):
+    """Factory the plugin manager looks for (metascreener/main.py:157)."""
     meta = PluginMeta(
         id="reference_extractor_v3_1",
         title="Reference Markers v3.1 (experimental)",
