@@ -303,7 +303,7 @@ The findings reported above are bounded by several conditions:
 
   The evidence gate bounds the harm without removing it. A verdict
   whose quote cannot be found in the text the model was shown is
-  refused (`plugins/06_el/screen.py:603`), so a degenerate run cannot
+  refused (`plugins/06_el/screen.py`, `run_el_screen`), so a degenerate run cannot
   silently exclude records; in the archived run 38 such verdicts were
   forced to `PASS_FLAGGED` and none affected an exclusion. What the
   gate cannot do is prevent the opposite failure — a uniform, confident

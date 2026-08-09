@@ -55,35 +55,55 @@ proxy.
 
 ### How much will an LLM-stage run cost?
 
-Costs scale with corpus size and the model you pick. On the bundled
-demonstration corpus (776 records), a first run through Plugins 06
-(EL) and 07 (IL) with `gpt-4o-mini` typically uses a few thousand
-API calls; check the OpenAI pricing page for current per-token
-rates. Subsequent runs are free because every LLM response is
+Costs scale with the number of records that reach the LLM stages, not
+with corpus size — the deterministic stages run first and usually
+remove most of the corpus. On the bundled demonstration corpus (776
+records), only 85 reach EL and 84 reach IL, giving 254 individual
+decisions in total; batched at the default of 50 per request, that is
+a handful of API requests. Check the OpenAI pricing page for current
+per-token rates. Subsequent runs are free because every response is
 cached by content hash; see the next question.
+
+Beware a units confusion in the project's own write-ups: a figure
+like "170 EL calls" counts individual **decisions**, not HTTP
+requests.
 
 ### How does the cache work?
 
-Each LLM response is keyed by SHA-256 of `(record content, prompt
-version, model identifier, criterion identifier)`. A second run with
-identical inputs reuses the cached response without contacting the
-API. The cache lives under `.cache/<stage>.jsonl` by default; the
-location is configurable via `METASCREENER_CACHE_DIR`. See
+Each LLM response is keyed by SHA-256 of the **fully rendered prompt**
+together with the model identifier, the temperature and the prompt
+version. Hashing the rendered prompt rather than a list of named
+parameters means anything that changes what the model is shown —
+criterion wording, record text, the fields targeted, the truncation
+length — changes the key automatically. A second run with identical
+inputs reuses the cached response without contacting the API.
+
+The cache is stored **inside the bundle**, as
+`cache/EL_cache.jsonl` and `cache/IL_cache.jsonl`, not in a directory
+on disk. See
 [Re-running and the LLM cache](usage.md#re-running-and-the-llm-cache).
 
-### How do I invalidate a single record's cache without rebuilding everything?
+### How do I re-decide part of the corpus without re-running everything?
 
-Open the corresponding `.cache/<stage>.jsonl` file, find the line
-whose `record_hash` matches the record you want to re-decide, and
-delete that line. The next run will recompute that single response
-and reuse the cached values for everything else.
+Change what the model is shown, and only the affected entries miss.
+Editing a criterion's wording re-decides every record for that
+criterion and leaves the others cached; editing a record's text
+re-decides that record. There is no way to target a single entry by
+hand: the key is an opaque digest of the whole rendered prompt, so a
+cache line carries no record or criterion identifier to search on.
 
-### The cache directory keeps growing — how do I prune it?
+To re-decide everything for one stage, untick **Use cache** before
+running it. Note that exporting a bundle with the box unticked
+currently drops the existing cache from the bundle rather than
+preserving it, so copy the bundle first if you want to keep it.
 
-Delete `.cache/` between runs to start fresh. The cache is purely a
-cost-and-latency optimisation; no pipeline state lives there. If you
-want to retain part of the cache (e.g., keep EL but drop IL),
-delete the specific `<stage>.jsonl` file.
+### The cache keeps growing — how do I prune it?
+
+There is no automatic pruning, and superseded entries are carried
+forward into every bundle. The cache is purely a cost-and-latency
+optimisation and no pipeline state lives there, so a bundle exported
+with **Use cache** unticked — which omits it — is still a complete
+bundle; the next run simply pays for its decisions again.
 
 ## The bundle pipeline
 
@@ -121,10 +141,16 @@ the supported workflow is to run Plugin 03 at least once.
 It catches accidental or intentional modification of the record
 table or harmonized criteria between stages. Every bundle's
 manifest records SHA-256 hashes of these files at write time; the
-next plugin verifies them at read time and refuses to proceed on
-mismatch. The intent is to surface "someone edited the CSV
-manually" before that change silently propagates into downstream
-decisions.
+next plugin verifies them at read time and **reports any mismatch as
+a warning in the bundle-load log**. It does not refuse to load the
+bundle — refusing would strand a reviewer whose only copy of the
+corpus is inside it — so check the warnings panel after loading. The
+intent is to surface "someone edited the CSV manually" before that
+change silently propagates into downstream decisions.
+
+Treat the digests as a corruption check rather than a tamper-proof
+seal: they live in the same archive as the files they describe and
+are not signed.
 
 ## LLM stages and human validation
 

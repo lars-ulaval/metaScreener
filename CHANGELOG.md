@@ -377,7 +377,7 @@ evaluates anything.
   the 88-row disagreement subset
 - Validation methodology documentation (`docs/llm-evaluation.md`) with full
   polarity-aware status-mapping table and reproducibility instructions
-- Installation guide (`docs/installation.md`) covering PyPI, source, and Docker
+- Installation guide (`docs/installation.md`) covering the PyPI and source
   installation paths
 - Top-level documentation landing page (`docs/index.md`) cross-linked from README
 - End-to-end usage walk-through (`docs/usage.md`) with annotated per-plugin

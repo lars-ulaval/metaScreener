@@ -79,14 +79,12 @@ pip install metascreener-lars-ulaval
 After install, launch with:
 
 ```bash
-python -m metascreener
-```
-
-Or, if PyPI scripts are on your PATH:
-
-```bash
 metascreener
 ```
+
+That console script is installed on your PATH by pip. (There is no
+`python -m metascreener` entry point; the package ships no `__main__`
+module.)
 
 The PyPI distribution bundles everything needed to run, but does not
 include the sample inputs under `samples/`, the test suite, the golden
@@ -200,8 +198,8 @@ OPENAI_API_KEY=sk-...your-key-here...
 |--------------------|-------------------------------|------------------------------------------------------------------------------------------|
 | `OPENAI_API_KEY`   | (required for LLM plugins)    | Authentication for the OpenAI-compatible endpoint.                                       |
 | `OPENAI_BASE_URL`  | `https://api.openai.com/v1`   | Override to use an alternative OpenAI-compatible endpoint (Azure OpenAI, local proxy).   |
-| `OPENAI_MODEL`     | `gpt-4o-mini` (per plugin)    | Default model identifier. Per-plugin overrides are configurable through the GUI.         |
-| `METASCREENER_CACHE_DIR` | `.cache/`               | Location of the per-stage LLM response cache. Use this to share cache across runs.       |
+| `OPENAI_MODEL`     | `gpt-4o` | Model identifier for **Plugin 01 only** (the experimental reference extractor). The EL and IL screening stages do not read it — see below. |
+| `SCREENA_EL_MODEL` | `gpt-4o-mini`                 | Default model for the EL stage. `SCREENA_IL_MODEL` does the same for IL.                 |
 
 The `.env` file is loaded at application start; changes require a
 restart.
@@ -323,11 +321,14 @@ window. If it does but `python run.py` does not, the issue is likely
 a Python virtualenv mismatch — confirm the venv is activated and
 `which python` (or `where python` on Windows) points inside `.venv/`.
 
-### Cache directory grows unbounded
+### The LLM cache grows over time
 
-The LLM-response cache is keyed by content hash and grows over time
-as new records are processed. To prune, delete `.cache/` between
-runs; the next run will repopulate it.
+The LLM-response cache is keyed by content hash and grows as new
+records and new criterion wordings are processed. It is not a
+directory on disk — it travels inside the bundle, as
+`cache/EL_cache.jsonl` and `cache/IL_cache.jsonl` — so it grows the
+bundle rather than your working tree, and nothing prunes it. To start
+a stage fresh, untick **Use cache** before running it.
 
 ## Upgrading
 
@@ -369,5 +370,6 @@ rm -rf metaScreener
 
 The `.env` file lives inside the project directory and is removed
 with it; if you used `.env` outside the project tree, delete that
-copy too. Cached LLM responses under `.cache/` are also removed
-along with the project directory.
+copy too. Cached LLM responses live inside your exported bundle ZIPs,
+not in the project directory, so removing the project does not remove
+them.

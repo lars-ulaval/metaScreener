@@ -330,18 +330,26 @@ identifier). On a second run with identical inputs, the cache
 returns the stored response and the API is not contacted. This has
 three practical implications:
 
-- **Cost predictability.** A first run through the LLM stages on
-  the 776-record demonstration corpus typically uses a few thousand
-  API calls; subsequent runs use zero.
+- **Cost predictability.** Only the records that survive the
+  deterministic stages reach the LLM. On the demonstration corpus
+  that is 85 records at EL and 84 at IL — 254 individual decisions in
+  total, which at the default batch size of 50 is a handful of API
+  requests, not thousands. Subsequent runs use zero.
 - **Reproducibility.** Bundles produced from a cached run are
-  byte-identical (modulo the timestamp in `manifest.json`).
-- **Debugging.** To re-run a single record's decision after fixing
-  a prompt, clear that record's cache entry only - the rest of the
-  corpus is unaffected.
+  byte-identical (modulo the timestamps in `manifest.json`).
+- **Debugging.** To re-run a stage's decisions after editing a
+  prompt or a criterion, untick **Use cache** for that run. Editing
+  the criterion is itself sufficient: the key covers the whole
+  rendered prompt, so changed wording no longer matches a stored
+  entry.
 
-Cache files live under `.cache/<stage>.jsonl` by default; the
-location is configurable via `METASCREENER_CACHE_DIR` (see
-[Installation > Configuration](installation.md#configuration)).
+The cache is not a directory on disk. It travels **inside the
+bundle**, as `cache/EL_cache.jsonl` and `cache/IL_cache.jsonl`, which
+is why a bundle handed to a colleague carries its own decisions with
+it. Each line is a JSON object with an opaque `key` and the stored
+`val`; the key is a SHA-256 digest of the fully rendered prompt
+together with the model, temperature and prompt version, so there is
+no per-record identifier in the file to search on.
 
 ## Exporting and final outputs
 
