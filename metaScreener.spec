@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('plugins', 'plugins')]
 binaries = []
-hiddenimports = ['tkinter.ttk', 'tkinter.messagebox', 'tkinter.filedialog', 'metascreener.plugin_api', 'platform', 'html', 'json', 'csv', 'queue', 'threading', 'time', 're', 'math', 'random', 'pathlib', 'itertools', 'statistics', 'urllib.parse', 'urllib.request', 'typing', 'typing_extensions', 'dataclasses', 'io', 'codecs', 'traceback', 'logging', 'functools', 'operator', 'collections', 'concurrent.futures']
+hiddenimports = ['plugins', 'tkinter.ttk', 'tkinter.messagebox', 'tkinter.filedialog', 'metascreener.plugin_api', 'platform', 'html', 'json', 'csv', 'queue', 'threading', 'time', 're', 'math', 'random', 'pathlib', 'itertools', 'statistics', 'urllib.parse', 'urllib.request', 'typing', 'typing_extensions', 'dataclasses', 'io', 'codecs', 'traceback', 'logging', 'functools', 'operator', 'collections', 'concurrent.futures']
 datas += collect_data_files('certifi')
 tmp_ret = collect_all('requests')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
@@ -22,7 +22,7 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath=['.'],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
