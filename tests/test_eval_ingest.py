@@ -97,6 +97,37 @@ class TestCohenKappa:
         result = ein.cohen_kappa(pairs)
         assert math.isnan(result["kappa"])
 
+    def test_out_of_vocabulary_label_raises(self):
+        """A decision outside CANONICAL_DECISIONS must fail loudly.
+
+        Regression for F-07. _confusion_matrix silently skips pairs whose
+        labels it does not recognise, while cohen_kappa divided by
+        len(pairs) - so an unknown label deflated both P_o and P_e and
+        shifted kappa with no signal at all. On this fixture the reported
+        value moved from 0.400000 to 0.361702.
+        """
+        clean = (
+            [("yes", "yes")] * 20
+            + [("no", "no")] * 15
+            + [("yes", "no")] * 5
+            + [("no", "yes")] * 10
+        )
+        assert math.isclose(ein.cohen_kappa(clean)["kappa"], 0.4)
+
+        for bad_pair in (("maybe", "yes"), ("yes", "maybe"), ("", "no"), (None, "no")):
+            with pytest.raises(ValueError):
+                ein.cohen_kappa(clean + [bad_pair])
+
+    def test_n_equals_confusion_matrix_total(self):
+        """cohen_kappa's n must be the number of pairs actually tabulated.
+
+        Regression for F-07: the invariant that was violated.
+        """
+        pairs = [("yes", "yes")] * 3 + [("no", "unsure")] * 4 + [("unsure", "no")] * 2
+        result = ein.cohen_kappa(pairs)
+        matrix_total = sum(sum(row) for row in ein._confusion_matrix(pairs))
+        assert result["n"] == matrix_total == len(pairs)
+
 
 # --------------------------------------------------------------------------
 # Pure-math: Fleiss' kappa
@@ -155,6 +186,49 @@ class TestFleissKappa:
         result = ein.fleiss_kappa([])
         assert result["n_items"] == 0
         assert math.isnan(result["kappa"])
+
+
+# --------------------------------------------------------------------------
+# Rater aggregation
+# --------------------------------------------------------------------------
+
+class TestMajorityVote:
+    """Regression for F-06.
+
+    majority_vote returned the literal "uncertain" on a tie or an empty
+    input, but the canonical vocabulary is ("yes", "no", "unsure").
+    "uncertain" is not a member, so every tied overlap item produced a
+    pair that _confusion_matrix dropped and cohen_kappa still counted -
+    silently corrupting the published statistic.
+    """
+
+    def test_result_is_always_canonical(self):
+        cases = [
+            ["yes", "no", "unsure"],          # three-way tie
+            ["yes", "no"],                    # two-way tie
+            ["unsure", "unsure", "yes"],      # clear winner
+            ["no"],                           # single rater
+            [],                               # no ratings at all
+        ]
+        for decisions in cases:
+            assert ein.majority_vote(decisions) in ein.CANONICAL_DECISIONS, decisions
+
+    def test_ties_resolve_to_unsure(self):
+        assert ein.majority_vote(["yes", "no"]) == "unsure"
+        assert ein.majority_vote(["yes", "no", "unsure"]) == "unsure"
+        assert ein.majority_vote([]) == "unsure"
+
+    def test_clear_majority_wins(self):
+        assert ein.majority_vote(["yes", "yes", "no"]) == "yes"
+        assert ein.majority_vote(["no", "no", "unsure"]) == "no"
+
+    def test_tied_triple_survives_into_cohen_kappa(self):
+        """End-to-end shape of F-06: a tie must not vanish from the matrix."""
+        human = ein.majority_vote(["yes", "no", "unsure"])
+        pairs = [("yes", "yes")] * 5 + [(human, "no")]
+        result = ein.cohen_kappa(pairs)
+        matrix_total = sum(sum(row) for row in ein._confusion_matrix(pairs))
+        assert result["n"] == matrix_total == 6
 
 
 # --------------------------------------------------------------------------

@@ -489,13 +489,25 @@ def _confusion_matrix(
     pairs: List[Tuple[str, str]],
     categories: Tuple[str, ...] = CANONICAL_DECISIONS,
 ) -> List[List[int]]:
-    """Build a categories x categories confusion matrix from (rater_a, rater_b) pairs."""
+    """Build a categories x categories confusion matrix from (rater_a, rater_b) pairs.
+
+    Every label must be a member of `categories`. Anything else raises:
+    this function used to skip unrecognised labels, which combined with
+    cohen_kappa's n = len(pairs) to shift kappa silently (F-07). A
+    published agreement statistic must not degrade quietly.
+    """
     idx = {c: i for i, c in enumerate(categories)}
     n = len(categories)
     matrix = [[0] * n for _ in range(n)]
     for a, b in pairs:
-        if a in idx and b in idx:
-            matrix[idx[a]][idx[b]] += 1
+        for label in (a, b):
+            if label not in idx:
+                raise ValueError(
+                    "decision %r is not one of %s - a rater vocabulary or "
+                    "status-mapping bug upstream would otherwise be absorbed "
+                    "silently into the kappa" % (label, list(categories))
+                )
+        matrix[idx[a]][idx[b]] += 1
     return matrix
 
 
@@ -597,13 +609,19 @@ def fleiss_kappa(
 # --------------------------------------------------------------------------
 
 def majority_vote(decisions: List[str]) -> str:
-    """Return the most common decision; ties resolve to 'uncertain' to be conservative."""
+    """Return the most common decision; ties resolve to 'unsure' to be conservative.
+
+    The return value is always a member of CANONICAL_DECISIONS. It used to
+    be the literal "uncertain" on a tie or an empty input, which is not a
+    canonical code: _confusion_matrix would then drop the resulting pair
+    while cohen_kappa still counted it in n, silently deflating kappa.
+    """
     if not decisions:
-        return "uncertain"
+        return "unsure"
     counts = Counter(decisions)
     top = counts.most_common()
     if len(top) > 1 and top[0][1] == top[1][1]:
-        return "uncertain"
+        return "unsure"
     return top[0][0]
 
 
