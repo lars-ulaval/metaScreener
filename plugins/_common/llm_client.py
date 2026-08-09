@@ -271,7 +271,6 @@ def run_m1_llm_for_criterion(
                         span = None
 
                     fld_txt = (idx_map.get(a_id) or {}).get(field) or ""
-                    fld_txt = (idx_map.get(a_id) or {}).get(field) or ""
                     # Validate against the SAME truncated text that was sent to the model for this call
                     fld_txt_prompt = (fld_txt[:cur_trunc] if cur_trunc and len(fld_txt) > cur_trunc else fld_txt)
                     valid_quote = _quote_in_text(quote, fld_txt_prompt)
