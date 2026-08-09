@@ -287,6 +287,34 @@ The findings reported above are bounded by several conditions:
 - **No subgroup analysis.** Agreement metrics are not broken down by
   record characteristics (year, venue, language); a longer corpus
   would justify such an analysis.
+- **Screening quality is bounded by whether the model discriminates,
+  and the pipeline cannot tell when it stops.** Agreement figures
+  describe runs in which the model produced varied, per-record
+  judgements. That is not guaranteed. In one archived run of the same
+  776-record corpus (2026-05-07, `gpt-4o-mini`), all 170 EL calls
+  returned the same decision (`not_meet`), the same confidence (0.9
+  exactly), and only three distinct evidence spans, one of which
+  repeated identically across an entire 85-record criterion sweep. The
+  decisions were defensible for that corpus — those records genuinely
+  are not about spatial navigation or the rubber-hand illusion — but a
+  constant answer is not per-record reasoning, and nothing in the
+  pipeline distinguishes the two. There is no check on the variance of
+  a run's decisions, its confidences, or its spans.
+
+  The evidence gate bounds the harm without removing it. A verdict
+  whose quote cannot be found in the text the model was shown is
+  refused (`plugins/06_el/screen.py:603`), so a degenerate run cannot
+  silently exclude records; in the archived run 38 such verdicts were
+  forced to `PASS_FLAGGED` and none affected an exclusion. What the
+  gate cannot do is prevent the opposite failure — a uniform, confident
+  pass that examines nothing and sends the whole corpus forward
+  unscreened. Reviewers should treat per-run decision and confidence
+  variance as something to inspect rather than assume, particularly
+  when a stage excludes nothing.
+
+  This is one observed run, on one corpus, with one model. It is
+  reported because it happened, not as an estimate of how often
+  degenerate output occurs; that has not been measured.
 
 ## Reproducibility
 
