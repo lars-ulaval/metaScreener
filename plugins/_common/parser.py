@@ -284,6 +284,7 @@ def _parse_csv_tolerant_text(text: str, required_id: str = "local_id") -> ParseR
     expected_n = len(header)
     rows: List[Dict[str, str]] = []
     skipped: List[Tuple[int, str, str]] = []
+    seen_ids: set = set()
 
     for rec_idx, rec in enumerate(records[1:], start=1):  # 1-based, excluding header
         raw = rec
@@ -309,6 +310,17 @@ def _parse_csv_tolerant_text(text: str, required_id: str = "local_id") -> ParseR
         if not lid:
             skipped.append((rec_idx, "missing_local_id", raw))
             continue
+
+        # A repeated identifier is not a usable record: every downstream
+        # stage keys its per-record maps on local_id, so the copies would
+        # overwrite one another's evidence. EL/IL already dropped duplicates
+        # (plugins/06_el/screen.py:213-215); EH/IH silently kept them, so a
+        # corpus could lose rows between stage 05 and stage 06 with nothing
+        # in the audit trail to say which (F-55). First occurrence wins.
+        if lid in seen_ids:
+            skipped.append((rec_idx, f"duplicate_local_id:{lid}", raw))
+            continue
+        seen_ids.add(lid)
 
         rows.append(d)
 
