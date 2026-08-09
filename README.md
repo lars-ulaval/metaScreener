@@ -250,14 +250,14 @@ The application is pure Python with no compiled extensions and runs on any platf
 
 ## Testing
 
-The project includes 104 automated tests covering the deterministic components of the pipeline as well as quote-based evidence gating, plugin imports, bundle integrity, repo metadata consistency, and per-stage regression goldens. No OpenAI API key, network access, or graphical display server is required.
+The project includes 166 automated tests covering the deterministic components of the pipeline as well as quote-based evidence gating, plugin imports, bundle integrity, repo metadata consistency, per-stage regression goldens, and the human-vs-LLM agreement toolchain. No OpenAI API key, network access, or graphical display server is required.
 
 ```bash
 pip install pytest
 python -m pytest tests/ -v
 ```
 
-The test suite covers seven areas:
+The test suite covers nine areas:
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -266,9 +266,11 @@ The test suite covers seven areas:
 | `test_evidence_gating.py` | 23 | Quote validation, SHA-256 hashing, cache key construction |
 | `test_bundle_integrity.py` | 12 | Bundle ZIP structure, manifest schema, hash verification |
 | `test_imports.py` | 27 | Module imports, plugin shim regression, cache-key invariants |
-| `test_metadata.py` | 2 | Repo metadata consistency (version match, README CI badge) |
+| `test_metadata.py` | 5 | Repo metadata consistency (version match, README CI badge, docs cross-references) |
+| `test_eval_ingest.py` | 32 | Cohen's/Fleiss' kappa, polarity-aware status mapping, grid ingestion |
+| `test_eval_grid_generator.py` | 27 | Rater-workbook generation, stratified partitioning, rater blindness |
 | Per-stage regression suites | 9 | Byte-identity goldens for the EH, IH, EL, IL, and Harmoniser plugins (one file per stage) |
-| **Total** | **104** | |
+| **Total** | **166** | |
 
 ### Refactoring safety: static import audit
 
@@ -286,7 +288,7 @@ alongside `pytest -q` as a pre-commit gate when extracting code into new modules
 
 Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 
-> **Status**: ✅ 73 passed
+> **Status**: ✅ 166 passed
 
 ---
 
@@ -298,9 +300,16 @@ Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 |----------|----------|---------|-------------|
 | `OPENAI_API_KEY` | Yes (for LLM stages) | — | Your OpenAI API key |
 | `SCREENA_EL_MODEL` | No | `gpt-4o-mini` | Model identifier for the EL stage |
-| `SCREENA_EL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM |
-| `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call |
-| `SCREENA_EL_USE_CACHE` | No | `1` | Enable (`1`) or disable (`0`) the persistent decision cache |
+| `SCREENA_EL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM (EL) |
+| `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (EL) |
+| `SCREENA_EL_USE_CACHE` | No | `1` | Enable (`1`) or disable (`0`) the persistent decision cache (EL) |
+| `SCREENA_IL_MODEL` | No | `gpt-4o-mini` | Model identifier for the IL stage |
+| `SCREENA_IL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM (IL) |
+| `SCREENA_IL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (IL) |
+| `SCREENA_IL_USE_CACHE` | No | `1` | Enable (`1`) or disable (`0`) the persistent decision cache (IL) |
+
+The EL and IL stages are configured independently: setting `SCREENA_EL_MODEL` does not
+change the model used by IL.
 
 Copy `.env.example` to `.env` and set your API key. The application will prompt for confirmation on each launch.
 

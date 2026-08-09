@@ -31,9 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screenshots under `docs/images/usage/`
 - Frequently asked questions document (`docs/faq.md`) with documentation
   cross-reference test coverage in `tests/test_metadata.py`
-- Internal reviewer-response mapping matrix
-  (`docs/internal/reviewer-response-map.md`) as a versioned reference for the
-  JORS response letter
 
 ### Changed
 - Bumped version to 3.1.0 for peer-review revision release

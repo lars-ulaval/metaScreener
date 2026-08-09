@@ -203,9 +203,10 @@ it gets the bulk of obvious exclusions out of the way first.
 bundle) plus the harmonized criteria from Plugin 03.
 
 **What it produces.** A bundle with the surviving records and a
-report (`reports/eh_decisions.csv`) listing each excluded record
-with the criterion that excluded it and the evidence (e.g., "lang =
-fr matches EC-1").
+two reports: `reports/EH_FULL.csv`, which lists every record with
+the criteria that failed, were missing, or were met and a
+reason summary (e.g., "Failed: EC-1"), and
+`reports/EH_SURVIVORS.csv`, the records that continue to Plugin 05.
 
 **Common gotchas.**
 
@@ -230,9 +231,9 @@ zero-cost and zero-latency.
 **Inputs.** The bundle from Plugin 04.
 
 **What it produces.** A bundle with the records that satisfy at
-least one inclusion rule, plus a report
-(`reports/ih_decisions.csv`) showing for each record which rules it
-matched.
+least one inclusion rule, plus `reports/IH_FULL.csv`, showing for each record which rules it
+matched, and `reports/IH_SURVIVORS.csv`, the records that continue
+to Plugin 06.
 
 **Common gotchas.**
 
@@ -266,7 +267,7 @@ human review rather than auto-excluded. The thresholds and the
 human-review queue are visible in the plugin's UI panel.
 
 **What it produces.** A bundle with the surviving records plus a
-report (`reports/el_decisions.csv`) containing per-criterion status
+report (`reports/EL_FULL.csv`) containing per-criterion status
 (`MET` = passes the screen, `FAILED` = excluded, `UNCERTAIN` =
 flagged), confidence, and the quoted evidence. The full
 `el_evidence_json` column is also added to the canonical record
