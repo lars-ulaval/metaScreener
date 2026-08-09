@@ -30,10 +30,10 @@ written by earlier versions are on disk and in reviewers' hands; refusing
 to read them would drop exactly the records this module exists to keep.
 
 Consumed by:
-  - plugins/_common/exporters.py  (_export_input_errors_csv)
+  - plugins/_common/exporters.py  (_export_input_errors_csv and the
+    dict-shaped variant behind EL/IL's export buttons — F-74)
   - plugins/_common/parser.py     (_load_input_errors_from_text)
-  - plugins/_common/bundle.py     (EH/IH next-bundle export)
-  - plugins/06_el/ui.py, plugins/07_il/ui.py and both standalone.py
+  - plugins/_common/bundle.py     (both next-bundle writers)
   - plugins/03_harmoniser/exporters.py
 """
 from __future__ import annotations

@@ -47,6 +47,7 @@ from plugins._common.bundle import (
     _write_llm_stage_bundle,
 )
 
+from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
     from_dict_skipped,
     merge_input_errors_csv,
@@ -1228,11 +1229,11 @@ class ILView(ttk.Frame):
             return
 
         try:
-            with open(p, "w", encoding="utf-8", newline="") as f:
-                w = csv.writer(f, lineterminator="\n")
-                w.writerow(["reason", "row_json"])
-                for e in self.bundle.parse.skipped:
-                    w.writerow([_safe_str(e.get("reason", "")), json.dumps(e.get("row", {}), ensure_ascii=False)])
+            # F-74: the canonical six-column schema through the shared
+            # writer, not the legacy reason,row_json layout this handler
+            # used to emit inline.
+            _export_input_errors_csv_from_dicts(
+                p, self.bundle.parse.skipped, stage="IL")
         except Exception as e:
             messagebox.showerror("Export failed", str(e))
             return

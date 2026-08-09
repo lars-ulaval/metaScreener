@@ -551,6 +551,47 @@ class TestCarriedRowsAreNotRestamped:
         )
 
 
+class TestExportButtonsWriteTheCanonicalSchema:
+    """F-74. The EL/IL "Export input_errors.csv…" buttons still carried
+    inline csv.writer blocks emitting the legacy reason,row_json layout —
+    the last two writers of the schema F-03 retired, and a file that
+    disagreed with the data/input_errors.csv of the same name in the
+    bundle. The buttons now route through the canonical writer; this pins
+    the non-widget core they invoke."""
+
+    def test_dict_shaped_skips_export_as_the_canonical_schema(self, tmp_path):
+        from plugins._common.exporters import _export_input_errors_csv_from_dicts
+        p = tmp_path / "input_errors.csv"
+        _export_input_errors_csv_from_dicts(
+            str(p),
+            [{"reason": "missing local_id", "row": {"title": "x"}},
+             {"reason": "bad_column_count:4!=expected:3",
+              "row": {"raw": "a | b | c | d"}}],
+            stage="EL",
+        )
+        text = p.read_text(encoding="utf-8")
+        rdr = csv.DictReader(io.StringIO(text))
+        assert rdr.fieldnames == INPUT_ERRORS_FIELDS, (
+            "F-74: the button must write the canonical six-column schema, "
+            "not the legacy reason,row_json layout."
+        )
+        errs = read_input_errors(text)
+        assert [e.stage for e in errs] == ["EL", "EL"]
+        assert errs[0].reason == "missing local_id"
+        assert '"title"' in errs[0].raw
+
+    def test_el_and_il_views_no_longer_carry_the_legacy_writer(self):
+        """The inline writers are the defect; their removal is the fix.
+        Source-level check because the click handlers are Tk-bound."""
+        from pathlib import Path
+        for rel in ("plugins/06_el/ui.py", "plugins/07_il/ui.py"):
+            src = (Path(__file__).parent.parent / rel).read_text(encoding="utf-8")
+            assert 'w.writerow(["reason", "row_json"])' not in src, (
+                f"F-74: {rel} still writes the legacy two-column layout."
+            )
+            assert "_export_input_errors_csv_from_dicts" in src
+
+
 class TestLegacyTupleReader:
 
     def test_load_input_errors_from_text_reads_the_harmoniser_schema(self):

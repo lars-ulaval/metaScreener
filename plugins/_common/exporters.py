@@ -34,10 +34,11 @@ and column-prefix literals become f-strings over stage / stage.lower().
 """
 import csv
 import io
-from typing import Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 from plugins._common.parser import _safe_str
 from plugins._common.input_errors import (
+    from_dict_skipped,
     from_tuple_skipped,
     merge_input_errors_csv,
     read_input_errors,
@@ -65,6 +66,20 @@ def _export_input_errors_csv(path: str, skipped: Sequence[Tuple[int, str, str]],
                  if (e.record_number, e.reason, e.raw) not in prior_keys]
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(merge_input_errors_csv(prior_text, own_drops))
+
+def _export_input_errors_csv_from_dicts(path: str,
+                                        skipped: Sequence[Dict[str, Any]],
+                                        *, stage: str = "") -> None:
+    """The EL/IL variant of ``_export_input_errors_csv``.
+
+    F-74: the EL and IL "Export input_errors.csv…" buttons carried inline
+    csv.writer blocks emitting the legacy ``reason,row_json`` layout — the
+    last two writers of the schema F-03 retired. Their ParseReport.skipped
+    is dict-shaped ({"reason": …, "row": {…}}), so this adapts through
+    from_dict_skipped and writes the canonical schema.
+    """
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(write_input_errors_csv(from_dict_skipped(skipped, stage=stage)))
 
 def _export_xlsx(path: str, full_rows: List[Dict[str, str]], survivors: List[Dict[str, str]], aggregate_header: List[str], stage: str) -> None:
     try:
