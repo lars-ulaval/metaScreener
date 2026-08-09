@@ -202,16 +202,12 @@ class TestHistoryEntry:
 # ---------------------------------------------------------------------------
 
 class TestDivergentStageMaps:
+    """A bundle carries two stage maps (F-27). F-27 itself is still open —
+    nothing reconciles maps this writer did not write. What these tests pin
+    is narrower and non-negotiable: the writer must not *add* to the
+    divergence. It briefly did, via F-34, and that is fixed."""
 
-    def test_the_archived_contradiction_is_not_reconciled(self, tmp_path):
-        """F-27 was out of scope for wave 2 and remains so. The archived
-        bundle says EL is done in ``pipeline_state.stages`` and does not
-        mention EL in ``pipeline.stages`` at all; nothing in the current
-        code reconciles the two maps or reports the disagreement."""
-        manifest = _archived_manifest()
-        assert manifest["pipeline_state"]["stages"].get("EL") == "done"
-        assert "EL" not in manifest["pipeline"]["stages"]
-
+    def _export(self, tmp_path, manifest, not_screened):
         src = tmp_path / "in.zip"
         with zipfile.ZipFile(src, "w") as zf:
             zf.writestr("manifest.json", json.dumps(manifest))
@@ -224,15 +220,40 @@ class TestDivergentStageMaps:
                 reports_dir_rel="reports", cache_rel="cache/EL_cache.jsonl",
                 parse_header=["local_id"], survivors=[{"local_id": "A001"}],
                 full_rows=[{"local_id": "A001"}], full_header=["local_id"],
-                skipped=[], counts={"OUT": 0},
-                not_screened=True,
+                skipped=[], counts={"OUT": 0}, not_screened=not_screened,
             )
         with zipfile.ZipFile(out, "r") as zf:
-            m = json.loads(zf.read("manifest.json"))
+            return json.loads(zf.read("manifest.json"))
 
-        # The shared writer maintains pipeline.stages only. pipeline_state is
-        # left exactly as it was found, so a no-op stage is recorded as
-        # "not_screened" in one map and "done" in the other — the same class
-        # of divergence F-27 describes, reachable through the new code.
+    def test_a_no_op_stage_agrees_across_both_maps(self, tmp_path):
+        """The regression F-34 introduced: pipeline.stages was corrected to
+        "not_screened" while pipeline_state.stages, written by the view's own
+        _set_stage moments earlier, still said "done". A reader consulting
+        one map would have been told the stage ran."""
+        m = self._export(tmp_path, _archived_manifest(), not_screened=True)
         assert m["pipeline"]["stages"]["EL"] == "not_screened"
+        assert m["pipeline_state"]["stages"]["EL"] == "not_screened", (
+            "F-27 regression: a zero-criteria run left the two stage maps "
+            "disagreeing about whether EL screened anything."
+        )
+
+    def test_a_normal_stage_agrees_across_both_maps(self, tmp_path):
+        m = self._export(tmp_path, _archived_manifest(), not_screened=False)
+        assert m["pipeline"]["stages"]["EL"] == "done"
         assert m["pipeline_state"]["stages"]["EL"] == "done"
+
+    def test_other_stages_in_both_maps_are_left_alone(self, tmp_path):
+        """Only this stage's marker is written. EH/IH entries — and any
+        pre-existing disagreement between the maps about them — are not
+        this writer's to touch; that is F-27's job."""
+        m = self._export(tmp_path, _archived_manifest(), not_screened=True)
+        assert m["pipeline"]["stages"]["EH"] == "done"
+        assert m["pipeline_state"]["stages"]["IH"] == "done"
+
+    def test_a_manifest_without_pipeline_state_is_unharmed(self, tmp_path):
+        """Not every bundle carries the second map; it must not be invented."""
+        manifest = _archived_manifest()
+        del manifest["pipeline_state"]
+        m = self._export(tmp_path, manifest, not_screened=True)
+        assert m["pipeline"]["stages"]["EL"] == "not_screened"
+        assert "pipeline_state" not in m

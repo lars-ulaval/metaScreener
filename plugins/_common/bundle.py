@@ -536,7 +536,25 @@ def _write_llm_stage_bundle(
     pipeline = dict(manifest.get("pipeline", {}) or {})
     stages = dict(pipeline.get("stages", {}) or {})
     history = list(pipeline.get("history", []) or [])
-    stages[stage] = "not_screened" if not_screened else "done"
+    marker = "not_screened" if not_screened else "done"
+    stages[stage] = marker
+
+    # A bundle carries two stage maps, `pipeline.stages` and
+    # `pipeline_state.stages` (F-27). The EL/IL views set both to "done"
+    # before calling this, via their own _set_stage; if this function then
+    # corrected only `pipeline.stages`, a zero-criteria run would leave the
+    # two maps disagreeing — "not_screened" in one, "done" in the other.
+    # That was a regression introduced with F-34 and is fixed here: whatever
+    # marker this stage lands on is written to every stage map the manifest
+    # actually has. It does not resolve F-27 itself — nothing reconciles maps
+    # this function did not write — but it stops this path adding to it.
+    if isinstance(manifest.get("pipeline_state"), dict):
+        pipeline_state = dict(manifest["pipeline_state"])
+        ps_stages = dict(pipeline_state.get("stages", {}) or {})
+        ps_stages[stage] = marker
+        pipeline_state["stages"] = ps_stages
+        manifest["pipeline_state"] = pipeline_state
+
     history.append({
         "stage": stage,
         "ran_at": _iso_now(),
