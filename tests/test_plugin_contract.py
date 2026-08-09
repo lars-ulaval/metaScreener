@@ -77,13 +77,42 @@ class TestNamedEntryPoint:
 
 
 class TestFactorySignature:
+    """Argument-count check for the make_plugin factory.
+
+    COVERAGE: this class covers 3 of the 7 plugins and SKIPS the other 4.
+
+      covered (expose make_plugin)   : 01_reference_extractor,
+                                       02_references_of_x, 03_harmoniser
+      skipped (expose a Plugin class): 04_eh, 05_ih, 06_el, 07_il
+
+    The split is not arbitrary - it is exactly the strategy-2 / strategy-3
+    division in metascreener/main.py, and TestNamedEntryPoint above asserts
+    that every plugin sits on one side or the other. The skip is therefore
+    self-correcting: a plugin that grows a make_plugin stops skipping.
+
+    WHAT REMAINS UNVERIFIED BY THIS FILE: the constructor arity of the four
+    Plugin classes. main.py's resolver calls PluginCls(app, meta), falling
+    back to (app) then (); today all four declare
+    __init__(self, app=None, meta=None), so the first call fits, but nothing
+    here asserts it. If a Plugin class ever narrows its signature, this
+    suite stays green and the tab fails to build at runtime - visible only
+    as a print() to a stdout the windowed PyInstaller build discards
+    (F-35). Closing that gap means constructing each Plugin class the way
+    main.py does; tests/test_plugin_lifecycle.py exercises the resolver
+    against fakes, not against the shipped classes.
+    """
 
     def test_make_plugin_is_callable_with_one_argument(self, plugin_module):
         """main.py:158-165 tries make_plugin(app, meta), then (app), then ()."""
         name, mod = plugin_module
         factory = getattr(mod, "make_plugin", None)
         if factory is None:
-            pytest.skip("%s uses the Plugin class entry point" % name)
+            # Expected for the four Plugin-class plugins - see the class
+            # docstring for what that leaves unverified.
+            pytest.skip(
+                "%s uses the Plugin class entry point (strategy 2), not the "
+                "make_plugin factory (strategy 3)" % name
+            )
         sig = inspect.signature(factory)
         accepted = [
             n for n, p in sig.parameters.items()
