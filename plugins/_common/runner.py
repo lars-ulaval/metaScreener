@@ -59,7 +59,7 @@ def run_screen(
     progress_cb: Optional[Callable[[float], None]] = None,
     *,
     stage: str,
-) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], Dict[str, int], Dict[str, Dict[str, int]], List[Dict[str, List[str]]]]:
+) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], Dict[str, int], Dict[str, Dict[str, int]], List[Dict[str, List[str]]], bool]:
     """
     Run the deterministic per-criterion filter pipeline for one stage.
 
@@ -73,6 +73,16 @@ def run_screen(
         "unknown": n}}.
       row_eval_lists: list aligned with full_rows; each element is
         {"failed": [...], "missing": [...], "met": [...], "unknown": [...]}.
+      cancelled: True if the row loop exited early on cancel_event, i.e.
+        the results describe only part of the corpus.
+
+    F-02: ``cancelled`` is the whole point of the sixth element. The loop
+    has always been able to stop mid-corpus, but it used to return the
+    rows it had reached as though they were the corpus. Nothing in
+    full_rows, survivors or counts distinguishes "screened 40 records" from
+    "screened 40 of 900 and gave up", and it is survivors that becomes the
+    next stage's input. Callers must not export a run where this is True —
+    see ``plugins._common.bundle._export_block_reason``.
     """
     sl = stage.lower()
     header_set = set(parse.header)
@@ -96,9 +106,12 @@ def run_screen(
     survivors: List[Dict[str, str]] = []
     row_eval_lists: List[Dict[str, List[str]]] = []
 
+    cancelled = False
+
     if not crits:
         for r in rows:
             if cancel_event.is_set():
+                cancelled = True
                 break
             fr = dict(r)
             fr[f"{sl}_outcome"] = "PASS_CLEAN"
@@ -112,11 +125,12 @@ def run_screen(
         counts["PASS_CLEAN"] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
-        return full_rows, survivors, counts, crit_impacts, row_eval_lists
+        return full_rows, survivors, counts, crit_impacts, row_eval_lists, cancelled
 
     n = len(rows)
     for idx, r in enumerate(rows, start=1):
         if cancel_event.is_set():
+            cancelled = True
             break
 
         failed: List[str] = []
@@ -183,4 +197,4 @@ def run_screen(
         if progress_cb and (idx % PROGRESS_EVERY_N == 0 or idx == n):
             progress_cb(idx / max(1, n))
 
-    return full_rows, survivors, counts, crit_impacts, row_eval_lists
+    return full_rows, survivors, counts, crit_impacts, row_eval_lists, cancelled

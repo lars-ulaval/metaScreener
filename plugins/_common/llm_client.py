@@ -51,6 +51,33 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # --------------------------- small utilities ----------------------------------
 
+class _Cancelled(Exception):
+    """Raised inside ``run_m1_llm_for_criterion`` when the caller's cancel
+    token trips.
+
+    F-26. This used to be a bare ``RuntimeError("Cancelled")``, which had
+    two consequences. It unwound past ``return out``, throwing away every
+    LLM result already paid for in earlier batches; and because the
+    post-call check sits inside the per-batch retry ``try``, the generic
+    ``except Exception`` handler caught it and wrote the whole batch out as
+    ``uncertain`` with ``error="Cancelled"`` — replacing answers that had
+    been received with fabricated non-answers.
+
+    A dedicated type lets the retry handler re-raise it untouched and the
+    batch loop catch it and return what it has.
+    """
+
+
+def _openai_client_for():
+    """Construct the OpenAI client.
+
+    Extracted so cancellation and batching can be tested without a live
+    key or network. Nothing else about the call path changed.
+    """
+    from openai import OpenAI  # type: ignore
+    return OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+
 def _safe_str(x: Any) -> str:
     return "" if x is None else str(x)
 
@@ -168,17 +195,16 @@ def run_m1_llm_for_criterion(
         return {}
 
     try:
-        from openai import OpenAI  # type: ignore
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client = _openai_client_for()
     except Exception as e:
         if log: log(f"{log_prefix} OpenAI client import/init failed: {e}\n")
         return {}
 
     def _check_cancel():
         if cancel_token is not None and bool(getattr(cancel_token, "cancelled", False)):
-            raise RuntimeError("Cancelled")
+            raise _Cancelled()
         if cancel_token is not None and bool(getattr(cancel_token, "is_set", lambda: False)()):
-            raise RuntimeError("Cancelled")
+            raise _Cancelled()
 
     def _call_once(batch: List[Dict[str, Any]], cur_trunc: int):
         msgs = build_messages(criterion, batch, cur_trunc)
@@ -207,95 +233,177 @@ def run_m1_llm_for_criterion(
     batches: List[List[Dict[str, Any]]] = [list(b) for b in chunked(items, max(1, int(batch_size)))]
 
     bi = 0
-    while bi < len(batches):
-        _check_cancel()
+    # F-26: cancellation unwinds to here, not past `return out`. Whatever
+    # earlier batches already returned is kept and handed back, because it
+    # was paid for. The caller learns the run stopped early from its own
+    # cancel_event (F-02), not from losing results.
+    try:
+        while bi < len(batches):
+            _check_cancel()
 
-        cur_batch = list(batches[bi])
-        cur_trunc = int(trunc_chars)
-        attempts = 0
+            cur_batch = list(batches[bi])
+            cur_trunc = int(trunc_chars)
+            attempts = 0
 
-        while True:
-            attempts += 1
-            try:
-                total_batches = len(batches)
-                batch_num = bi + 1
+            while True:
+                attempts += 1
+                try:
+                    total_batches = len(batches)
+                    batch_num = bi + 1
 
-                if progress:
-                    progress({
-                        "kind": "l_batch",
-                        "stage": stage,
-                        "block": block_tag,
-                        "crit_idx": crit_idx,
-                        "crit_total": crit_total,
-                        "batch_idx": batch_num,
-                        "batch_total": total_batches,
-                        "sub": "sending",
-                    })
+                    if progress:
+                        progress({
+                            "kind": "l_batch",
+                            "stage": stage,
+                            "block": block_tag,
+                            "crit_idx": crit_idx,
+                            "crit_total": crit_total,
+                            "batch_idx": batch_num,
+                            "batch_total": total_batches,
+                            "sub": "sending",
+                        })
 
-                resp = _call_once(cur_batch, cur_trunc)
-                _check_cancel()
+                    resp = _call_once(cur_batch, cur_trunc)
 
-                if progress:
-                    progress({
-                        "kind": "l_batch",
-                        "stage": stage,
-                        "block": block_tag,
-                        "crit_idx": crit_idx,
-                        "crit_total": crit_total,
-                        "batch_idx": batch_num,
-                        "batch_total": total_batches,
-                        "sub": "parsing",
-                    })
+                    # F-26: no cancel check between the call and the parse. The
+                    # answer is already paid for; the cheap thing to skip is the
+                    # NEXT batch, not this response. Cancellation is honoured at
+                    # the top of the batch loop instead.
 
-                txt = (resp.choices[0].message.content or "[]")
-                arr = _parse_llm_json_array(txt)
+                    if progress:
+                        progress({
+                            "kind": "l_batch",
+                            "stage": stage,
+                            "block": block_tag,
+                            "crit_idx": crit_idx,
+                            "crit_total": crit_total,
+                            "batch_idx": batch_num,
+                            "batch_total": total_batches,
+                            "sub": "parsing",
+                        })
 
-                # parse response objects
-                for obj in arr:
-                    a_id = _safe_str(obj.get("a_id", "")).strip()
-                    if not a_id or a_id not in idx_map:
+                    txt = (resp.choices[0].message.content or "[]")
+                    arr = _parse_llm_json_array(txt)
+
+                    # parse response objects
+                    for obj in arr:
+                        a_id = _safe_str(obj.get("a_id", "")).strip()
+                        if not a_id or a_id not in idx_map:
+                            continue
+
+                        decision = _safe_str(obj.get("decision", "uncertain")).strip()
+                        if decision not in {"meet", "not_meet", "uncertain"}:
+                            decision = "uncertain"
+
+                        try:
+                            confidence = float(obj.get("confidence", 0.0))
+                        except Exception:
+                            confidence = 0.0
+                        confidence = min(1.0, max(0.0, confidence))
+
+                        field = _safe_str(obj.get("field", "")).strip().lower()
+                        if field not in {"title", "abstract", "keywords"}:
+                            field = "abstract"
+
+                        quote = _safe_str(obj.get("quote", ""))
+                        span = obj.get("span", None)
+                        if not (isinstance(span, list) and len(span) == 2 and all(isinstance(x, int) for x in span)):
+                            span = None
+
+                        fld_txt = (idx_map.get(a_id) or {}).get(field) or ""
+                        # Validate against the SAME truncated text that was sent to the model for this call
+                        fld_txt_prompt = (fld_txt[:cur_trunc] if cur_trunc and len(fld_txt) > cur_trunc else fld_txt)
+                        valid_quote = _quote_in_text(quote, fld_txt_prompt)
+
+                        out[(a_id, cid)] = {
+                            "used": True,
+                            "decision": decision,
+                            "confidence": confidence,
+                            "field": field,
+                            "quote": quote,
+                            "span": span,
+                            "valid_quote": valid_quote,
+                        }
+
+                    # ensure every item in THIS cur_batch has an entry
+                    for it in cur_batch:
+                        a_id = _safe_str(it.get("a_id", "")).strip()
+                        if not a_id:
+                            continue
+                        if (a_id, cid) not in out:
+                            out[(a_id, cid)] = {
+                                "used": False,
+                                "decision": "uncertain",
+                                "confidence": 0.0,
+                                "field": "abstract",
+                                "quote": "",
+                                "span": None,
+                                "valid_quote": False,
+                            }
+
+                    if progress:
+                        progress({
+                            "kind": "l_batch",
+                            "stage": stage,
+                            "block": block_tag,
+                            "crit_idx": crit_idx,
+                            "crit_total": crit_total,
+                            "batch_idx": batch_num,
+                            "batch_total": total_batches,
+                            "sub": "batch_done",
+                        })
+
+                    break  # batch success
+
+                except _Cancelled:
+                    # F-26: must not fall into the generic handler below,
+                    # which would mark every item in this batch "uncertain"
+                    # with error="Cancelled" — fabricating non-answers out of
+                    # a user action. Let it reach the batch loop.
+                    raise
+
+                except Exception as e:
+                    msg = str(e).lower()
+                    is_rate = ("429" in msg) or ("too many requests" in msg) or ("rate" in msg and "limit" in msg)
+                    is_big = ("too large" in msg) or ("context" in msg and "length" in msg) or ("max tokens" in msg)
+
+                    # split WITHOUT losing items (requeue remainder right after this batch)
+                    if (is_rate or is_big) and len(cur_batch) > 1:
+                        new_n = max(1, len(cur_batch) // 2)
+                        remainder = cur_batch[new_n:]
+                        cur_batch = cur_batch[:new_n]
+
+                        # replace current batch, insert remainder as next batch
+                        batches[bi] = cur_batch
+                        if remainder:
+                            batches.insert(bi + 1, remainder)
+
+                        if log:
+                            log(
+                                f"{log_prefix} batch {bi+1}/{len(batches)} error ({e}); "
+                                f"split into {len(cur_batch)} + {len(remainder)}\n"
+                            )
+
+                        time.sleep(min(4.0, 0.4 * attempts))
                         continue
 
-                    decision = _safe_str(obj.get("decision", "uncertain")).strip()
-                    if decision not in {"meet", "not_meet", "uncertain"}:
-                        decision = "uncertain"
-
-                    try:
-                        confidence = float(obj.get("confidence", 0.0))
-                    except Exception:
-                        confidence = 0.0
-                    confidence = min(1.0, max(0.0, confidence))
-
-                    field = _safe_str(obj.get("field", "")).strip().lower()
-                    if field not in {"title", "abstract", "keywords"}:
-                        field = "abstract"
-
-                    quote = _safe_str(obj.get("quote", ""))
-                    span = obj.get("span", None)
-                    if not (isinstance(span, list) and len(span) == 2 and all(isinstance(x, int) for x in span)):
-                        span = None
-
-                    fld_txt = (idx_map.get(a_id) or {}).get(field) or ""
-                    # Validate against the SAME truncated text that was sent to the model for this call
-                    fld_txt_prompt = (fld_txt[:cur_trunc] if cur_trunc and len(fld_txt) > cur_trunc else fld_txt)
-                    valid_quote = _quote_in_text(quote, fld_txt_prompt)
-
-                    out[(a_id, cid)] = {
-                        "used": True,
-                        "decision": decision,
-                        "confidence": confidence,
-                        "field": field,
-                        "quote": quote,
-                        "span": span,
-                        "valid_quote": valid_quote,
-                    }
-
-                # ensure every item in THIS cur_batch has an entry
-                for it in cur_batch:
-                    a_id = _safe_str(it.get("a_id", "")).strip()
-                    if not a_id:
+                    # reduce truncation if still big/rate and trunc is high
+                    if (is_rate or is_big) and cur_trunc > 600:
+                        new_trunc = max(600, int(cur_trunc * 0.75))
+                        if log:
+                            log(f"{log_prefix} batch {bi+1}/{len(batches)} error ({e}); trunc {cur_trunc} -> {new_trunc}\n")
+                        cur_trunc = new_trunc
+                        time.sleep(min(4.0, 0.4 * attempts))
                         continue
-                    if (a_id, cid) not in out:
+
+                    # final failure for this batch: mark all items in THIS cur_batch as uncertain
+                    if log:
+                        log(f"{log_prefix} batch {bi+1}/{len(batches)} failed: {e}\n")
+
+                    for it in cur_batch:
+                        a_id = _safe_str(it.get("a_id", "")).strip()
+                        if not a_id:
+                            continue
                         out[(a_id, cid)] = {
                             "used": False,
                             "decision": "uncertain",
@@ -304,77 +412,16 @@ def run_m1_llm_for_criterion(
                             "quote": "",
                             "span": None,
                             "valid_quote": False,
+                            "error": str(e),
                         }
+                    break  # stop retrying this batch
 
-                if progress:
-                    progress({
-                        "kind": "l_batch",
-                        "stage": stage,
-                        "block": block_tag,
-                        "crit_idx": crit_idx,
-                        "crit_total": crit_total,
-                        "batch_idx": batch_num,
-                        "batch_total": total_batches,
-                        "sub": "batch_done",
-                    })
+            bi += 1
 
-                break  # batch success
-
-            except Exception as e:
-                msg = str(e).lower()
-                is_rate = ("429" in msg) or ("too many requests" in msg) or ("rate" in msg and "limit" in msg)
-                is_big = ("too large" in msg) or ("context" in msg and "length" in msg) or ("max tokens" in msg)
-
-                # split WITHOUT losing items (requeue remainder right after this batch)
-                if (is_rate or is_big) and len(cur_batch) > 1:
-                    new_n = max(1, len(cur_batch) // 2)
-                    remainder = cur_batch[new_n:]
-                    cur_batch = cur_batch[:new_n]
-
-                    # replace current batch, insert remainder as next batch
-                    batches[bi] = cur_batch
-                    if remainder:
-                        batches.insert(bi + 1, remainder)
-
-                    if log:
-                        log(
-                            f"{log_prefix} batch {bi+1}/{len(batches)} error ({e}); "
-                            f"split into {len(cur_batch)} + {len(remainder)}\n"
-                        )
-
-                    time.sleep(min(4.0, 0.4 * attempts))
-                    continue
-
-                # reduce truncation if still big/rate and trunc is high
-                if (is_rate or is_big) and cur_trunc > 600:
-                    new_trunc = max(600, int(cur_trunc * 0.75))
-                    if log:
-                        log(f"{log_prefix} batch {bi+1}/{len(batches)} error ({e}); trunc {cur_trunc} -> {new_trunc}\n")
-                    cur_trunc = new_trunc
-                    time.sleep(min(4.0, 0.4 * attempts))
-                    continue
-
-                # final failure for this batch: mark all items in THIS cur_batch as uncertain
-                if log:
-                    log(f"{log_prefix} batch {bi+1}/{len(batches)} failed: {e}\n")
-
-                for it in cur_batch:
-                    a_id = _safe_str(it.get("a_id", "")).strip()
-                    if not a_id:
-                        continue
-                    out[(a_id, cid)] = {
-                        "used": False,
-                        "decision": "uncertain",
-                        "confidence": 0.0,
-                        "field": "abstract",
-                        "quote": "",
-                        "span": None,
-                        "valid_quote": False,
-                        "error": str(e),
-                    }
-                break  # stop retrying this batch
-
-        bi += 1
+    except _Cancelled:
+        if log:
+            log(f"{log_prefix} cancelled after {bi} of {len(batches)} "
+                f"batches; keeping {len(out)} result(s) already received.\n")
 
     return out
 

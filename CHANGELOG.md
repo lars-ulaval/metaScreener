@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- A cancelled screening run can no longer be exported (F-02). All four stage
+  engines now return a `cancelled` flag alongside their results; the stage UIs
+  refuse both the XLSX and the next-bundle export while it is set, and say why.
+  Previously the row loop exited mid-corpus and returned the rows it had
+  reached as though they were the whole corpus, so an exported bundle from a
+  cancelled run was indistinguishable from a complete run over a smaller
+  one — and it is the survivor list that becomes the next stage's input. If a
+  partial run is written by some other path, `manifest.pipeline.history[]` now
+  carries `cancelled: true` and the stage marker reads `cancelled`.
+- Cancelling an LLM stage no longer throws away answers already received and
+  paid for (F-26). The cancel check raised past `return out`, discarding every
+  completed batch; and because the post-call check sat inside the per-batch
+  retry block, the generic error handler caught it and rewrote the whole batch
+  as `uncertain` with `error="Cancelled"`, replacing real answers with
+  fabricated non-answers.
 - The LLM response cache key is now derived from a hash of the fully-rendered
   prompt (plus model and temperature) rather than from an enumerated list of
   invocation parameters (F-01). Previously the key carried only the criterion's

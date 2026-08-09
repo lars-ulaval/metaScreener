@@ -92,6 +92,7 @@ from plugins._common.bundle import (
     _find_first_member,
     _load_bundle,
     _export_next_bundle_zip as _export_next_bundle_zip_common,
+    _export_block_reason,
 )
 
 from plugins._common.runner import run_screen
@@ -127,8 +128,11 @@ def run_eh_screen(
     criteria_report: CriteriaLoadReport,
     cancel_event: threading.Event,
     progress_cb: Optional[Callable[[float], None]] = None,
-) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], Dict[str, int], Dict[str, Dict[str, int]], List[Dict[str, List[str]]]]:
-    """Backward-compat wrapper. Real implementation in plugins._common.runner."""
+) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], Dict[str, int], Dict[str, Dict[str, int]], List[Dict[str, List[str]]], bool]:
+    """Backward-compat wrapper. Real implementation in plugins._common.runner.
+
+    Returns a sixth element, ``cancelled`` (F-02).
+    """
     return run_screen(parse, criteria_report, cancel_event, progress_cb, stage="EH")
 
 
@@ -152,12 +156,13 @@ def _export_next_bundle_zip(
     survivors: List[Dict[str, str]],
     skipped: List[Tuple[int, str, str]],
     counts: Dict[str, int],
+    cancelled: bool = False,
 ) -> None:
     """Backward-compat wrapper. Real implementation in plugins._common.bundle."""
     return _export_next_bundle_zip_common(
         out_zip_path, bundle, data_rel, criteria_rel, input_errors_rel,
         parse_header, full_rows, survivors, skipped, counts,
-        stage="EH",
+        stage="EH", cancelled=cancelled,
     )
 
 
@@ -185,6 +190,7 @@ class EHView(ttk.Frame):
         self.criteria_report: Optional[CriteriaLoadReport] = None
 
         self.full_rows: List[Dict[str, str]] = []
+        self.cancelled: bool = False   # F-02: last run stopped mid-corpus
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
 
@@ -353,6 +359,7 @@ class EHView(ttk.Frame):
 
         warns: List[str] = []
         self.full_rows = []
+        self.cancelled = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -627,6 +634,7 @@ class EHView(ttk.Frame):
         self.btn_export_bundle.configure(state="disabled")
 
         self.full_rows = []
+        self.cancelled = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -640,13 +648,13 @@ class EHView(ttk.Frame):
 
         def worker():
             try:
-                full, surv, counts, impacts, row_evals = run_eh_screen(
+                full, surv, counts, impacts, row_evals, cancelled = run_eh_screen(
                     self.parse_report,
                     self.criteria_report,
                     self._cancel,
                     progress_cb=progress_cb,
                 )
-                self.after(0, lambda: self._finish_run(full, surv, counts, impacts, row_evals))
+                self.after(0, lambda: self._finish_run(full, surv, counts, impacts, row_evals, cancelled))
             except Exception as e:
                 self.after(0, lambda msg=str(e): self._run_failed(msg))
 
@@ -670,20 +678,39 @@ class EHView(ttk.Frame):
         counts: Dict[str, int],
         impacts: Dict[str, Dict[str, int]],
         row_evals: List[Dict[str, List[str]]],
+        cancelled: bool = False,
     ):
         self.full_rows = full
         self.survivors = surv
         self.counts = counts
         self.crit_impacts = impacts
         self.row_evals_full = row_evals
+        self.cancelled = bool(cancelled)
 
         self.btn_run.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
-        self.btn_export.configure(state="normal")
-        self.btn_export_bundle.configure(state="normal")
+
+        # F-02: a cancelled run stopped mid-corpus, so these results describe
+        # only part of it. Leaving the export buttons enabled is what made a
+        # partial bundle indistinguishable from a complete one; the click
+        # handlers refuse as well, via _export_block_reason.
+        export_state = "disabled" if self.cancelled else "normal"
+        self.btn_export.configure(state=export_state)
+        self.btn_export_bundle.configure(state=export_state)
 
         self._refresh_criteria_table(pre_run=False)
         self._refresh_reports_view()
+
+        if self.cancelled:
+            # Say how far it got, not what it found. The counts below are
+            # real but partial, and a "Done." prefix would read as complete.
+            self.lbl_status.configure(
+                text=(f"CANCELLED — partial: {len(full)} of "
+                      f"{len(self.parse_report.rows) if self.parse_report else '?'} "
+                      f"records screened. Export disabled; re-run to completion.")
+            )
+            self._refresh_counts_label()
+            return
 
         note = ""
         if len(full) > MAX_UI_ROWS_HINT or len(surv) > MAX_UI_ROWS_HINT:
@@ -796,8 +823,10 @@ class EHView(ttk.Frame):
         if not self.parse_report:
             messagebox.showwarning("Nothing to export", "Load a bundle first.")
             return
-        if not self.full_rows:
-            messagebox.showwarning("Nothing to export", "Run EH first.")
+        blocked = _export_block_reason(has_rows=bool(self.full_rows),
+                                       cancelled=self.cancelled)
+        if blocked:
+            messagebox.showwarning("Cannot export", blocked)
             return
 
         default_name = f"{_now_stamp()}_EH_reports.xlsx"
@@ -843,8 +872,10 @@ class EHView(ttk.Frame):
         if not self.bundle or not self.parse_report:
             messagebox.showwarning("Missing bundle", "Load a bundle first.")
             return
-        if not self.full_rows:
-            messagebox.showwarning("Nothing to export", "Run EH first.")
+        blocked = _export_block_reason(has_rows=bool(self.full_rows),
+                                       cancelled=self.cancelled)
+        if blocked:
+            messagebox.showwarning("Cannot export", blocked)
             return
 
         default_name = f"ScreenA_Bundle_EH_{_now_stamp()}.zip"
@@ -869,6 +900,7 @@ class EHView(ttk.Frame):
                 survivors=self.survivors,
                 skipped=self.parse_report.skipped,
                 counts=self.counts,
+                cancelled=self.cancelled,
             )
         except Exception as e:
             messagebox.showerror("Export failed", str(e))

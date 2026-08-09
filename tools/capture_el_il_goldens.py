@@ -141,7 +141,7 @@ def _run_eh_and_ih_to_get_el_input(eh, ih, parse, criteria_text: str):
     """Reproduce the EH → IH chain to obtain post-IH-survivors as EL's input."""
     # EH stage
     eh_crits = eh._load_criteria_eh_from_text(criteria_text)
-    eh_full, eh_surv, _, _, _ = eh.run_eh_screen(
+    eh_full, eh_surv, _, _, _, _ = eh.run_eh_screen(
         parse, eh_crits, threading.Event(), progress_cb=None
     )
     # Build a real ParseReport from EH survivors for IH input.
@@ -153,7 +153,7 @@ def _run_eh_and_ih_to_get_el_input(eh, ih, parse, criteria_text: str):
 
     # IH stage
     ih_crits = ih._load_criteria_ih_from_text(criteria_text)
-    ih_full, ih_surv, _, _, _ = ih.run_ih_screen(
+    ih_full, ih_surv, _, _, _, _ = ih.run_ih_screen(
         ih_parse, ih_crits, threading.Event(), progress_cb=None
     )
     return parse.header, ih_surv
@@ -194,7 +194,7 @@ def _capture_el(el, el_input_header: List[str],
     print(f"[EL]   loaded {len(el_crits.criteria)} EL criteria")
 
     print("[EL] Running run_el_screen (live API calls)...")
-    full_rows, _surv, counts, _impacts, _evals, cache_out = el.run_el_screen(
+    full_rows, _surv, counts, _impacts, _evals, cache_out, _cancelled = el.run_el_screen(
         parse, el_crits,
         model=MODEL,
         trunc_chars=TRUNC_CHARS,
@@ -264,7 +264,7 @@ def _capture_il(il, il_input_header: List[str],
     print(f"[IL]   loaded {len(il_crits.criteria)} IL criteria")
 
     print("[IL] Running run_il_screen (live API calls)...")
-    full_rows, _surv, counts, _impacts, _evals, cache_out = il.run_il_screen(
+    full_rows, _surv, counts, _impacts, _evals, cache_out, _cancelled = il.run_il_screen(
         parse, il_crits,
         model=MODEL,
         trunc_chars=TRUNC_CHARS,

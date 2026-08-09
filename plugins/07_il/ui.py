@@ -37,6 +37,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+# F-02: one shared export gate, so the rule that a cancelled run
+# cannot be exported lives in one place for all four stages.
+from plugins._common.bundle import _export_block_reason
+
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -479,6 +483,7 @@ class ILView(ttk.Frame):
         self.bundle: Optional[BundleInfo] = None
 
         self.full_rows: List[Dict[str, Any]] = []
+        self.cancelled: bool = False   # F-02: last run stopped mid-corpus
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
 
@@ -701,6 +706,7 @@ class ILView(ttk.Frame):
 
         warns: List[str] = []
         self.full_rows = []
+        self.cancelled = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -1056,7 +1062,7 @@ class ILView(ttk.Frame):
 
         def work():
             try:
-                full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out = run_il_screen(
+                full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled = run_il_screen(
                     self.bundle.parse,
                     self.bundle.criteria,
                     model=model,
@@ -1071,9 +1077,20 @@ class ILView(ttk.Frame):
                     progress_evt=progress_evt,
                 )
 
-                if self._cancel.is_set():
-                    self.after(0, lambda: self._log("\n[CANCELLED]\n"))
-                    self.after(0, lambda: self.lbl_status.configure(text="Cancelled."))
+                if cancelled:
+                    # F-02: the engine reports that it stopped mid-corpus.
+                    # Trust that rather than re-reading the event, drop the
+                    # partial results instead of leaving them on screen, and
+                    # latch the flag so the export handlers refuse even if an
+                    # earlier complete run left rows behind.
+                    self.cancelled = True
+                    self.full_rows = []
+                    self.survivors = []
+                    self.after(0, lambda: self._log(
+                        "\n[CANCELLED] Partial results discarded; export stays "
+                        "disabled until IL is re-run to completion.\n"))
+                    self.after(0, lambda: self.lbl_status.configure(
+                        text="Cancelled — partial run, nothing exported."))
                     return
 
                 self.full_rows = full_rows
@@ -1111,8 +1128,10 @@ class ILView(ttk.Frame):
         if not self.bundle:
             messagebox.showwarning("Nothing to export", "Load a bundle first.")
             return
-        if not self.full_rows:
-            messagebox.showwarning("Nothing to export", "Run IL first.")
+        blocked = _export_block_reason(has_rows=bool(self.full_rows),
+                                       cancelled=self.cancelled)
+        if blocked:
+            messagebox.showwarning("Cannot export", blocked)
             return
 
         default_name = f"{_now_stamp()}_IL_reports.xlsx"
@@ -1134,8 +1153,13 @@ class ILView(ttk.Frame):
         self.lbl_status.configure(text=f"Exported: {Path(p).name}")
 
     def _export_final_clicked(self):
-        if not self.bundle or not self.full_rows:
-            messagebox.showinfo("Not ready", "Run IL first.")
+        blocked = (
+            (None if self.bundle else "Load a bundle first.")
+            or _export_block_reason(has_rows=bool(self.full_rows),
+                                    cancelled=self.cancelled)
+        )
+        if blocked:
+            messagebox.showinfo("Not ready", blocked)
             return
 
         default_name = f"{_now_stamp()}_{FINAL_REPORT_NAME}"
@@ -1192,8 +1216,10 @@ class ILView(ttk.Frame):
         if not self.bundle:
             messagebox.showwarning("Nothing to export", "Load a bundle first.")
             return
-        if not self.full_rows:
-            messagebox.showwarning("Nothing to export", "Run IL first.")
+        blocked = _export_block_reason(has_rows=bool(self.full_rows),
+                                       cancelled=self.cancelled)
+        if blocked:
+            messagebox.showwarning("Cannot export", blocked)
             return
 
         default_name = f"{_now_stamp()}_post_IL_bundle.zip"

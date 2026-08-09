@@ -70,6 +70,39 @@ class BundleInfo:
 
 
 # ----------------------------
+# Export gate
+# ----------------------------
+
+CANCELLED_EXPORT_REASON = (
+    "This run was cancelled before it reached the end of the corpus, so the "
+    "results cover only part of it.\n\n"
+    "Exporting them would produce a bundle that is indistinguishable from a "
+    "complete run over a smaller corpus: the survivors written to "
+    "data/current.csv become the next stage's input, and the records never "
+    "reached would be silently dropped from the review.\n\n"
+    "Run the stage again to completion before exporting."
+)
+
+
+def _export_block_reason(*, has_rows: bool, cancelled: bool) -> Optional[str]:
+    """Return why export must be refused, or None if it may proceed.
+
+    F-02. One rule in one place, called by all four stage UIs, because the
+    decision is the same for all of them and a per-stage copy is a per-stage
+    opportunity to forget it.
+
+    Cancellation is checked first on purpose: a cancelled run that produced
+    no rows at all would otherwise be reported as "run the stage first",
+    which is both wrong and reassuring.
+    """
+    if cancelled:
+        return CANCELLED_EXPORT_REASON
+    if not has_rows:
+        return "Run the stage first — there are no results to export."
+    return None
+
+
+# ----------------------------
 # Bundle IO
 # ----------------------------
 
@@ -146,11 +179,18 @@ def _export_next_bundle_zip(
     counts: Dict[str, int],
     *,
     stage: str,
+    cancelled: bool = False,
 ) -> None:
     """
     Create a new bundle zip where data/current.csv becomes the {stage} survivors.
     Keeps other files from the input bundle, updates manifest pipeline + sha256 (warn-only downstream).
     Adds reports/{stage}_FULL.csv and reports/{stage}_SURVIVORS.csv.
+
+    ``cancelled`` is stamped onto the history entry (F-02). The UIs refuse to
+    call this at all for a cancelled run — refusing export is the primary
+    defence, since a manifest field that merely *says* the bundle is partial
+    is easy to miss. The stamp is here so that any path which does write one
+    anyway leaves a record a downstream reader can find.
     """
     sl = stage.lower()
     root = bundle.root
@@ -185,13 +225,14 @@ def _export_next_bundle_zip(
     stages = dict(pipeline.get("stages", {}) or {})
     history = list(pipeline.get("history", []) or [])
 
-    stages[stage] = "done"
+    stages[stage] = "cancelled" if cancelled else "done"
     history.append({
         "stage": stage,
         "ran_at": _iso_now(),
         "counts": counts,
         "survivors_rows": len(survivors),
         "out_rows_full": len(full_rows),
+        "cancelled": bool(cancelled),
     })
     pipeline["stages"] = stages
     pipeline["history"] = history

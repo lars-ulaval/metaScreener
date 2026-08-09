@@ -76,7 +76,7 @@ def _il_to_csv(out_path: Path) -> None:
 
     saved_key = os.environ.pop("OPENAI_API_KEY", None)
     try:
-        full_rows, _surv, _counts, _impacts, _evals, _cache_out = il.run_il_screen(
+        full_rows, _surv, _counts, _impacts, _evals, _cache_out, _cancelled = il.run_il_screen(
             parse, crits,
             model=invocation["model"],
             trunc_chars=invocation["trunc_chars"],

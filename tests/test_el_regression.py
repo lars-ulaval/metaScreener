@@ -111,7 +111,7 @@ def _el_to_csv(out_path: Path) -> None:
     # Defensive: tests must NEVER hit the live API
     saved_key = os.environ.pop("OPENAI_API_KEY", None)
     try:
-        full_rows, _surv, _counts, _impacts, _evals, _cache_out = el.run_el_screen(
+        full_rows, _surv, _counts, _impacts, _evals, _cache_out, _cancelled = el.run_el_screen(
             parse, crits,
             model=invocation["model"],
             trunc_chars=invocation["trunc_chars"],

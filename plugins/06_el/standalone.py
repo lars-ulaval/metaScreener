@@ -27,6 +27,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+# F-02: one shared export gate, so the rule that a cancelled run
+# cannot be exported lives in one place for all four stages.
+from plugins._common.bundle import _export_block_reason
+
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -57,6 +61,7 @@ class StandaloneELPlugin(ttk.Frame):
         self.bundle: Optional[BundleInfo] = None
 
         self.full_rows: List[Dict[str, Any]] = []
+        self.cancelled: bool = False   # F-02: last run stopped mid-corpus
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
         self.crit_impacts: Dict[str, Dict[str, int]] = {}
@@ -244,6 +249,7 @@ class StandaloneELPlugin(ttk.Frame):
 
         # reset results
         self.full_rows = []
+        self.cancelled = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -284,7 +290,7 @@ class StandaloneELPlugin(ttk.Frame):
 
         def work():
             try:
-                full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out = run_el_screen(
+                full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled = run_el_screen(
                     self.bundle.parse,
                     self.bundle.criteria,
                     model=model,
@@ -297,8 +303,15 @@ class StandaloneELPlugin(ttk.Frame):
                     progress_cb=progress_cb,
                     progress_evt=progress_evt,
                 )
-                if self.cancel_event.is_set():
-                    self.after(0, lambda: self._log("\n[CANCELLED]\n"))
+                if cancelled:
+                    # F-02: see the ui.py twin. Partial results are dropped
+                    # and the flag latched so the exports refuse.
+                    self.cancelled = True
+                    self.full_rows = []
+                    self.survivors = []
+                    self.after(0, lambda: self._log(
+                        "\n[CANCELLED] Partial results discarded; export stays "
+                        "disabled until EL is re-run to completion.\n"))
                     return
                 self.full_rows = full_rows
                 self.survivors = survivors
@@ -331,7 +344,10 @@ class StandaloneELPlugin(ttk.Frame):
 
     # -------- exports
     def on_export_csv(self):
-        if not self.full_rows:
+        blocked = _export_block_reason(has_rows=bool(self.full_rows),
+                                       cancelled=self.cancelled)
+        if blocked:
+            messagebox.showwarning("Cannot export", blocked)
             return
         p = filedialog.asksaveasfilename(
             title="Save EL_FULL.csv",
@@ -346,7 +362,10 @@ class StandaloneELPlugin(ttk.Frame):
 
     def on_export_xlsx(self):
         # Keep it standard-library only: write CSV next to requested xlsx name.
-        if not self.full_rows:
+        blocked = _export_block_reason(has_rows=bool(self.full_rows),
+                                       cancelled=self.cancelled)
+        if blocked:
+            messagebox.showwarning("Cannot export", blocked)
             return
         p = filedialog.asksaveasfilename(
             title="Save EL_FULL.xlsx (fallback to CSV if no writer)",
@@ -369,7 +388,12 @@ class StandaloneELPlugin(ttk.Frame):
         messagebox.showinfo("Export", f"No XLSX writer bundled.\nSaved CSV instead:\n{csv_path}")
 
     def on_build_next_bundle(self):
-        if not self.bundle or not self.full_rows:
+        blocked = (
+            (None if self.bundle else "Load a bundle first.")
+            or _export_block_reason(has_rows=bool(self.full_rows),
+                                    cancelled=self.cancelled)
+        )
+        if blocked:
             return
         out_zip = filedialog.asksaveasfilename(
             title="Save next bundle ZIP (post-EL)",

@@ -382,6 +382,7 @@ def run_il_screen(
     Dict[str, Dict[str, int]],  # crit_impacts
     List[Dict[str, List[str]]], # row_eval_lists (aligned with full_rows)
     Dict[str, Dict[str, Any]],  # cache_out
+    bool,                       # cancelled (F-02)
 ]:
     rows = parse.rows
     crits = [c for c in criteria_report.criteria if c.enabled]
@@ -393,10 +394,12 @@ def run_il_screen(
     row_eval_lists: List[Dict[str, List[str]]] = []
 
     cache_out: Dict[str, Dict[str, Any]] = dict(cache_in or {})
+    cancelled = False
 
     if not crits:
         for r in rows:
             if cancel_event.is_set():
+                cancelled = True
                 break
             fr = dict(r)
             fr["il_outcome"] = "PASS_CLEAN"
@@ -412,7 +415,7 @@ def run_il_screen(
         counts["PASS_CLEAN"] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
-        return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out
+        return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled
 
     # Build items for LLM (same base shape as legacy), but robust to header casing
     header_map: Dict[str, str] = {h.lower(): h for h in (parse.header or [])}
@@ -449,6 +452,7 @@ def run_il_screen(
 
     for ci, c in enumerate(crits, start=1):
         if cancel_event.is_set():
+            cancelled = True
             break
 
         # build criterion pack
@@ -530,6 +534,7 @@ def run_il_screen(
     # Now compute per-row statuses
     for idx, r in enumerate(rows, start=1):
         if cancel_event.is_set():
+            cancelled = True
             break
 
         a_id = getv(r, "local_id").strip()
@@ -635,7 +640,7 @@ def run_il_screen(
     if progress_cb:
         progress_cb(1.0)
 
-    return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out
+    return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled
 
 def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str], uncertain: List[str]) -> str:
     if outcome == "OUT":

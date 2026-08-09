@@ -52,7 +52,7 @@ def _eh_to_csv(out_path: Path) -> None:
     parse = h._parse_csv_tolerant_text(corpus_text, required_id="local_id")
     crits = h._load_criteria_eh_from_text(criteria_text)
 
-    full_rows, _surv, _counts, _impacts, _row_evals = h.run_eh_screen(
+    full_rows, _surv, _counts, _impacts, _row_evals, _cancelled = h.run_eh_screen(
         parse, crits, threading.Event(), progress_cb=None
     )
 
