@@ -18,8 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `manifest.pipeline.history[]` records the no-op so a reviewer
   reproducing the pipeline can see it without re-running the GUI. The records
   still pass through to the next stage — not having screened them is no reason
-  to drop them. A criterion that exists but is disabled now counts as absent
-  for this purpose; disabled criteria were previously still being evaluated.
+  to drop them.
 - EL and IL now refresh the manifest's SHA-256 map on export and verify it on
   load (F-05). Neither did before — the string `sha` appeared nowhere in either
   UI or either standalone shell — while both overwrite `data/current.csv` with
