@@ -346,16 +346,16 @@ options are available from the bundle slot in the GUI:
   want to archive the run for reproducibility or hand it off to a
   collaborator who will continue from a specific stage.
 
-A PRISMA-style flow diagram of the run is auto-generated from the
-per-stage decision reports and is available as
-`reports/prisma_flow.svg` inside the final bundle.
+The per-stage `*_FULL.csv` reports carry the counts needed to fill
+in a PRISMA flow diagram (records screened, excluded, and retained
+at each stage), but metaScreener does not draw one for you - the
+diagram has to be produced separately.
 
 ## What's next
 
 - For the methodology behind the LLM stages' agreement with human
   judgement (Reviewer 1's compulsory item in the JORS revision),
   see [LLM-screening human validation](llm-evaluation.md).
-- For common-question answers, see the FAQ (forthcoming, will live
-  at `docs/faq.md`).
+- For common-question answers, see the [FAQ](faq.md).
 - For pipeline architecture diagrams and the bundle-format
   specification, see the [README](../README.md).
