@@ -16,6 +16,71 @@ environment before any EL/IL call, so no network request was possible.
 
 ---
 
+## Addendum (wave 6): what wave 4a changed, and which passages below are now stale
+
+*Added 2026-08-09 at `895e51c`. **Nothing below this section has been rewritten.**
+This document is a dated, commit-pinned snapshot whose claims are cited to source or
+marked **[observed]** — an experimental record — so the wave-6 sweep annotates it and
+leaves the measurements as written. Read the body as "true at `b586230`" and this
+section as the delta.*
+
+Wave 4a fixed most of what this document found, and in doing so overtook **twelve**
+passages across three topics. The count matters: `06_llm_integration.md` reports "two
+items encountered in passing", which is two *topics*, not two passages — and two of the
+twelve contain neither phrase a reader would grep for.
+
+**Topic 1 — `data/input_errors.csv` is now written unconditionally (F-75, `b65a86d`).**
+Both bundle writers gated the file on a non-empty read; the gates are gone and the file
+is always emitted, header-only when nothing was dropped — which is the argument this
+document quotes from `write_input_errors_csv`'s own docstring. Now stale:
+
+| § | Passage | Stale token |
+|---|---|---|
+| `A.1–A.7 Stage 04 — EH` | files-written table, `data/input_errors.csv` row | "only if the merged file has ≥1 row" |
+| `Stage 05 — IH` | item **1. Files written.** | the single word "conditional" |
+| `Stage 06 — EL` | files-written table, `data/input_errors.csv` row | "only if non-empty" |
+| `B.4 Per-file structural verification` | paragraph **A third, minor.** | "the header-only file is never written" **[observed]** |
+| `Candidate findings` | item 6 | → **F-75**, closed |
+
+**Topic 2 — EL and IL now reject ragged rows instead of repairing them (F-72,
+`58518c9`).** `plugins/06_el/screen.py::_csv_read_strict` and its IL twin divert them to
+the skip list as `bad_column_count`, so they reach `data/input_errors.csv`. Now stale:
+
+| § | Passage |
+|---|---|
+| `Stage 06 — EL` | item **2. Row universe.** — "ragged rows are silently padded or truncated" **[observed]** |
+| `Stage 06 — EL` | item **7. Contract as implemented.** — the "repaired rather than rejected" clause only |
+| `Stage 07 — IL` | item **2. Row universe.** — "Same padding-not-skipping behaviour as EL" |
+| `B.6 Defect classification` | class (R), second bullet — the **first** near-miss only |
+| `Candidate findings` | item 8 → **F-72** (and **F-24**), closed |
+| `Open questions for the maintainer` | **Q-D** — **answered**: align EL/IL to EH/IH's reject-and-record policy |
+
+**Two traps in topic 2, for anyone re-verifying rather than reading.** First,
+`B.1 Inventory` row **R3** is *not* stale and must not be swept with the rest:
+`plugins/06_el/screen.py::_csv_read` still pads, deliberately, because the criteria table
+and report re-reads still go through it — only `data/current.csv` moved to the strict
+sibling, for which the inventory has no row at all. R3 is now **incomplete, not wrong**.
+Second, the coordinate `screen.py:148-154` cited in `Stage 06 — EL` still lands inside
+that same lenient `_csv_read`, so a verifier who re-checks the line number instead of the
+call path will wrongly re-confirm a stale claim.
+
+**Topic 3 — `read_input_errors()` now raises on an unreadable file (F-68, `f813b70`),**
+which this document's own candidate 2 asked for. `plugins/_common/input_errors.py`
+defines `InputErrorsUnreadableError`; absent or empty still reads as empty. Every passage
+asserting that the reader "never raises" or returns `[]` on failure is stale —
+`Executive summary` item 2, `B.1 Inventory` row **R4**, `B.2 Static red flags`, and
+`Candidate findings` item 2. This topic is named in neither the brief nor
+`06_llm_integration.md`; it was found during the wave-6 sweep.
+
+**Closure map for this document's candidate findings.** 1 → F-67 (`267007d`, with a
+residual site deferred to F-79); 2 → F-68 (`f813b70`); 3 → F-69 (`150a37a`); 4 → F-70
+(`da519ec`); 5 → F-71 (`2203ab0`); 6 → F-75 (`b65a86d`); 7 → F-76 (`1e1ee0a`); 8 → F-72
+(`58518c9`); 9 → F-73 (`b2fa7df`); 10 → F-77, 11 → F-78, 12 → F-74 (`c928432`), 13 →
+F-27's mechanism note, 14 → F-80, 15 → F-14's note, 16/17 → F-79, 18 → F-81. Of these,
+**F-77, F-78, F-79, F-80 and F-81 remain open** — F-79 is wave 4b, the rest backlog.
+
+---
+
 ## Executive summary
 
 **The CSV writers are structurally sound where it matters most, and the display
@@ -980,6 +1045,12 @@ launched for this diagnostic):
   EH/IH's policy on the same file, and it produces no audit entry. If a bundle is
   ever opened directly at EL — which the code permits — a malformed record is
   silently corrected into the corpus rather than diverted.
+  *(**Answered, wave 4a — do not re-decide.** No: align EL/IL to EH/IH's
+  reject-and-record policy. Fixed in `58518c9` via F-72, which closed F-24 in the
+  same change; `plugins/06_el/screen.py::_csv_read_strict` and its IL twin divert
+  ragged rows to the skip list as `bad_column_count`. The lenient
+  `::_csv_read` is retained on purpose for the criteria table and report
+  re-reads. Stamped in wave 6.)*
 - **Q-E — should EH/IH re-stamp carried-forward `input_errors` rows with their
   own stage?** The current behaviour makes one drop look like N drops. The
   alternative — carrying the prior rows through untouched and appending only what
