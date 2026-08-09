@@ -2,6 +2,13 @@
 
 *Diagnostic report, Phase 5–7. Read-only analysis.*
 
+**Repository state when this document was written:** `main` @ `365325c`, 2026-08-08 — the
+same snapshot as the rest of the diagnostic set. *(This pin was added in wave 6. Its absence
+was itself a defect: unlike `05_report_production.md`, this document carried no commit and no
+date, so its present-tense assessments read as claims about the software now rather than as a
+dated snapshot. Where a passage has since been overtaken, an `*Addendum (wave N, F-nn):*`
+follows it; the original text is never rewritten. §6.3, §6.4 and §6.5 each carry one.)*
+
 **How the test runs in this report were produced.** The system Python 3.11.0 was missing
 `pandas` and `langdetect`, so I created an isolated venv outside the repo at
 `…/scratchpad/dvenv` and installed `requirements.txt` + `pytest` + `pytest-cov` into it.
@@ -408,6 +415,33 @@ All in `plugins/_common/llm_client.py:123-375`.
 For *user cancellation*: no — see the row above, plus `screen.py:430,511` which truncate
 `full_rows` without marking the output as partial.
 
+*Addendum (wave 6): three items in §6.3 have been overtaken, and one coordinate has rotted.*
+
+- **The `Cancellation` row is pre-F-26 and is now false.** It describes
+  `_check_cancel()` raising a bare `RuntimeError("Cancelled")` that unwinds past `return out`,
+  discarding paid-for results. At HEAD there is a dedicated
+  `plugins/_common/llm_client.py::_Cancelled` whose docstring names F-26; the per-batch retry
+  block guards it with an explicit `except _Cancelled: raise` *ahead of* the generic handler;
+  and the batch loop catches it, logs how many batches completed, and falls through to
+  `return out`. **Partial results are retained.** F-26's own register row records the worse
+  half the original assessment missed — the generic handler was not merely discarding the
+  results but rewriting the in-flight batch as fabricated `uncertain` verdicts.
+- **The "Is partial progress preserved?" paragraph is stale in both halves.** The cancellation
+  half is above; and the `screen.py` truncation it cites is closed by F-02 —
+  `plugins/06_el/screen.py::run_el_screen` now returns a `cancelled` flag and the stage UIs
+  refuse to export while it is set.
+- **The `Client construction` row is right and its coordinate is wrong.** `base_url` is
+  still never passed and the SDK's own `OPENAI_BASE_URL` fallback is still what makes the
+  documented local path work — confirmed in wave 6 against installed SDK source. Only the
+  line number is stale: the factory is `plugins/_common/llm_client.py::_openai_client_for`.
+  The assessment stands unaltered, and is now carried as F-89, F-91, F-92 and F-127. The
+  section preamble ("All in `plugins/_common/llm_client.py:123-375`") is stale for the same
+  reason and additionally excludes the client factory, which sits outside that range.
+
+*(The `Timeout` row is not listed here because it hedges correctly — "600 s at the time of
+writing". Wave 6 sharpens rather than corrects it: the SDK also defaults `max_retries=2`, so
+the true bound is 3 × 600 s. See F-25.)*
+
 ### 6.4 The response cache
 
 **Key derivation** (`llm_client.py:397-414`):
@@ -451,6 +485,37 @@ The fix is small and backward-compatible in spirit but not in bytes: hash the se
 `crit_pack` into the key. It **will** invalidate the committed EL/IL cache goldens and
 require a re-capture, which is presumably why it has not been done. That trade-off should be
 made explicitly rather than by omission.
+
+*Addendum (wave 6, F-01): everything above in §6.4 from the key-derivation block to this
+paragraph describes the pre-F-01 cache and has been superseded. It was done.*
+
+The key is now `plugins/_common/llm_client.py::_cache_key`, taking
+`(prompt_version, model, rendered_prompt, temperature)` and hashing a sorted-key JSON object
+of exactly those four fields. Four differences from the block above: the enumerated
+`cid`, `a_id`, `text_hash` and `trunc_chars` are **gone from the key entirely**, replaced by
+the whole rendered prompt — so criterion wording, record text, targets and truncation reach
+the key without being named; `temperature` is now hashed unconditionally, so the
+`if temperature != 0.0` suffix trick is gone; the payload is canonical JSON rather than a
+pipe-joined f-string; and the stage wrappers `plugins/06_el/screen.py::_cache_key` and its IL
+twin render a one-item prompt and delegate. The function's own docstring states the
+principle: *"Enumeration was itself the bug."*
+
+Three consequences for the text above, so no part of this section is left self-contradicting:
+the **Invalidation coverage** table's last row (*Criterion wording … ❌ not in key … No —
+this is a defect*) is now ✅ and correct; the **criterion-content gap** paragraph and its
+consequence no longer describe the software; and "which is presumably why it has not been
+done" is answered — it was done, and the predicted re-capture is recorded in
+`CHANGELOG.md` [Unreleased]. Two rows of that same table need a wave-6 footnote rather than a
+reversal: `batch_size` is "not in key" and the assessment "batching does not change per-item
+semantics" is **no longer safe** (F-101, and F-86 is the reason); and the *threshold* row's
+"correct by design" now has a rival consideration, since the threshold is also injected into
+the prompt (F-100). The `screen.py:547` coordinate it cites for the scoring-time application
+is stale — the gate is the `usable = …` line in `plugins/06_el/screen.py::run_el_screen`.
+
+What §6.4 records below this addendum — the two stages' symmetry, the corrupt-cache failure
+ladder, and the absence of a size bound, eviction or schema version — is **unaffected and
+still true**. The corrupt-cache observation is F-33; the missing round-trip test for the
+on-disk format it describes is F-103.
 
 **Consistency across the two stages:** the mechanism is identical. `06_el/screen.py:321-328`
 and `07_il/screen.py:323-330` are byte-identical stage-curried wrappers over the same shared
@@ -497,6 +562,24 @@ container, and it has one real hole (criterion-edit cache staleness). The README
 ("exact re-runs") is defensible; a reviewer who diffed two bundle ZIPs and found them
 different would be looking at timestamps, not at drift, and the documentation does not say
 so anywhere.
+
+*Addendum (wave 6, F-01): the "one real hole" is closed, and two larger ones were found.*
+
+The **Cache stale-on-criterion-edit** row of the table above, and the Verdict's "it has one
+real hole (criterion-edit cache staleness)", both inherit §6.4's pre-F-01 description. That
+hole is closed; the key now covers everything the model is shown. The Verdict's substantive
+claim — that reproducibility is substantially true for the artefacts carrying the science,
+and untrue for the manifest and the ZIP container — stands.
+
+Two reproducibility defects found after this section was written are **not** covered by it,
+and both sit on the same axis it audits. The key covers everything the model is *asked* and
+records nothing about *who answers*: the endpoint is absent from the key, so one model name
+served by two providers is one cache namespace (**F-89**), and no artefact anywhere records
+which model, provider, temperature or prompt version produced a decision (**F-88**).
+Separately, `.gitattributes` protects only `tests/golden/**`, so the corpus a re-capture
+reads is `text: auto` and two maintainers at the same commit with different `core.autocrlf`
+obtain different cache keys (**F-99**) — which makes the byte-for-byte regeneration claim a
+statement about a working tree rather than about a commit.
 
 ### 6.6 Kappa computation — independently verified
 
