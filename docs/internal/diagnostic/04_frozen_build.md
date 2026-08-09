@@ -159,10 +159,26 @@ relaunching both builds, not assumed. **F-19's verdict should move from
   have aborted startup with a traceback, and `_load_plugins` prints
   `[PLUGIN] Skipping` when an entrypoint is unusable; neither appeared in any
   run of either build. The literal count of rendered tabs was not observed,
-  because the API-key dialog is modal and this session had no way to see the
-  window.
-- **Unexplained:** in both dev and frozen mode on this machine, startup passes
-  the modal API-key dialog without interaction, reproducibly. `ApiKeyDialog`
-  calls `grab_set()` and only sets `value` in `_on_save()`, so it should block.
-  This was not chased further and is not understood; it should be checked on a
-  normal desktop launch.
+  because this session had no way to see the window.
+
+## Note on method: what a process cannot observe about itself
+
+An earlier draft of this document listed, under "what remains broken", that
+startup appeared to pass the modal API-key dialog without interaction in both
+dev and frozen mode, reproducibly and unexplained. **That was wrong and is
+retracted.** The dialog blocked correctly on every launch; a human was entering
+the key by hand each time, which is invisible from inside the process and from
+the captured stdout.
+
+The general point is worth keeping, because it will recur in any GUI check run
+this way. A modal that requires human input cannot be verified from inside the
+process: reaching the code past it proves only that *something* satisfied it,
+not that it behaved correctly, and the absence of any record of interaction is
+not evidence that none occurred. Reproducibility across runs does not
+distinguish the two either — a person doing the same thing each time looks
+exactly like no gate at all.
+
+Future GUI checks should state explicitly whether a human interacted with the
+run, and which steps they performed. Where that is not recorded, any conclusion
+that depends on a modal's behaviour should be marked unverified rather than
+inferred from what the process managed to print.
