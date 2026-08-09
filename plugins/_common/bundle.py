@@ -60,6 +60,7 @@ from plugins._common.exporters import (
     _write_csv_bytes,
 )
 from plugins._common.input_errors import (
+    from_dict_skipped,
     from_tuple_skipped,
     merge_input_errors_csv,
     read_input_errors,
@@ -105,6 +106,63 @@ def _export_block_reason(*, has_rows: bool, cancelled: bool) -> Optional[str]:
     if not has_rows:
         return "Run the stage first — there are no results to export."
     return None
+
+
+# ----------------------------
+# Manifest digests
+# ----------------------------
+
+def _refresh_sha256_map(manifest: Dict[str, Any],
+                        written: Dict[str, bytes]) -> Dict[str, Any]:
+    """Return a copy of ``manifest`` whose ``sha256`` map is correct for
+    every member in ``written`` (keys are bundle-relative, without root).
+
+    F-05. Every stage that replaces a file in the bundle must call this, or
+    the manifest goes on asserting the digest of the file it replaced. EL and
+    IL never did — the string ``sha`` appeared zero times in either UI — while
+    both overwrite data/current.csv with their survivors on export.
+
+    A digest that is present and wrong is worse than no digest: it turns an
+    integrity check into false assurance, and a reviewer who later sees a
+    mismatch cannot tell tampering from this bug. Entries for files the stage
+    did not touch are left exactly as they were.
+    """
+    out = dict(manifest)
+    sha_map = dict(out.get("sha256", {}) or {})
+    for rel, body in written.items():
+        sha_map[rel] = _sha256_hex(body)
+    out["sha256"] = sha_map
+    return out
+
+
+def _verify_sha256_map(manifest: Dict[str, Any],
+                       members: Dict[str, bytes]) -> List[str]:
+    """Check recorded digests against actual bytes; return one message per
+    mismatch, empty if everything agrees.
+
+    F-05, the other half: nothing downstream checked, which is why the stale
+    digests EL wrote went unnoticed for as long as they did. A member with no
+    recorded digest is not a mismatch — the manifest simply makes no claim
+    about it — and a missing or malformed sha256 map is not an error either,
+    because refusing to load a bundle over a bad audit field would be a worse
+    failure than reporting it.
+    """
+    problems: List[str] = []
+    sha_map = manifest.get("sha256", {})
+    if not isinstance(sha_map, dict):
+        return problems
+    for rel, body in members.items():
+        expected = _safe_str(sha_map.get(rel, "")).strip()
+        if not expected:
+            continue
+        actual = _sha256_hex(body)
+        if expected != actual:
+            problems.append(
+                f"[bundle] sha256 mismatch for {rel}: manifest records "
+                f"{expected[:12]}…, file is {actual[:12]}…. The file has "
+                f"changed since the manifest was written."
+            )
+    return problems
 
 
 # ----------------------------
@@ -263,14 +321,16 @@ def _export_next_bundle_zip(
     except Exception:
         pass
 
-    # Refresh sha256 map (only for files we overwrite/add)
-    sha_map = dict(m.get("sha256", {}) or {})
-    sha_map[out_data_rel] = _sha256_hex(current_bytes)
-    sha_map[rep_full_rel] = _sha256_hex(rep_full_bytes)
-    sha_map[rep_surv_rel] = _sha256_hex(rep_surv_bytes)
+    # Refresh sha256 map (only for files we overwrite/add), through the
+    # shared helper so EH/IH and EL/IL share one implementation (F-05).
+    written = {
+        out_data_rel: current_bytes,
+        rep_full_rel: rep_full_bytes,
+        rep_surv_rel: rep_surv_bytes,
+    }
     if input_errors_bytes is not None:
-        sha_map["data/input_errors.csv"] = _sha256_hex(input_errors_bytes)
-    m["sha256"] = sha_map
+        written["data/input_errors.csv"] = input_errors_bytes
+    m = _refresh_sha256_map(m, written)
 
     manifest_bytes = (json.dumps(m, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
@@ -296,3 +356,104 @@ def _export_next_bundle_zip(
         zout.writestr(root + rep_surv_rel, rep_surv_bytes)
         if input_errors_bytes is not None:
             zout.writestr(root + "data/input_errors.csv", input_errors_bytes)
+
+
+def _dict_csv_bytes(fieldnames: Sequence[str],
+                    rows: Sequence[Dict[str, Any]]) -> bytes:
+    """DictWriter to bytes, with None rendered as an empty cell.
+
+    Matches what EL/IL's four inlined copies produced, so the bytes of an
+    exported bundle do not move.
+    """
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=list(fieldnames), extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
+    return buf.getvalue().encode("utf-8")
+
+
+def _write_llm_stage_bundle(
+    out_zip_path: str,
+    zf_in: zipfile.ZipFile,
+    *,
+    root: str,
+    manifest: Dict[str, Any],
+    stage: str,
+    reports_dir_rel: str,
+    cache_rel: str,
+    parse_header: Sequence[str],
+    survivors: Sequence[Dict[str, Any]],
+    full_rows: Sequence[Dict[str, Any]],
+    full_header: Sequence[str],
+    skipped: Sequence[Dict[str, Any]],
+    cache_text: Optional[str] = None,
+    extra_members: Optional[Dict[str, bytes]] = None,
+) -> Dict[str, bytes]:
+    """Write the next-stage bundle for an LLM stage (EL or IL).
+
+    F-05. EL and IL each had two near-identical copies of this — one in
+    ui.py, one in standalone.py — and none of the four refreshed the
+    manifest's sha256 map. The string ``sha`` appeared zero times in any of
+    them, while all four overwrite data/current.csv with the stage's
+    survivors, so every bundle leaving EL or IL asserted a digest for a file
+    it had just replaced.
+
+    They are one function now, and the digests are refreshed through
+    ``_refresh_sha256_map`` — the same helper ``_export_next_bundle_zip``
+    uses for EH/IH, so there is one implementation of "the manifest must
+    describe what is actually in the zip" rather than five.
+
+    Kept separate from ``_export_next_bundle_zip`` rather than merged into
+    it: the LLM stages carry two extra report columns (uncertain_ids,
+    evidence_json), write a response cache, and in IL's case a cross-stage
+    workbook. Folding them together would have changed EL/IL's report schema
+    to EH/IH's, which is a behaviour change the goldens would rightly catch.
+
+    Returns the member map it wrote, keyed by bundle-relative path.
+    """
+    members = zf_in.namelist()
+
+    # F-03: append to the incoming bundle's record of dropped citations and
+    # carry it forward even when this stage skipped nothing.
+    prior_errors = ""
+    for rel in ("data/input_errors.csv", "input_errors.csv"):
+        if root + rel in members:
+            prior_errors = _decode_bytes(_read_zip_bytes(zf_in, root + rel))
+            break
+    merged_errors = merge_input_errors_csv(
+        prior_errors, from_dict_skipped(skipped, stage=stage))
+
+    written: Dict[str, bytes] = {
+        "data/current.csv": _dict_csv_bytes(parse_header, survivors),
+        f"{reports_dir_rel}/{stage}_FULL.csv": _dict_csv_bytes(full_header, full_rows),
+        f"{reports_dir_rel}/{stage}_SURVIVORS.csv": _dict_csv_bytes(parse_header, survivors),
+    }
+    written.update(extra_members or {})
+    if read_input_errors(merged_errors):
+        written["data/input_errors.csv"] = merged_errors.encode("utf-8")
+    if cache_text is not None:
+        written[cache_rel] = cache_text.encode("utf-8")
+
+    # Digests must be computed before the manifest is serialised. The old
+    # code wrote manifest.json first and the payloads afterwards, which is
+    # what made forgetting the refresh so easy.
+    manifest = _refresh_sha256_map(manifest, written)
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+
+    skip_exact = {root + rel for rel in written}
+    skip_exact.add(root + "manifest.json")
+    skip_exact.add(root + "data/input_errors.csv")
+    skip_exact.add(root + cache_rel)
+
+    with zipfile.ZipFile(out_zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf_out:
+        for name in members:
+            if name.endswith("/") or name in skip_exact:
+                continue
+            zf_out.writestr(name, _read_zip_bytes(zf_in, name))
+
+        zf_out.writestr(root + "manifest.json", manifest_bytes)
+        for rel, body in written.items():
+            zf_out.writestr(root + rel, body)
+
+    return written

@@ -61,6 +61,7 @@ from plugins._common.llm_client import (
     _render_prompt_for_key,
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
+from plugins._common.bundle import _verify_sha256_map
 
 from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
@@ -225,6 +226,29 @@ def _load_bundle(zip_path: str) -> BundleInfo:
             raise FileNotFoundError("Bundle missing criteria/criteria_harmonized.csv")
         crit_txt = _decode_bytes(_read_zip_bytes(zf, crit_full))
         criteria = _parse_criteria_harmonized_csv(crit_txt, stage_filter="EL")
+
+        # F-05: verify the manifest digests against the bytes actually in
+        # the zip. Nothing downstream checked before, which is how the
+        # stale digests EL itself wrote went unnoticed: the manifest
+        # asserted a hash for a data/current.csv that had been replaced.
+        #
+        # Warn rather than refuse. A digest mismatch means the file changed
+        # after the manifest was written, which is worth stopping to look
+        # at, but refusing to open the bundle would strand a reviewer whose
+        # only copy of the corpus is inside it. The warnings ride on the
+        # criteria report because that is what the View already surfaces.
+        to_check = {}
+        for member in members:
+            if member.endswith("/") or not member.startswith(root):
+                continue
+            rel = member[len(root):]
+            if rel == "manifest.json":
+                continue
+            try:
+                to_check[rel] = _read_zip_bytes(zf, member)
+            except Exception:
+                continue
+        criteria.warnings.extend(_verify_sha256_map(manifest, to_check))
 
         return BundleInfo(zip_path=zip_path, root=root, manifest=manifest, parse=parse, criteria=criteria)
 

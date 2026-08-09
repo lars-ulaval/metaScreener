@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- EL and IL now refresh the manifest's SHA-256 map on export and verify it on
+  load (F-05). Neither did before — the string `sha` appeared nowhere in either
+  UI or either standalone shell — while both overwrite `data/current.csv` with
+  the stage's survivors, so every bundle leaving EL or IL asserted a digest for
+  a file it had just replaced, and nothing downstream checked. A digest that is
+  present and wrong is worse than none: it turns an integrity check into false
+  assurance. The four near-identical EL/IL export copies are now one shared
+  writer, which is what makes the refresh unforgettable. The README claim
+  softened in Wave 0 is restored, minus the tamper-resistance it never had.
 - `data/input_errors.csv` — the record of which citations were dropped as
   malformed — now has one schema, one writer, and survives the pipeline
   (F-03). It previously had three schemas (one per writer), a reader that

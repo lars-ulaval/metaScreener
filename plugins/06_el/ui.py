@@ -36,7 +36,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # F-02: one shared export gate, so the rule that a cancelled run
 # cannot be exported lives in one place for all four stages.
-from plugins._common.bundle import _export_block_reason
+from plugins._common.bundle import (
+    _export_block_reason,
+    _write_llm_stage_bundle,
+)
 
 from plugins._common.input_errors import (
     from_dict_skipped,
@@ -1023,79 +1026,34 @@ class ELView(ttk.Frame):
             _set_stage(manifest, "EL", "done")
             manifest["updated_at"] = datetime.utcnow().isoformat() + "Z"
 
-            with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf_out:
-                skip_exact = {
-                    root + "data/current.csv",
-                    root + f"{REPORTS_DIR_REL}/EL_FULL.csv",
-                    root + f"{REPORTS_DIR_REL}/EL_SURVIVORS.csv",
-                    root + "data/input_errors.csv",
-                    root + EL_CACHE_REL,
-                    root + "manifest.json",
-                }
+            header = list(self.bundle.parse.header)
+            if "local_id" not in header:
+                header = ["local_id"] + header
 
-                for m in members:
-                    if m.endswith("/"):
-                        continue
-                    if m in skip_exact:
-                        continue
-                    zf_out.writestr(m, _read_zip_bytes(zf_in, m))
+            header_full = [
+                *header,
+                "el_outcome", "el_failed_ids", "el_missing_ids", "el_met_ids", "el_uncertain_ids", "el_reason_summary", "el_evidence_json",
+            ]
 
-                zf_out.writestr(root + "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-
-                # survivors to data/current.csv
-                header = list(self.bundle.parse.header)
-                if "local_id" not in header:
-                    header = ["local_id"] + header
-
-                buf = io.StringIO()
-                w = csv.DictWriter(buf, fieldnames=header, extrasaction="ignore")
-                w.writeheader()
-                for r in self.survivors:
-                    w.writerow({k: r.get(k, "") for k in header})
-                zf_out.writestr(root + "data/current.csv", buf.getvalue())
-
-                # reports
-                header_full = [
-                    *header,
-                    "el_outcome", "el_failed_ids", "el_missing_ids", "el_met_ids", "el_uncertain_ids", "el_reason_summary", "el_evidence_json",
-                ]
-
-                buf2 = io.StringIO()
-                w2 = csv.DictWriter(buf2, fieldnames=header_full, extrasaction="ignore")
-                w2.writeheader()
-                for r in self.full_rows:
-                    w2.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in header_full})
-                zf_out.writestr(root + f"{REPORTS_DIR_REL}/EL_FULL.csv", buf2.getvalue())
-
-                buf3 = io.StringIO()
-                w3 = csv.DictWriter(buf3, fieldnames=header, extrasaction="ignore")
-                w3.writeheader()
-                for r in self.survivors:
-                    w3.writerow({k: r.get(k, "") for k in header})
-                zf_out.writestr(root + f"{REPORTS_DIR_REL}/EL_SURVIVORS.csv", buf3.getvalue())
-
-                # input errors
-                # F-03: append to what the incoming bundle already
-                # recorded, in the canonical schema, and carry the file
-                # forward even when this stage skipped nothing. It used
-                # to be written only `if skipped`, in a two-column layout
-                # nothing could read, while sitting in skip_exact above —
-                # so a clean run DELETED the Harmoniser's record of every
-                # citation dropped as malformed.
-                prior_errors = ""
-                for _rel in ("data/input_errors.csv", "input_errors.csv"):
-                    if root + _rel in members:
-                        prior_errors = _decode_bytes(_read_zip_bytes(zf_in, root + _rel))
-                        break
-                merged_errors = merge_input_errors_csv(
-                    prior_errors,
-                    from_dict_skipped(self.bundle.parse.skipped, stage="EL"))
-                if read_input_errors(merged_errors):
-                    zf_out.writestr(root + "data/input_errors.csv", merged_errors)
-
-                # cache
-                if self.var_use_cache.get():
-                    zf_out.writestr(root + EL_CACHE_REL, _dump_cache_to_jsonl(self.cache_map))
+            # F-05: the writing itself lives in plugins/_common/bundle.py so
+            # that this method, its standalone.py twin and IL's two copies
+            # share one implementation — and, in particular, one that
+            # refreshes the manifest's sha256 map. None of the four did.
+            _write_llm_stage_bundle(
+                out_zip, zf_in,
+                root=root,
+                manifest=manifest,
+                stage="EL",
+                reports_dir_rel=REPORTS_DIR_REL,
+                cache_rel=EL_CACHE_REL,
+                parse_header=header,
+                survivors=self.survivors,
+                full_rows=self.full_rows,
+                full_header=header_full,
+                skipped=self.bundle.parse.skipped,
+                cache_text=(_dump_cache_to_jsonl(self.cache_map)
+                            if self.var_use_cache.get() else None),
+            )
 
 
 # StandaloneELPlugin moved to plugins/06_el/standalone.py in
