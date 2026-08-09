@@ -92,9 +92,11 @@ delete the specific `<stage>.jsonl` file.
 A bundle is a ZIP archive that carries the complete pipeline state
 at a given stage: the canonical record table, the harmonized
 criteria, every per-stage decision report so far, the LLM response
-cache, and a manifest with the criteria-hash, prompt version,
-model identifier, and UTC timestamp. Each plugin consumes a bundle
-and produces a new one with its stage's report appended. See
+cache, and a manifest recording SHA-256 digests of the bundle's
+files, the per-stage run history, and creation timestamps. Each
+plugin consumes a bundle and produces a new one with its stage's
+report appended. Note that the manifest does **not** record which
+model, endpoint or prompt version produced the LLM decisions. See
 [Bundle format and audit trail](../README.md#bundle-format-and-audit-trail).
 
 ### Can I resume from a saved bundle?
@@ -239,9 +241,10 @@ will improvise when fed something else. See
 The prompts are versioned per stage under `plugins/*/prompt.py`.
 Editing them locally is supported; doing so changes the prompt
 version stamp, which means the cache will not match previous runs
-(so a re-run will hit the live API for every record). For
-reproducibility, pin to a prompt version explicitly in your bundle
-manifest.
+(so a re-run will hit the live API for every record). The prompt
+version is not written into the bundle manifest, so if you edit a
+prompt, record which version you ran alongside the bundle yourself —
+the archive cannot tell you afterwards.
 
 ### Are there hooks for adding a new plugin?
 

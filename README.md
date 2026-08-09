@@ -88,7 +88,7 @@ Both LLM stages implement **evidence gating**: a screening decision is accepted 
 
 Each plugin produces a **bundle ZIP archive** containing:
 
-- `manifest.json` — pipeline configuration (criteria file hash, prompt version, model ID, UTC timestamp)
+- `manifest.json` — pipeline configuration (SHA-256 digests of the bundle's files including the criteria table, the per-stage run history with each stage's counts and outcome, and creation timestamps). **It does not record which model, endpoint, temperature or prompt version produced the LLM decisions** — if you need a run attributed to an engine, record that yourself alongside the bundle.
 - `data/current.csv` — the canonical citation table at the current stage
 - `criteria/criteria_harmonized.csv` — the machine-executable criteria specification
 - `reports/` — per-stage decision reports with full evidence trails

@@ -208,10 +208,15 @@ restart.
 
 ### Per-plugin model selection
 
-Each LLM-using plugin (01, 03, 06, 07) has its own model dropdown in
-the GUI. Defaults can be overridden per run; the selected model is
-recorded in each bundle's `manifest.json` so subsequent runs are
-auditable.
+Each LLM-using plugin (01, 03, 06, 07) has its own model field in the
+GUI — a free-text box, not a dropdown, so any identifier your endpoint
+accepts is valid and nothing validates the string. Defaults can be
+overridden per run.
+
+The selected model is **not** recorded in the bundle's `manifest.json`,
+and neither is the endpoint or the prompt version. If you change model
+mid-review, or run different stages against different models, note it
+yourself — nothing in the archive distinguishes the runs afterwards.
 
 ## Verifying the installation
 
