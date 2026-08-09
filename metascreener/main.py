@@ -244,9 +244,14 @@ class MetaScreenerApp(tk.Tk):
             self.nb.add(frame, text=tab_title)
 
     def _on_tab_changed(self, _evt):
+        # on_select only. on_show/on_hide are a separate, undocumented pair
+        # that is not part of the BasePlugin contract in plugin_api.py, and
+        # firing on_show without a matching on_hide would be half a feature.
+        # See F-59 for why plugin 02's implementation of that pair could not
+        # work anyway.
         idx = self.nb.index("current")
         if 0 <= idx < len(self._plugins):
-            notify_plugin(self._plugins[idx][0], "on_select", "on_show")
+            notify_plugin(self._plugins[idx][0], "on_select")
 
     def _on_close(self):
         # on_close is the BasePlugin contract; on_unload is what Plugin 02

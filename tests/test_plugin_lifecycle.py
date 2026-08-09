@@ -258,6 +258,40 @@ class TestPluginsListIsPopulated:
                 return
         pytest.fail("_on_close not found")
 
+    def test_tab_change_handler_fires_only_on_select(self):
+        """Scope guard.
+
+        F-18 is about the two hooks plugin_api.py:24-30 actually declares,
+        on_select and on_close. An earlier version of this fix also fired
+        on_show here - a different, undocumented pair, with no matching
+        on_hide on tab-leave, and whose plugin-02 implementation cannot
+        work regardless (F-59). Keep the tab-change handler to the declared
+        contract.
+        """
+        import ast
+
+        src = (PROJECT_ROOT / "metascreener" / "main.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "_on_tab_changed":
+                # Inspect the notify_plugin call's hook names only - not the
+                # explanatory comment, and not self.nb.index("current").
+                hooks = {
+                    c.value
+                    for n in ast.walk(node)
+                    if isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Name)
+                    and n.func.id == "notify_plugin"
+                    for c in n.args
+                    if isinstance(c, ast.Constant) and isinstance(c.value, str)
+                }
+                assert hooks == {"on_select"}, (
+                    "_on_tab_changed should dispatch on_select and nothing "
+                    "else; found %s" % sorted(hooks)
+                )
+                return
+        pytest.fail("_on_tab_changed not found")
+
 
 # --------------------------------------------------------------------------
 # The real plugins
