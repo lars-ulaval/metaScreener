@@ -335,6 +335,9 @@ def _extract_contract_stage_row(stage: str, r: Dict[str, Any]) -> Dict[str, Any]
     matched_evidence = _safe_str(r.get(pref + "evidence_json") or r.get(pref + "matched_evidence") or "")
     reason = _safe_str(r.get(pref + "reason_summary") or r.get("stage_reason_summary") or "")
     passed_to_next = "true" if stage_outcome and stage_outcome != "OUT" else "false"
+    # F-69: this key set IS the stage-sheet header (CONTRACT_STAGE_SHEET_COLS
+    # in plugin.py); the two must stay identical or the sheets go blank
+    # again. ``history`` is gone — it was written as "" unconditionally.
     return {
         "a_id": a_id,
         "stage": stage,
@@ -346,7 +349,6 @@ def _extract_contract_stage_row(stage: str, r: Dict[str, Any]) -> Dict[str, Any]
         "met_criteria_ids": met,
         "matched_evidence": matched_evidence,
         "stage_reason_summary": reason,
-        "history": "",
     }
 
 
@@ -439,13 +441,14 @@ def _build_final_report_xlsx_bytes(
 
     # FINAL sheet
     ws = wb.create_sheet(title="FINAL")
+    # F-69: no ``history`` column — it was emitted as "" for every record
+    # and had no data source. Do not fabricate one.
     final_cols = ["a_id"] + meta_cols + [
         "outcome_EH", "reason_EH",
         "outcome_IH", "reason_IH",
         "outcome_EL", "reason_EL",
         "outcome_IL", "reason_IL",
         "final_outcome", "final_reason_summary",
-        "history",
     ]
     ws.append(final_cols)
 
@@ -466,7 +469,7 @@ def _build_final_report_xlsx_bytes(
         row = [a_id]
         row.extend([meta.get(c, "") for c in meta_cols])
         row.extend([outcomes["EH"], reasons["EH"], outcomes["IH"], reasons["IH"], outcomes["EL"], reasons["EL"], outcomes["IL"], reasons["IL"]])
-        row.extend([final_out, final_reason, ""])
+        row.extend([final_out, final_reason])
         ws.append(row)
 
     # Ensure workbook has proper first sheet order (write_only creates default Sheet)

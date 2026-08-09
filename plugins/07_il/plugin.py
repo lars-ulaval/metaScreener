@@ -53,9 +53,17 @@ REPORTS_DIR_REL = "reports"
 FINAL_REPORT_NAME = "ScreenA_Report.xlsx"
 FINAL_REPORT_REL = f"{REPORTS_DIR_REL}/{FINAL_REPORT_NAME}"
 
+# F-69: this header is the row builder's schema — the exact key set
+# _extract_contract_stage_row returns (pinned by test_final_report.py). It
+# used to be a seven-name list written against a different specification;
+# only two names intersected the builder's keys, so five columns could
+# never be populated and every stage-sheet data cell shipped blank.
+# ``decided_at`` (no producer anywhere) and ``history`` (written as "" at
+# every call site) are gone rather than fabricated.
 CONTRACT_STAGE_SHEET_COLS = [
-    "local_id", "outcome", "fail_criteria_ids", "missing_criteria_ids",
-    "uncertain_criteria_ids", "reason", "decided_at",
+    "a_id", "stage", "stage_outcome", "passed_to_next",
+    "failed_criteria_ids", "missing_criteria_ids", "uncertain_criteria_ids",
+    "met_criteria_ids", "matched_evidence", "stage_reason_summary",
 ]
 
 
