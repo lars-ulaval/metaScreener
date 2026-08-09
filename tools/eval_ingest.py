@@ -48,6 +48,7 @@ the original generator run is required.
 Usage:
     python tools/eval_ingest.py \\
         --manifest         docs/data/grids/partition_manifest.csv \\
+        --criteria         tests/golden/criteria_harmonized_v3.1.0.csv \\
         --filled-grids-dir docs/data/grids/filled/ \\
         --el-filtered      tests/golden/el_filtered_v3.1.0.csv \\
         --il-filtered      tests/golden/il_filtered_v3.1.0.csv \\
