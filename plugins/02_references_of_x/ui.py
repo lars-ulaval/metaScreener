@@ -633,6 +633,15 @@ class ReferencesOfXView(ttk.Frame):
             self.results_X = ing.from_csv_or_xlsx(path)
             self._refresh_x_table()
             self.set_step("Ingest", "done")
+            if not self.results_X:
+                # A readable file that yields nothing looks exactly like a
+                # successful import of an empty search. Say so explicitly.
+                messagebox.showwarning(
+                    "No records imported",
+                    "The file was read successfully but produced 0 records.\n\n"
+                    "Check that it has data rows below the header and a "
+                    "recognisable 'title' or 'doi' column.",
+                )
         except Exception as e:
             logger.log("TRACE:\n" + traceback.format_exc())
             messagebox.showerror("Import error", str(e))

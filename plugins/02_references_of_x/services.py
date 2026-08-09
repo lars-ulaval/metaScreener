@@ -20,6 +20,7 @@ It depends on `core.py` for:
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import re
@@ -34,6 +35,10 @@ from .core import (  # package context
     # model
     BibItem, CancellationToken,
 )
+
+# Shared with the EH/IH corpus parser so Plugin 02 and the screening stages
+# agree on which encodings a researcher's CSV may arrive in.
+from plugins._common.parser import _decode_bytes
 
 # Optional heuristic language detector (silent if missing)
 try:
@@ -107,15 +112,37 @@ class Ingestor:
         self.logger.log(f"Ingested {len(items)} items from text")
         return items
 
+    def _read_csv_text(self, path: str) -> str:
+        """Read a CSV as text, tolerating the encodings researchers actually have.
+
+        Uses the same ladder as plugins/_common/parser._decode_bytes:
+        utf-8-sig, utf-8, cp1252, latin-1. Before this, the CSV path used
+        pd.read_csv(path) with no encoding and then open(path,
+        encoding="utf-8") as a fallback, so a cp1252 file - the ordinary
+        output of Windows reference managers - failed both and left the
+        corpus silently empty (F-13), and a BOM'd file lost its first
+        column to a mangled header name (F-38).
+        """
+        raw = open(path, "rb").read()
+        if not raw.strip():
+            raise RuntimeError(f"{os.path.basename(path)} is empty.")
+        return _decode_bytes(raw)
+
     def from_csv_or_xlsx(self, path: str) -> List[BibItem]:
         items: List[BibItem] = []
         ext = os.path.splitext(path)[1].lower()
         rows: List[Dict[str, Any]] = []
+        csv_text: Optional[str] = None
+
+        if ext == ".csv":
+            # Decode once, up front, so pandas and the fallback reader agree
+            # on the encoding and a decode failure is reported as itself.
+            csv_text = self._read_csv_text(path)
 
         if PANDAS_OK and ext in (".xlsx", ".xls", ".csv"):
             try:
                 if ext == ".csv":
-                    df = pd.read_csv(path)
+                    df = pd.read_csv(io.StringIO(csv_text))
                 else:
                     df = pd.read_excel(path)
                 rows = df.to_dict(orient="records")
@@ -125,11 +152,12 @@ class Ingestor:
         if not rows:
             if ext == ".csv":
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        reader = csv.DictReader(f)
-                        rows = list(reader)
+                    rows = list(csv.DictReader(io.StringIO(csv_text)))
                 except Exception as e:
                     self.logger.log(f"csv read error: {e}")
+                    raise RuntimeError(
+                        f"Could not parse {os.path.basename(path)} as CSV: {e}"
+                    ) from e
             else:
                 raise RuntimeError("Install pandas/openpyxl to read Excel files, or provide CSV.")
 
@@ -162,7 +190,16 @@ class Ingestor:
                 )
             )
 
-        self.logger.log(f"Ingested {len(items)} items from file")
+        if not items:
+            # A readable file that yields nothing is legitimate (header-only
+            # export) but must never be mistaken for a successful ingest.
+            self.logger.log(
+                f"WARNING: no records ingested from {os.path.basename(path)} - "
+                f"the file parsed but produced 0 items. Check that it has data "
+                f"rows below the header and a recognisable title/doi column."
+            )
+        else:
+            self.logger.log(f"Ingested {len(items)} items from file")
         return items
 
     def _find_doi(self, s: str) -> Optional[str]:

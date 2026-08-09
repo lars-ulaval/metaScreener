@@ -128,6 +128,14 @@ def get_il():
         _plugin_cache["il"] = _import_plugin("07_il")
     return _plugin_cache["il"]
 
+def get_refx_services():
+    """plugins/02_references_of_x/services.py (the corpus ingestion layer)."""
+    if "refx_services" not in _plugin_cache:
+        _plugin_cache["refx_services"] = _import_plugin(
+            "02_references_of_x", "services"
+        )
+    return _plugin_cache["refx_services"]
+
 
 # ---------------------------------------------------------------------------
 # 5. Fixtures
