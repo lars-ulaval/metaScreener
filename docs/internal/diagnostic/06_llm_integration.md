@@ -1180,7 +1180,15 @@ Note for the register: `docs/llm-evaluation.md` cites the gate at
 `progress_cb(ci / max(1, len(crits)) * 0.7)`. The `03_findings.md` rows for F-21
 and F-62 cite `:547` and `:603` for the same thing. **All three are stale** — a
 third independent instance of the rot the citation convention exists to prevent,
-and this one is in a *published* document (C-39).
+and this one is in a *published* document (C-38).
+
+*(Two transcription errors corrected in wave 6b, in place, because neither was ever
+true of anything: this cross-reference read **C-39**, which is the screenshot-rotation
+candidate, where it means **C-38**, the false-documentation-claims cluster; and §A13.2's
+table row spelled the variable `METESCREENER_CACHE_DIR`. Register coordinates for both,
+since §B9's namespace has since been swept: **C-38 → F-123, F-124 and F-125**, and the
+stale gate citations described here are item (j) of **F-125**, corrected in `bd2d92b`;
+**C-39 → F-126**, still open. Nothing else in this document has been altered.)*
 
 #### A7.2 What is compared, and which field's text
 
@@ -2255,7 +2263,7 @@ numeric result.** That is the correct posture and should be preserved.
 | `manifest.json` records "prompt version, model ID" (README, installation, faq) | **NO** | Already false; a model change makes the omission consequential |
 | Cache key = "(record content, prompt version, model identifier, criterion identifier)" (usage, faq) | **NO — this is the pre-F-01 key** | Already misstated (omits `temperature`, names a criterion *identifier* that F-01 replaced with content) |
 | `OPENAI_MODEL` = `gpt-4o-mini` "(per plugin)" | **NO, twice** — read at exactly one site, defaulting to **`gpt-4o`**, and no EL/IL code reads it | already false |
-| `METESCREENER_CACHE_DIR` / `.cache/<stage>.jsonl` | **NO** — the variable is read by no code; caches live inside the bundle ZIP | already false |
+| `METASCREENER_CACHE_DIR` / `.cache/<stage>.jsonl` | **NO** — the variable is read by no code; caches live inside the bundle ZIP | already false |
 | "refuses to proceed on mismatch" | **NO** — `_load_bundle` **warns**, with the in-code rationale "Warn rather than refuse … refusing to open the bundle would strand a reviewer". README correctly says "warning"; the FAQ contradicts both | already false |
 | `record_hash` field in the cache JSONL | **NO** — the file has `key` and `val` only, and the key is an opaque digest of the whole rendered prompt | already false |
 | "166 automated tests" / "✅ 166 passed" / "162 passed, 1 xfailed" | **NO** — the measured run is 422/4; no `xfail` marker exists anywhere in `tests/`, and the test the guide names as xfailed **passes** | already false |
