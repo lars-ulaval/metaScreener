@@ -153,3 +153,37 @@ class TestRaggedRowsAreRejectedAtTheLLMStages:
         from conftest import get_il
         self._assert_policy(get_il()._load_bundle(
             self._bundle_zip(tmp_path, "il.zip")))
+
+
+class TestDecodeLadderParity:
+    """F-73. EL/IL decoded with a single utf-8-sig errors="replace" attempt
+    where EH/IH fall back through utf-8, cp1252, latin-1
+    (plugins/_common/parser.py:217-223). A cp1252 bundle that EH read
+    correctly therefore mojibaked to U+FFFD at EL — corrupting exactly the
+    text the quote-validation window compares against.
+    """
+
+    CP1252 = "local_id,title\nA001,Étude à Québec\n".encode("cp1252")
+
+    def test_el_decodes_cp1252_like_eh(self):
+        from conftest import get_el
+        from plugins._common.parser import _decode_bytes as eh_decode
+        eh_text = eh_decode(self.CP1252)
+        el_text = get_el()._decode_bytes(self.CP1252)
+        assert "�" not in el_text, (
+            "F-73: EL replaced every non-UTF-8 byte with U+FFFD instead of "
+            "falling back through the shared encoding ladder."
+        )
+        assert el_text == eh_text
+
+    def test_il_decodes_cp1252_like_eh(self):
+        from conftest import get_il
+        from plugins._common.parser import _decode_bytes as eh_decode
+        assert get_il()._decode_bytes(self.CP1252) == eh_decode(self.CP1252)
+
+    def test_utf8_with_bom_is_unchanged(self):
+        """The goldens are UTF-8; the ladder's first attempt must behave
+        exactly as the old single attempt did for them."""
+        from conftest import get_el
+        b = "﻿local_id,title\nA001,Étude\n".encode("utf-8")
+        assert get_el()._decode_bytes(b) == "local_id,title\nA001,Étude\n"

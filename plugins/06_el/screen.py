@@ -62,6 +62,7 @@ from plugins._common.llm_client import (
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
 from plugins._common.bundle import NOT_SCREENED, _verify_sha256_map
+from plugins._common.parser import _decode_bytes as _decode_bytes_common
 
 from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
@@ -109,8 +110,16 @@ def _safe_str(x: Any) -> str:
     return "" if x is None else str(x)
 
 def _decode_bytes(b: bytes) -> str:
-    # BOM-safe decode
-    return b.decode("utf-8-sig", errors="replace")
+    """BOM-safe decode through the shared four-encoding ladder.
+
+    F-73: this was a single ``utf-8-sig`` attempt with ``errors="replace"``,
+    so a cp1252 bundle that EH/IH decode correctly mojibaked to U+FFFD here
+    — corrupting exactly the text the evidence-quote validation compares
+    against. Delegates to plugins/_common/parser._decode_bytes (utf-8-sig,
+    utf-8, cp1252, latin-1), which is byte-identical to the old behaviour
+    for the UTF-8 input the goldens use.
+    """
+    return _decode_bytes_common(b)
 
 def _read_zip_bytes(zf: zipfile.ZipFile, member: str) -> bytes:
     with zf.open(member, "r") as fp:
