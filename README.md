@@ -24,6 +24,8 @@ The software is designed around three principles:
 
 In a demonstration use case comprising 776 candidate records, the pipeline reduced the corpus to 73 records requiring full human review — a 90.6% reduction — with deterministic pre-filtering accounting for 98.3% of exclusions.
 
+The deterministic 98.3% of that funnel is exactly reproducible from the committed goldens; the LLM stages are not, and replaying the goldens today yields 80 rather than 73. See [Reproducibility of the demonstration funnel](docs/llm-evaluation.md#reproducibility-of-the-demonstration-funnel) for both figures and what accounts for the difference.
+
 ---
 
 ## Documentation

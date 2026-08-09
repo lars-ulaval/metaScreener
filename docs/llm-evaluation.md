@@ -316,6 +316,84 @@ The findings reported above are bounded by several conditions:
   reported because it happened, not as an estimate of how often
   degenerate output occurs; that has not been measured.
 
+## Reproducibility of the demonstration funnel
+
+The README reports that the demonstration corpus of 776 records reduced
+to **73** requiring full human review (a 90.6% reduction, with
+deterministic pre-filtering accounting for 98.3% of exclusions). That
+figure entered the README on 2026-04-01 (`985973b`) and is the
+manuscript's reported result.
+
+**Replaying the committed goldens gives 80, not 73.** Both numbers are
+reported here rather than silently reconciled, because they come from
+different executions and only one of them is reproducible.
+
+### The deterministic stages reproduce exactly
+
+The two heuristic stages give bit-identical results across every run we
+have: 776 records → EH excludes 125 → 651 → IH excludes 566 of those →
+**85**. The set of 85 is not merely the same size but the same records:
+the intersection of the EH and IH survivor sets is identical, record for
+record, to `tests/golden/el_input_v3.1.0.csv`. Those 691 exclusions are
+98.3% of the 703 total the README reports — the deterministic share the
+manuscript claims is exactly the share the goldens contain.
+
+This is the majority of the pipeline's work, and it is fully
+reproducible from the repository with no API access.
+
+### The LLM stages do not
+
+The manuscript figure requires 12 LLM exclusions (776 − 691 − 12 = 73).
+The committed goldens give 5: EL `OUT` 1, IL `OUT` 4, leaving **80**.
+
+The gap is 7 records, and it localises to the IL stage. The IL golden
+holds 30 records carrying a valid-quote `not_meet` on `IC-1` at
+confidence 0.1–0.4, kept from acting only by the 0.60 threshold. Seven of
+those crossing 0.60 yields 11 IL exclusions and 73 survivors. No other
+mechanism in the pipeline has that shape.
+
+### What has been ruled out
+
+- **Truncation.** The goldens were captured at `TRUNC_CHARS=4000` against
+  a plugin default of 1500, which was the leading hypothesis. It does not
+  survive: nothing in either corpus exceeds 2927 characters, so the 4000
+  setting truncates nothing at all; every LLM criterion targets
+  `keywords`, whose longest value is 270 characters and which neither
+  setting reaches; and all 254 evidence quotes were drawn from
+  `keywords`, none from `abstract`, none at or beyond character 1500. The
+  only field either setting can change is one the deciding criteria never
+  quote.
+- **A different threshold.** No single value reproduces 73 (0.40 → 78,
+  0.30 → 77, 0.20 → 68).
+- **A different criteria set.** The criteria table is byte-identical
+  across the runs compared.
+- **The unevaluated `IC-5` criterion.** `IC-5` is a deterministic
+  criterion assigned to an LLM stage and is therefore never applied (see
+  the register, F-65). Evaluating it as a strict inclusion criterion
+  would give 13 survivors, not 73.
+
+### What remains
+
+The manuscript run's artefacts — its bundle, its manifest, its response
+cache — were not archived and will not be recovered. Q1 is therefore
+closed on the evidence rather than on a reproduction.
+
+The most likely explanation is that the two runs were not executing the
+same code. The EL and IL stages were restructured on 2026-05-02 across
+six commits (`f3fa6bb`, `90ff050`, `edd466d`, `9553393`, `3b4baf7`,
+`8bec55e`), one of which — `90ff050` — removed duplicate LLM helpers that
+had been shadowing the shared module. The goldens were captured after
+that work, on the same day (`4fbe8fd`); the manuscript figure predates
+all of it by a month. Ordinary run-to-run variation in model confidence
+is sufficient on its own to move seven records across a 0.60 threshold,
+and the archived run of 2026-05-07 shows that confidence values are not
+stable between runs at all (see Limitations).
+
+We therefore report 73 as the manuscript's result and 80 as the figure a
+reader will obtain by replaying the committed goldens today. The
+deterministic 98.3% of the funnel is reproducible; the LLM remainder is
+not, and should not be quoted as though it were.
+
 ## Reproducibility
 
 Every artefact in this evaluation is regenerable from inputs already
