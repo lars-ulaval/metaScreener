@@ -15,8 +15,7 @@ so the only way to know whether your review was affected is to check the
 conditions below against what you actually did.
 
 They are ordered by how likely they are to have changed **which records were
-included or excluded**. The last three entries are defects this release
-*records* rather than fixes; each says so, and each is scheduled.
+included or excluded**.
 
 **1. An inclusion criterion could be applied backwards (IL stage).**
 If a criterion's `type` cell was blank in `criteria_harmonized.csv`, the IL
@@ -113,35 +112,49 @@ matched, that check was not meaningful, and if they did not match, that was this
 defect rather than evidence of tampering. *(F-05)*
 
 **11. The record of what was dropped could be written in a form nothing can
-read.** A `csv` writer used for `data/input_errors.csv` does not quote a field
+read.** A `csv` writer used for `data/input_errors.csv` did not quote a field
 containing a lone carriage return, so a citation dropped for being malformed —
 if its own text carried a stray CR — produced a file that the standard CSV
 reader refuses to parse. The reader then swallowed that failure and reported an
-empty list, so the bundle says no citations were dropped rather than saying it
-cannot tell. No screening result is affected; the exclusion trail is. **Re-check
-if:** you need to report how many records were excluded as unparseable and your
-corpus came from a source that mixes line endings. **Not yet fixed** — scheduled
-for the next wave. *(F-67, F-68)*
+empty list, so the bundle said no citations were dropped rather than saying it
+cannot tell. No screening result is affected; the exclusion trail is. Both
+halves are fixed: the writer now quotes such fields, and an existing,
+unreadable audit file raises a visible error — the export refuses rather than
+silently dropping the prior rows, and the stage views show a warning instead of
+"0 rows". One related site remains open by design: the EH/IH *report* CSVs keep
+their old line terminator until the deliverable-format wave (F-79), because
+changing it moves golden bytes — that residual cannot affect
+`input_errors.csv`. **Re-check if:** you need to report how many records were
+excluded as unparseable from a bundle exported by an earlier version and your
+corpus came from a source that mixes line endings. *(F-67, F-68)*
 
 **12. The final workbook's four stage sheets have always been empty.**
 `reports/ScreenA_Report.xlsx` carries five sheets: one per stage plus FINAL. The
 four stage sheets were built with a column header and a row builder that were
 written against different schemas, so every data cell has always come out blank.
-The row *count* is right, which is why this was not noticed — the sheets look
-populated until a cell is inspected. The FINAL sheet's outcomes are unaffected.
-**Re-check if:** you used the per-stage sheets of an exported `ScreenA_Report.xlsx`
-for anything. Read the per-stage `reports/*_FULL.csv` files instead, which carry
-the same information and are correct. **Not yet fixed** — scheduled for the next
-wave. *(F-69)*
+The row *count* was right, which is why this was not noticed — the sheets looked
+populated until a cell was inspected. The FINAL sheet's outcomes were unaffected.
+Fixed: the sheet header is now the row builder's schema, pinned identical by
+test, and the two columns that never had a data source (`decided_at`,
+`history`) are gone rather than shipped empty. The workbook has its first test
+coverage. **Re-check if:** you used the per-stage sheets of a
+`ScreenA_Report.xlsx` exported by an earlier version — those cells were blank;
+the per-stage `reports/*_FULL.csv` files carry the same information and were
+always correct. *(F-69)*
 
-**13. The final workbook's FINAL sheet has no metadata for excluded records.**
+**13. The final workbook's FINAL sheet had no metadata for excluded records.**
 The FINAL sheet lists every record with its per-stage outcome, and those
-outcomes are correct. But its title, abstract and keyword columns are filled
+outcomes are correct. But its title, abstract and keyword columns were filled
 from the record table as it stands at the *end* of the pipeline, so every record
-excluded at EH, IH or EL appears with the right verdict and no way to tell which
-citation it is. Precisely the records you must justify in a PRISMA flow are the
-ones with no metadata. **Re-check if:** you used the FINAL sheet to write up
-exclusions. **Not yet fixed** — scheduled for the next wave. *(F-70)*
+excluded at EH, IH or EL appeared with the right verdict and no way to tell
+which citation it is. Fixed: the Harmoniser now writes `data/original.csv`, a
+pre-screening snapshot of the corpus that survives every stage, and the FINAL
+sheet fills its metadata from that. One honest caveat: a bundle created
+*before* this fix has no snapshot, so a final report rebuilt from an old bundle
+still falls back to the survivor set and still lacks metadata for
+early-excluded records — re-ingest through the Harmoniser to get a complete
+one. **Re-check if:** you used the FINAL sheet of an earlier version to write
+up exclusions. *(F-70)*
 
 Not on this list, deliberately: no released version applied a criterion that had
 been switched off in the criteria table. That was investigated during this wave
@@ -149,6 +162,63 @@ and ruled out — the disabled flag is honoured at load, before any stage
 evaluates anything.
 
 ### Fixed
+- The `data/input_errors.csv` writer now quotes a field containing a lone
+  carriage return (F-67). With the old line-terminator setting the csv module
+  left such a field unquoted, so a dropped citation whose text carried a stray
+  CR produced an audit file the standard CSV reader refuses to parse — an
+  audit trail destroyed by the very content it exists to record. The EH/IH
+  report CSVs keep their old terminator until the deliverable-format wave
+  (F-79, golden-touching); the two legacy button writers are gone under F-74.
+- An unreadable `input_errors.csv` now raises instead of reading as empty
+  (F-68). The reader caught every exception and returned an empty list, so an
+  existing audit file that could not be parsed reported "no records were
+  dropped" — the false negative that let F-67 go unnoticed. Absent or empty
+  still means empty; unreadable raises a typed error, the bundle export
+  refuses loudly before writing any output, and the stage views surface a
+  warning instead of "0 rows".
+- One dropped citation is one row of `data/input_errors.csv`, at every hop
+  (F-71). EH and IH merged the carried-forward rows into their own skip list
+  and the export writer stamped everything with the current stage, so a single
+  record dropped at the Harmoniser grew to two rows after EH and three after
+  IH — with the ragged-row diagnostics present on the original and absent on
+  every copy. Prior rows now pass through verbatim, only this stage's own
+  drops get its stamp, re-running a stage is idempotent, and the run counts
+  no longer inflate `SKIPPED_INVALID` with other stages' history.
+- Every exported bundle now contains `data/input_errors.csv`, header-only when
+  nothing was dropped (F-75). Both bundle writers gated the file on being
+  non-empty, so a clean corpus produced no file at all and a reviewer could
+  not tell "nothing was dropped" from "not recorded". A file that exists and
+  says no records were dropped is a different claim from no file, and only
+  the first one is auditable. Bundle-shape change: one new member in every
+  exported bundle.
+- EL and IL reject ragged corpus rows the way EH and IH always have (F-72).
+  Their reader padded a short row and truncated a long one to the header
+  width, so the same `data/current.csv` yielded different record sets
+  depending on which stage opened it, and the silent repair left nothing in
+  the audit trail. Ragged rows now divert to the skip list as
+  `bad_column_count` and reach `input_errors.csv`.
+- EL and IL decode bundle text through the shared four-encoding ladder
+  (F-73). They used a single UTF-8 attempt that replaced every undecodable
+  byte, so a cp1252 corpus that screened normally at stages 04–05 had its
+  titles and abstracts silently mojibaked at stage 06 — corrupting exactly
+  the text the evidence-quote validation compares against.
+- The EL/IL "Export input_errors.csv…" buttons write the canonical six-column
+  schema (F-74). They carried inline writers emitting the legacy
+  `reason,row_json` layout — the last two writers of the schema retired by
+  the F-03 fix — so the exported file disagreed with the
+  `data/input_errors.csv` of the same name inside the bundle.
+- The four stage sheets of `reports/ScreenA_Report.xlsx` carry data (F-69).
+  See item 12 above; the header and the row builder now share one schema,
+  pinned by the workbook's first tests.
+- The FINAL sheet of `reports/ScreenA_Report.xlsx` covers the whole corpus
+  (F-70). See item 13 above; the Harmoniser writes `data/original.csv`, a
+  pre-screening snapshot digested in the manifest, which no later stage
+  touches. Bundle-shape change: one new member in every Harmoniser bundle.
+- The CR-to-LF canonicalisation of metadata at the deterministic stages is
+  now documented and pinned (F-76). Not a behaviour change: the EH/IH parser
+  has always rewritten Windows and bare-CR line breaks inside quoted fields
+  to LF, and the committed goldens depend on it — but nothing said so. It is
+  now stated in `docs/usage.md`, in the parser, and held by tests.
 - A stage with zero enabled criteria no longer reports every record as a clean
   pass (F-34). It assigned `PASS_CLEAN` — the stronger of the two survivor
   labels, meaning "every criterion was met" — to every record and reported
