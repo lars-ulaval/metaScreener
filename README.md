@@ -92,7 +92,14 @@ Each plugin produces a **bundle ZIP archive** containing:
 - `reports/` — per-stage decision reports with full evidence trails
 - `cache/` — JSONL caches of LLM responses (one file per stage)
 
-Bundles are integrity-verified using **SHA-256 hashes** at ingestion and export. Any modification to the record set or configuration between stages is detectable.
+The manifest records **SHA-256 hashes** of `data/current.csv` and
+`criteria/criteria_harmonized.csv`. The heuristic stages (04 EH, 05 IH) refresh those
+hashes on export and re-verify them on load, reporting a mismatch as a warning in the
+bundle-load log. The LLM stages (06 EL, 07 IL) do not yet participate: they neither verify
+on load nor refresh on export, so after an EL or IL run the recorded digest for
+`data/current.csv` no longer matches the file. Treat the hashes as a corruption check on
+the heuristic stages, not as a tamper-proof seal over the whole pipeline — the digests live
+in the same archive as the files they describe and are not signed.
 
 ---
 
