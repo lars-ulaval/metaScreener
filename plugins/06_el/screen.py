@@ -256,7 +256,21 @@ def _parse_criteria_harmonized_csv(csv_text: str, stage_filter: str) -> Criteria
         if not cid:
             continue
 
-        ctype = _safe_str(get(r, "type", "ctype")).strip().lower() or "exclude"
+        # Polarity must be stated, not guessed. This used to default to
+        # "exclude" in both stages, which silently INVERTED an IL criterion
+        # whose type cell was blank: an LLM verdict of "meet" then excluded
+        # the record instead of including it. Skip the row and warn instead,
+        # so a criterion we cannot interpret is visibly absent from the
+        # criteria panel rather than invisibly reversed.
+        ctype = _safe_str(get(r, "type", "ctype")).strip().lower()
+        if ctype not in ("include", "exclude"):
+            warnings.append(
+                "[criteria] %s: type is %s, expected 'include' or 'exclude' "
+                "-> criterion SKIPPED (its polarity cannot be determined, and "
+                "guessing it could invert the screening decision)."
+                % (cid, repr(ctype) if ctype else "empty")
+            )
+            continue
         operator = _safe_str(get(r, "operator")).strip().lower() or "llm"
         target_raw = _safe_str(get(r, "target", "targets")).strip()
         targets = [t.strip().lower() for t in re.split(r"[,+;]", target_raw) if t.strip()] or ["abstract"]
