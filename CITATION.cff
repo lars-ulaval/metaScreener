@@ -20,6 +20,7 @@ authors:
 version: "3.1.0"
 date-released: "2026-04-29"
 license: MIT
+doi: "10.5281/zenodo.19360124"
 repository-code: "https://github.com/lars-ulaval/metaScreener"
 url: "https://github.com/lars-ulaval/metaScreener"
 keywords:
@@ -46,4 +47,5 @@ preferred-citation:
   title: "metaScreener: A Plugin-Based Desktop Application for Human-in-the-Loop Systematic Literature Screening"
   journal: "Journal of Open Research Software"
   year: 2026
+  doi: "10.5281/zenodo.19360124"
   notes: "Under revision."
