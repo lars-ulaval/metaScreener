@@ -15,10 +15,15 @@ only the helper machinery is shared here.
 Two of the helpers required minor signature changes to support being
 shared across stages with different per-stage constants:
 
-* ``_cache_key`` now takes ``prompt_version`` as a keyword parameter.
+* ``_cache_key`` takes ``prompt_version`` as a keyword parameter.
   EL/IL plugins each expose their own ``_cache_key`` curry that bakes
-  in their stage's ``PROMPT_VERSION`` so call sites and the existing
-  evidence-gating tests remain unchanged.
+  in their stage's ``PROMPT_VERSION``.
+
+  It also takes the fully-rendered prompt rather than a list of
+  invocation parameters (F-01) — see its docstring. The stage curries
+  render the prompt for a single item via their own prompt builder, so
+  the key covers criterion content and record text without naming
+  either.
 
 * ``run_m1_llm_for_criterion`` now takes ``stage`` as a keyword
   parameter. The stage label is used only for log prefixes
@@ -393,23 +398,68 @@ def _row_target_text_hash(row: Dict[str, str], targets: List[str], trunc_chars: 
         parts.append(v)
     return _sha_text("|".join(parts))
 
-def _cache_key(*, prompt_version: str, model: str, cid: str, a_id: str,
-               text_hash: str, trunc_chars: int,
-               temperature: float = 0.0) -> str:
-    """Compose a cache key from the per-stage ``prompt_version`` and the
-    invocation parameters. EL/IL plugins expose stage-curried wrappers
-    that bake in their own ``PROMPT_VERSION`` so that legacy call sites
-    and tests continue to work unchanged.
+def _render_prompt_for_key(messages: Sequence[Dict[str, str]]) -> str:
+    """Serialise a rendered chat-completion message list stably.
 
-    The ``temperature`` parameter is appended to the hashed string ONLY
-    when non-zero. This preserves the existing cache for the common
-    ``temperature=0.0`` case (Conv 7 option (b) per CONV7_handoff.md
-    sec 5.3) while preventing silent cache reuse across temperature
-    changes for non-zero values.
+    Stability matters twice over: the same inputs must hash the same way
+    in a different process (so no builtin ``hash()`` and no reliance on
+    dict insertion order — ``sort_keys=True``), and the serialisation
+    must be lossless enough that two prompts differing anywhere produce
+    different strings.
     """
-    base = f"{prompt_version}|{model}|{cid}|{a_id}|{text_hash}|{trunc_chars}"
-    if temperature != 0.0:
-        base += f"|temp={temperature}"
+    return json.dumps(
+        [
+            {
+                "role": _safe_str(m.get("role", "")),
+                "content": _safe_str(m.get("content", "")),
+            }
+            for m in (messages or [])
+        ],
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+
+
+def _cache_key(*, prompt_version: str, model: str, rendered_prompt: str,
+               temperature: float = 0.0) -> str:
+    """Compose a cache key from everything that determines the model's
+    answer: the fully-rendered prompt, the model, and the temperature.
+
+    F-01. This used to hash an enumerated list of invocation parameters —
+    ``prompt_version|model|cid|a_id|text_hash|trunc_chars`` — of which the
+    only part of the criterion was its *id*. The rendered prompt also
+    carries ``type``, ``operator``, ``target``, ``what``, ``label`` and
+    ``threshold``, so editing a criterion's wording while keeping its id
+    was a cache *hit*: every record was served the previous criterion's
+    answer, with evidence quotes taken against text the model never saw
+    on that run, and the UI reported a normal ``cache_hits=N``.
+
+    Enumeration was itself the bug — temperature and prompt version had
+    each been bolted onto that list in separate earlier commits. Hashing
+    the rendered prompt means anything that changes what the model sees
+    changes the key automatically, so this class of defect cannot recur:
+    criterion content, record text, field truncation and the prompt
+    template are all covered without being named here.
+
+    ``prompt_version`` is still hashed alongside. It is redundant with
+    the template text in ``rendered_prompt`` for any change that alters
+    the wording, but it remains the deliberate, greppable lever for
+    invalidating the cache on a semantic change that happens not to move
+    a byte of the template.
+
+    ``temperature`` is hashed unconditionally now. It used to be appended
+    only when non-zero, to spare a cache captured before it was part of
+    the key; that cache is superseded by this change anyway. 0.0 is still
+    the default, so an omitted temperature and an explicit 0.0 agree.
+    """
+    base = json.dumps(
+        {
+            "prompt_version": _safe_str(prompt_version),
+            "model": _safe_str(model),
+            "temperature": float(temperature),
+            "prompt": rendered_prompt,
+        },
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
     return _sha_text(base)
 
 def _load_cache_from_jsonl(text: str) -> Dict[str, Dict[str, Any]]:

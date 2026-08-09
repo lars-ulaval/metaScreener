@@ -391,65 +391,18 @@ class TestPerPluginScreen:
         )
 
 
-class TestTemperatureCacheInvalidation:
-    """Conv 7 / Commit 2-3 contract: the per-plugin _cache_key wrappers
-    in plugins/06_el/screen.py and plugins/07_il/screen.py accept an
-    optional ``temperature`` keyword that is appended to the hashed
-    string ONLY when non-zero. This preserves the existing cache for
-    the common ``temperature=0.0`` case (option (b) per
-    CONV7_handoff.md sec 5.3) while preventing silent cache reuse
-    across temperature changes for non-zero values.
-    """
-
-    def test_temperature_change_invalidates_cache_el(self):
-        """el._cache_key with temperature=0.0 (or omitted) must produce
-        the SAME key (preserves existing cache); with temperature!=0.0
-        it must produce a DIFFERENT key (prevents silent cache reuse).
-        """
-        from conftest import get_el
-        mod = get_el()
-        base_args = dict(
-            model="gpt-4o-mini", cid="EC-1", a_id="A001",
-            text_hash="abc123", trunc_chars=1500,
-        )
-        k_default = mod._cache_key(**base_args)
-        k_zero = mod._cache_key(**base_args, temperature=0.0)
-        k_warm = mod._cache_key(**base_args, temperature=0.7)
-        assert k_default == k_zero, (
-            "el._cache_key: temperature=0.0 must produce the same key as "
-            "omitting temperature entirely (preserves existing cache "
-            "entries captured before Conv 7 / Commit 2)."
-        )
-        assert k_warm != k_default, (
-            "el._cache_key: non-default temperature must produce a "
-            "different key (prevents silent cache reuse across "
-            "temperature changes)."
-        )
-
-    def test_temperature_change_invalidates_cache_il(self):
-        """il._cache_key with temperature=0.0 (or omitted) must produce
-        the SAME key (preserves existing cache); with temperature!=0.0
-        it must produce a DIFFERENT key (prevents silent cache reuse).
-        """
-        from conftest import get_il
-        mod = get_il()
-        base_args = dict(
-            model="gpt-4o-mini", cid="IC-1", a_id="A001",
-            text_hash="abc123", trunc_chars=1500,
-        )
-        k_default = mod._cache_key(**base_args)
-        k_zero = mod._cache_key(**base_args, temperature=0.0)
-        k_warm = mod._cache_key(**base_args, temperature=0.7)
-        assert k_default == k_zero, (
-            "il._cache_key: temperature=0.0 must produce the same key as "
-            "omitting temperature entirely (preserves existing cache "
-            "entries captured before Conv 7 / Commit 3)."
-        )
-        assert k_warm != k_default, (
-            "il._cache_key: non-default temperature must produce a "
-            "different key (prevents silent cache reuse across "
-            "temperature changes)."
-        )
+# TestTemperatureCacheInvalidation was removed in the F-01 fix. It called the
+# EL/IL _cache_key wrappers with the old enumerated signature
+# (cid/a_id/text_hash/trunc_chars) and pinned the rule that temperature was
+# hashed only when non-zero — a rule that existed to spare a cache captured
+# before temperature was part of the key.
+#
+# The key is now the hash of the rendered prompt and temperature is hashed
+# unconditionally, so that sparing rule is moot. The behaviour those tests
+# actually cared about (0.0 is the default and agrees with omitting it; any
+# other value is a different key) is asserted by
+# tests/test_cache_key.py::TestCacheKeySanity::test_temperature_change_changes_key
+# for both stages.
 
 
 class TestEnvironmentInfo:

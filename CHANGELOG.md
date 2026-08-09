@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The LLM response cache key is now derived from a hash of the fully-rendered
+  prompt (plus model and temperature) rather than from an enumerated list of
+  invocation parameters (F-01). Previously the key carried only the criterion's
+  *id*, so editing a criterion's wording while keeping its id produced a cache
+  hit: every record was served the previous criterion's answer, with evidence
+  quotes taken against text the model never saw on that run, while the UI
+  reported a normal `cache_hits=N`. The same omission applied one level down —
+  the record text hash covered only the criterion's *target* fields, although
+  the prompt ships title, abstract and keywords for every criterion.
+
+### Pending re-capture
+- The EL/IL cache goldens (`tests/golden/{el,il}_cache_v3.1.0.json`) are keyed
+  by the hash changed above, so `test_el_regression` and `test_il_regression`
+  byte-identity currently fail by construction. Re-keying was verified to be a
+  pure relabelling — 170 EL and 84 IL entries map 1:1 onto new keys with
+  byte-identical decisions, no collisions and no orphans — but the re-capture
+  itself is deliberately **not** committed here and awaits sign-off.
+
 ## [3.1.0] - 2026-04-29
 
 ### Added

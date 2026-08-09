@@ -60,6 +60,7 @@ from plugins._common.llm_client import (
     _row_target_text_hash,
     _load_cache_from_jsonl,
     _dump_cache_to_jsonl,
+    _render_prompt_for_key,
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
 
@@ -335,15 +336,23 @@ def _parse_criteria_harmonized_csv(csv_text: str, stage_filter: str) -> Criteria
 # ------------------------ IL engine (self-contained) --------------------------
 
 # Stage-curried wrapper around plugins._common.llm_client._cache_key. Bakes in
-# this stage's PROMPT_VERSION so call sites and the existing evidence-gating
-# tests continue to work unchanged. The shared function takes prompt_version
-# as a keyword parameter; this wrapper passes IL's value transparently.
-def _cache_key(*, model: str, cid: str, a_id: str, text_hash: str,
+# this stage's PROMPT_VERSION and this stage's prompt builder, so the key is
+# derived from the exact bytes IL would send for this (criterion, item) pair.
+#
+# F-01: the key is the hash of the rendered prompt, not of a hand-maintained
+# list of fields. The prompt is rendered for a batch of one because the cache
+# is keyed per (a_id, criterion) while the real call batches many items; a
+# one-item render is the per-item slice of what the model sees, and it is what
+# makes criterion wording, record text and trunc_chars all reach the key
+# without being enumerated.
+def _cache_key(*, model: str, criterion: Dict[str, Any], item: Dict[str, Any],
                trunc_chars: int, temperature: float = 0.0) -> str:
     return _shared_cache_key(
         prompt_version=PROMPT_VERSION,
-        model=model, cid=cid, a_id=a_id,
-        text_hash=text_hash, trunc_chars=trunc_chars,
+        model=model,
+        rendered_prompt=_render_prompt_for_key(
+            _build_llm_messages_for_criterion(criterion, [item], trunc_chars)
+        ),
         temperature=temperature,
     )
 
@@ -412,15 +421,6 @@ def run_il_screen(
         k = header_map.get(key.lower(), key)
         return _safe_str(row.get(k, ""))
 
-    def row_text_hash(row: Dict[str, str], targets: List[str]) -> str:
-        parts: List[str] = []
-        for t in targets:
-            v = getv(row, t)
-            if trunc_chars and len(v) > trunc_chars:
-                v = v[:trunc_chars]
-            parts.append(v)
-        return _sha_text("|".join(parts))
-
     items = [{
         "a_id": getv(r, "local_id").strip(),
         "title": getv(r, "title"),
@@ -428,20 +428,21 @@ def run_il_screen(
         "keywords": getv(r, "keywords"),
     } for r in rows]
 
-    id_to_row: Dict[str, Dict[str, str]] = {}
-    for r in rows:
-        lid = getv(r, "local_id").strip()
+    # a_id -> the item as the prompt builder will see it. This is what the
+    # cache key is derived from (F-01), and it doubles as the "is this a_id
+    # one of ours?" guard when merging LLM results back in.
+    #
+    # The per-criterion text hash that used to be precomputed here is gone:
+    # it hashed only the criterion's *target* fields, but the prompt ships
+    # title, abstract and keywords for every criterion regardless of target.
+    # Editing a record's keywords under a title-targeted criterion therefore
+    # changed the model's input without changing the key — the same defect as
+    # F-01, one level down. The rendered prompt covers all three.
+    id_to_item: Dict[str, Dict[str, Any]] = {}
+    for it in items:
+        lid = _safe_str(it.get("a_id", "")).strip()
         if lid:
-            id_to_row[lid] = r
-
-    # Precompute per-row text hashes per criterion for caching
-    per_row_hash: Dict[Tuple[str,str], str] = {}  # (a_id,cid)->text_hash
-    for c in crits:
-        for r in rows:
-            a_id = getv(r, "local_id").strip()
-            if not a_id:
-                continue
-            per_row_hash[(a_id, c.id)] = row_text_hash(r, c.targets)
+            id_to_item[lid] = it
 
     # Run criterion by criterion (legacy-style)
     llm_results: Dict[Tuple[str,str], Dict[str, Any]] = {}
@@ -473,8 +474,7 @@ def run_il_screen(
             a_id = _safe_str(it.get("a_id","")).strip()
             if not a_id:
                 continue
-            th = per_row_hash.get((a_id, c.id), "")
-            k = _cache_key(model=model, cid=c.id, a_id=a_id, text_hash=th,
+            k = _cache_key(model=model, criterion=crit_pack, item=it,
                            trunc_chars=trunc_chars, temperature=temperature)
             if use_cache and k in cache_out:
                 # reuse cached evidence
@@ -508,11 +508,12 @@ def run_il_screen(
             # merge + write to cache
             for (a_id, cid), ev in res.items():
                 llm_results[(a_id, cid)] = ev
-                r = id_to_row.get(a_id)
-                if not r:
+                it = id_to_item.get(a_id)
+                if not it:
                     continue
-                th = per_row_hash.get((a_id, cid), "")
-                k = _cache_key(model=model, cid=cid, a_id=a_id, text_hash=th,
+                # cid is c.id here — res only ever carries this criterion —
+                # so crit_pack is the pack the prompt was rendered from.
+                k = _cache_key(model=model, criterion=crit_pack, item=it,
                                trunc_chars=trunc_chars, temperature=temperature)
                 if use_cache:
                     cache_out[k] = dict(ev)

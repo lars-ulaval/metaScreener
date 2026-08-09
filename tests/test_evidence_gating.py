@@ -108,71 +108,31 @@ class TestShaText:
 # ======================================================================
 # _cache_key construction
 # ======================================================================
-
-class TestCacheKey:
-
-    def test_deterministic(self):
-        """Same inputs → same cache key."""
-        k1 = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                               a_id="rec_001", text_hash="abc123",
-                               trunc_chars=4000)
-        k2 = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                               a_id="rec_001", text_hash="abc123",
-                               trunc_chars=4000)
-        assert k1 == k2
-
-    def test_different_model_different_key(self):
-        """Different model → different cache key."""
-        k1 = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                               a_id="rec_001", text_hash="abc123",
-                               trunc_chars=4000)
-        k2 = _el()._cache_key(model="gpt-4o-mini", cid="EC-1",
-                               a_id="rec_001", text_hash="abc123",
-                               trunc_chars=4000)
-        assert k1 != k2
-
-    def test_different_criterion_different_key(self):
-        k1 = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                               a_id="rec_001", text_hash="abc123",
-                               trunc_chars=4000)
-        k2 = _el()._cache_key(model="gpt-4o", cid="EC-2",
-                               a_id="rec_001", text_hash="abc123",
-                               trunc_chars=4000)
-        assert k1 != k2
-
-    def test_different_text_hash_different_key(self):
-        k1 = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                               a_id="rec_001", text_hash="hash_a",
-                               trunc_chars=4000)
-        k2 = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                               a_id="rec_001", text_hash="hash_b",
-                               trunc_chars=4000)
-        assert k1 != k2
-
-    def test_key_is_sha256_hex(self):
-        """Cache key must be a 64-char hex digest."""
-        k = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                              a_id="rec_001", text_hash="abc",
-                              trunc_chars=4000)
-        assert len(k) == 64
-        assert all(c in "0123456789abcdef" for c in k)
-
-    def test_key_includes_prompt_version(self):
-        """Cache key incorporates the module-level PROMPT_VERSION."""
-        # We verify indirectly: the key formula is
-        # sha256(f"{PROMPT_VERSION}|{model}|{cid}|{a_id}|{text_hash}|{trunc_chars}")
-        pv = _el().PROMPT_VERSION
-        base = f"{pv}|gpt-4o|EC-1|rec_001|abc|4000"
-        expected = sha256(base.encode("utf-8", errors="ignore")).hexdigest()
-        k = _el()._cache_key(model="gpt-4o", cid="EC-1",
-                              a_id="rec_001", text_hash="abc",
-                              trunc_chars=4000)
-        assert k == expected
+#
+# The TestCacheKey class that lived here was removed in the F-01 fix. Every
+# test in it asserted the key built from the enumerated field list
+#
+#     sha256(f"{PROMPT_VERSION}|{model}|{cid}|{a_id}|{text_hash}|{trunc_chars}")
+#
+# including one that pinned that formula literally. That enumeration was the
+# defect: the criterion contributed only its id, so editing a criterion's
+# wording was a cache hit. The key is now the hash of the rendered prompt.
+#
+# Coverage moved to tests/test_cache_key.py, which keeps every property those
+# tests checked (determinism, model, criterion id, record text, hex digest,
+# per-stage separation) and adds the ones they could not express — edited
+# criterion content, non-target field edits, and cross-process stability.
 
 
 # ======================================================================
 # _row_target_text_hash
 # ======================================================================
+#
+# Still exported from plugins/_common/llm_client.py and still correct as a
+# general helper, but no longer on the cache-key path: it hashed only a
+# criterion's *target* fields, while the prompt ships title, abstract and
+# keywords regardless of target. These tests pin the helper's own behaviour,
+# not the cache key.
 
 class TestRowTargetTextHash:
 
