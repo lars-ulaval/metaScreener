@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `data/input_errors.csv` — the record of which citations were dropped as
+  malformed — now has one schema, one writer, and survives the pipeline
+  (F-03). It previously had three schemas (one per writer), a reader that
+  understood only one of them, and a copy-forward skip in EL that deleted the
+  file outright on any run where EL itself skipped nothing. A citation the
+  Harmoniser dropped was therefore already invisible by EL, and gone from the
+  bundle afterwards. The schema is the Harmoniser's, widened rather than
+  narrowed, plus a `stage` column; every stage appends instead of overwriting;
+  and reading stays tolerant of all three legacy layouts so existing bundles
+  still load. EH's "Imported previous input_errors: … (0 rows)" was the reader
+  failing rather than a count, and now reports truthfully.
 - A cancelled screening run can no longer be exported (F-02). All four stage
   engines now return a `cancelled` flag alongside their results; the stage UIs
   refuse both the XLSX and the next-bundle export while it is set, and say why.

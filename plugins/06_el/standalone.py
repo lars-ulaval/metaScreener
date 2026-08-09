@@ -31,6 +31,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 # cannot be exported lives in one place for all four stages.
 from plugins._common.bundle import _export_block_reason
 
+from plugins._common.input_errors import (
+    from_dict_skipped,
+    merge_input_errors_csv,
+    read_input_errors,
+)
+
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -485,15 +491,19 @@ class StandaloneELPlugin(ttk.Frame):
                     zf_out.writestr(rep_surv, buf3.getvalue())
 
                     # input errors
-                    if self.bundle.parse.skipped:
-                        buf4 = io.StringIO()
-                        # flatten skipped
-                        err_header = ["reason", "row_json"]
-                        w4 = csv.DictWriter(buf4, fieldnames=err_header)
-                        w4.writeheader()
-                        for e in self.bundle.parse.skipped:
-                            w4.writerow({"reason": _safe_str(e.get("reason","")), "row_json": json.dumps(e.get("row", {}), ensure_ascii=False)})
-                        zf_out.writestr(root + "data/input_errors.csv", buf4.getvalue())
+                    # F-03: see the ui.py twin — append to the incoming
+                    # bundle's record in the canonical schema, and carry
+                    # the file forward even when nothing was skipped here.
+                    prior_errors = ""
+                    for _rel in ("data/input_errors.csv", "input_errors.csv"):
+                        if root + _rel in members:
+                            prior_errors = _decode_bytes(_read_zip_bytes(zf_in, root + _rel))
+                            break
+                    merged_errors = merge_input_errors_csv(
+                        prior_errors,
+                        from_dict_skipped(self.bundle.parse.skipped, stage="EL"))
+                    if read_input_errors(merged_errors):
+                        zf_out.writestr(root + "data/input_errors.csv", merged_errors)
 
                     # cache
                     if self.var_use_cache.get():

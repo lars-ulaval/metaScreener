@@ -862,7 +862,7 @@ class IHView(ttk.Frame):
         if not p:
             return
         try:
-            _export_input_errors_csv(p, self.parse_report.skipped)
+            _export_input_errors_csv(p, self.parse_report.skipped, stage="IH")
         except Exception as e:
             messagebox.showerror("Export failed", str(e))
             return

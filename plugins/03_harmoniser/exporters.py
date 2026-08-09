@@ -32,6 +32,11 @@ import hashlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from plugins._common.input_errors import (
+    InputError,
+    write_input_errors_csv,
+)
+
 from .parser import (
     STAGES,
     _now_iso,
@@ -116,7 +121,7 @@ def _clean_aggregate_csv(
     if out_errors_csv is not None:
         out_errors_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    errors_rows: List[Dict[str, Any]] = []
+    errors_rows: List[InputError] = []
 
     with open(in_path, "r", encoding="utf-8-sig", newline="") as f_in:
         reader = csv.reader(f_in)
@@ -144,27 +149,25 @@ def _clean_aggregate_csv(
                         raw = " | ".join([_safe_str(x) for x in row])
                         if len(raw) > max_raw_len:
                             raw = raw[:max_raw_len] + "…"
-                        errors_rows.append({
-                            "record_number": record_no,
-                            "reason": "wrong_column_count",
-                            "observed_len": len(row),
-                            "expected_len": expected,
-                            "raw": raw,
-                        })
+                        errors_rows.append(InputError(
+                            stage="Harmoniser",
+                            record_number=record_no,
+                            reason="wrong_column_count",
+                            raw=raw,
+                            observed_len=len(row),
+                            expected_len=expected,
+                        ))
                     continue
 
                 writer.writerow(row)
                 stats["rows_valid_written"] += 1
 
     if out_errors_csv is not None and errors_rows:
+        # F-03: the canonical schema, through the single shared writer. This
+        # is the head of the chain — every later stage appends to what is
+        # written here rather than replacing it with its own layout.
         with out_errors_csv.open("w", encoding="utf-8", newline="") as f_err:
-            w = csv.DictWriter(
-                f_err,
-                fieldnames=["record_number", "reason", "observed_len", "expected_len", "raw"],
-            )
-            w.writeheader()
-            for r in errors_rows:
-                w.writerow(r)
+            f_err.write(write_input_errors_csv(errors_rows))
 
     return stats
 

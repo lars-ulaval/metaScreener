@@ -36,6 +36,8 @@ from datetime import datetime
 from hashlib import sha256
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from plugins._common.input_errors import read_input_errors
+
 
 # ----------------------------
 # Constants
@@ -329,25 +331,26 @@ def _parse_csv_tolerant_text(text: str, required_id: str = "local_id") -> ParseR
 
 def _load_input_errors_from_text(text: str) -> List[Tuple[int, str, str]]:
     """
-    Parse a prior input_errors.csv (if present in bundle) and return skipped tuples.
-    Expected columns: record_index_ex_header, reason, raw_record
+    Parse a prior input_errors.csv (if present in bundle) and return skipped
+    tuples in EH/IH's (record_index_ex_header, reason, raw_record) shape.
+
+    F-03: this used to read only its own columns, so it returned [] for a
+    file written by the Harmoniser (record_number/observed_len/expected_len/
+    raw) or by EL/IL (reason/row_json). EH's status line reported that as
+    "Imported previous input_errors: … (0 rows)", which reads as "there were
+    none" rather than "I could not read them", and the records the
+    Harmoniser had dropped stopped being carried forward at the first hop.
+
+    Parsing now goes through the single tolerant reader in
+    plugins._common.input_errors, which understands all three legacy
+    layouts and the canonical one. The tuple shape is preserved because
+    EH/IH merge the result straight into ParseReport.skipped.
     """
-    out: List[Tuple[int, str, str]] = []
-    try:
-        rdr = csv.DictReader(io.StringIO(text))
-        for row in rdr:
-            idx_raw = (_safe_str(row.get("record_index_ex_header", "")) or "").strip()
-            try:
-                idx = int(idx_raw)
-            except Exception:
-                idx = 0
-            reason = _safe_str(row.get("reason", "")).strip()
-            raw = _safe_str(row.get("raw_record", "")).strip()
-            if idx > 0 and reason:
-                out.append((idx, reason, raw))
-    except Exception:
-        return []
-    return out
+    return [
+        (e.record_number, e.reason, e.raw)
+        for e in read_input_errors(text)
+        if e.record_number > 0 and e.reason
+    ]
 
 
 # ----------------------------

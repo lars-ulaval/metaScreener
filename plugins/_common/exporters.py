@@ -37,14 +37,24 @@ import io
 from typing import Dict, List, Sequence, Tuple
 
 from plugins._common.parser import _safe_str
+from plugins._common.input_errors import (
+    from_tuple_skipped,
+    write_input_errors_csv,
+)
 
 
-def _export_input_errors_csv(path: str, skipped: Sequence[Tuple[int, str, str]]) -> None:
+def _export_input_errors_csv(path: str, skipped: Sequence[Tuple[int, str, str]],
+                             *, stage: str = "") -> None:
+    """Write the standalone "Export input_errors.csv…" file.
+
+    F-03: emits the canonical schema via the single writer in
+    plugins._common.input_errors instead of EH/IH's own three-column
+    layout. ``skipped`` here has already had any carried-forward records
+    merged into it at bundle-load time, so this file is the accumulated
+    trail rather than only what this stage dropped.
+    """
     with open(path, "w", encoding="utf-8", newline="") as f:
-        w = csv.writer(f, lineterminator="\n")
-        w.writerow(["record_index_ex_header", "reason", "raw_record"])
-        for rec_i, reason, raw in skipped:
-            w.writerow([rec_i, reason, raw])
+        f.write(write_input_errors_csv(from_tuple_skipped(skipped, stage=stage)))
 
 def _export_xlsx(path: str, full_rows: List[Dict[str, str]], survivors: List[Dict[str, str]], aggregate_header: List[str], stage: str) -> None:
     try:

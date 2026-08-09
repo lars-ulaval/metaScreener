@@ -59,6 +59,11 @@ from plugins._common.exporters import (
     _export_xlsx,
     _write_csv_bytes,
 )
+from plugins._common.input_errors import (
+    from_tuple_skipped,
+    merge_input_errors_csv,
+    read_input_errors,
+)
 
 
 @dataclass
@@ -210,14 +215,26 @@ def _export_next_bundle_zip(
     )
     rep_surv_bytes = current_bytes
 
+    # F-03: append to whatever the incoming bundle already recorded, and
+    # carry the file forward even when this stage dropped nothing. The old
+    # code wrote only this stage's rows and only `if skipped`, in a layout
+    # the reader could not parse — three separate ways to lose the record of
+    # an excluded citation.
+    prior_errors_text = ""
+    try:
+        with zipfile.ZipFile(src_zip, "r") as zf_prior:
+            for rel in ("data/input_errors.csv", "input_errors.csv"):
+                if root + rel in zf_prior.namelist():
+                    prior_errors_text = _decode_bytes(zf_prior.read(root + rel))
+                    break
+    except Exception:
+        prior_errors_text = ""
+
     input_errors_bytes = None
-    if skipped:
-        buf = io.StringIO()
-        w = csv.writer(buf, lineterminator="\n")
-        w.writerow(["record_index_ex_header", "reason", "raw_record"])
-        for rec_i, reason, raw in skipped:
-            w.writerow([rec_i, reason, raw])
-        input_errors_bytes = buf.getvalue().encode("utf-8")
+    merged_errors = merge_input_errors_csv(
+        prior_errors_text, from_tuple_skipped(skipped, stage=stage))
+    if read_input_errors(merged_errors):
+        input_errors_bytes = merged_errors.encode("utf-8")
 
     # Update manifest
     m = dict(bundle.manifest)
