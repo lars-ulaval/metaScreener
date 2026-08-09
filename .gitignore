@@ -35,6 +35,9 @@ coverage/
 *.log
 logs/
 
+# Output of docker_test.sh (JORS UNIX-testing evidence, regenerated on demand)
+test_output_linux.txt
+
 # --- Secrets / Local config ---
 .env
 .env.local
