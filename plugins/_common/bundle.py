@@ -382,10 +382,11 @@ def _export_next_bundle_zip(
     own_drops = [e for e in from_tuple_skipped(skipped, stage=stage)
                  if (e.record_number, e.reason, e.raw) not in prior_keys]
 
-    input_errors_bytes = None
-    merged_errors = merge_input_errors_csv(prior_errors_text, own_drops)
-    if read_input_errors(merged_errors):
-        input_errors_bytes = merged_errors.encode("utf-8")
+    # F-75: always written, header-only when nothing was dropped. A file
+    # that exists and says "no records were dropped" is a different claim
+    # from no file, and only the first one is auditable.
+    input_errors_bytes = merge_input_errors_csv(
+        prior_errors_text, own_drops).encode("utf-8")
 
     # Update manifest
     m = dict(bundle.manifest)
@@ -429,9 +430,8 @@ def _export_next_bundle_zip(
         out_data_rel: current_bytes,
         rep_full_rel: rep_full_bytes,
         rep_surv_rel: rep_surv_bytes,
+        "data/input_errors.csv": input_errors_bytes,
     }
-    if input_errors_bytes is not None:
-        written["data/input_errors.csv"] = input_errors_bytes
     m = _refresh_sha256_map(m, written)
 
     manifest_bytes = (json.dumps(m, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -456,8 +456,7 @@ def _export_next_bundle_zip(
         zout.writestr(root + out_data_rel, current_bytes)
         zout.writestr(root + rep_full_rel, rep_full_bytes)
         zout.writestr(root + rep_surv_rel, rep_surv_bytes)
-        if input_errors_bytes is not None:
-            zout.writestr(root + "data/input_errors.csv", input_errors_bytes)
+        zout.writestr(root + "data/input_errors.csv", input_errors_bytes)
 
 
 def _dict_csv_bytes(fieldnames: Sequence[str],
@@ -534,8 +533,9 @@ def _write_llm_stage_bundle(
         f"{reports_dir_rel}/{stage}_SURVIVORS.csv": _dict_csv_bytes(parse_header, survivors),
     }
     written.update(extra_members or {})
-    if read_input_errors(merged_errors):
-        written["data/input_errors.csv"] = merged_errors.encode("utf-8")
+    # F-75: always written, header-only when nothing was dropped — the
+    # auditable claim "no records were dropped" needs a file to live in.
+    written["data/input_errors.csv"] = merged_errors.encode("utf-8")
     if cache_text is not None:
         written[cache_rel] = cache_text.encode("utf-8")
 

@@ -418,11 +418,43 @@ class TestSurvivesTheRealBundleWriter:
         )
         assert len(errs) == 1
 
-    def test_no_errors_anywhere_writes_no_file(self, tmp_path):
+    def test_no_errors_anywhere_still_writes_the_header_only_file(self, tmp_path):
+        """F-75. 'A file that exists and says no records were dropped is a
+        different claim from no file, and only the first one is auditable'
+        — the writer's own docstring. Both bundle writers gated on a
+        non-empty read, so a clean corpus produced no file at all and a
+        reviewer could not tell "nothing dropped" from "not recorded"."""
         bundle = self._seed(tmp_path, None)
         out = tmp_path / "out.zip"
         self._export(bundle, out, [], "EH")
-        assert self._errors_in(out) is None
+        errs = self._errors_in(out)
+        assert errs is not None, (
+            "F-75: a clean run must write the header-only input_errors.csv, "
+            "not omit the file."
+        )
+        assert errs == []
+
+    def test_llm_stage_writer_also_writes_the_header_only_file(self, tmp_path):
+        """The EL/IL bundle writer had the same gate (bundle.py:524)."""
+        import zipfile
+        from plugins._common.bundle import _write_llm_stage_bundle
+        src = tmp_path / "in.zip"
+        manifest = {"pipeline": {"stages": {}, "history": []}, "sha256": {}}
+        with zipfile.ZipFile(src, "w") as zf:
+            zf.writestr("manifest.json", json.dumps(manifest))
+            zf.writestr("data/current.csv", "local_id,title\nA001,x\n")
+        out = tmp_path / "out.zip"
+        with zipfile.ZipFile(src, "r") as zf_in:
+            _write_llm_stage_bundle(
+                str(out), zf_in, root="", manifest=manifest, stage="EL",
+                reports_dir_rel="reports", cache_rel="cache/EL_cache.jsonl",
+                parse_header=["local_id", "title"],
+                survivors=[{"local_id": "A001", "title": "x"}],
+                full_rows=[{"local_id": "A001", "title": "x"}],
+                full_header=["local_id", "title"], skipped=[],
+            )
+        errs = self._errors_in(out)
+        assert errs is not None and errs == []
 
     def test_two_hops_accumulate(self, tmp_path):
         bundle = self._seed(tmp_path, None)
