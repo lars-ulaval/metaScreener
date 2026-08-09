@@ -113,9 +113,74 @@ class TestReaderAcceptsLegacySchemas:
                                raw="r", observed_len=2, expected_len=3)]
         assert read_input_errors(write_input_errors_csv(original)) == original
 
-    def test_empty_and_garbage_do_not_raise(self):
+    def test_empty_text_reads_as_no_errors(self):
         assert read_input_errors("") == []
-        assert read_input_errors("not,a,known,schema\n1,2,3,4\n") == []
+        assert read_input_errors("   \n  ") == []
+
+
+# ---------------------------------------------------------------------------
+# F-68: unreadable is not the same claim as empty
+# ---------------------------------------------------------------------------
+
+class TestUnreadableRaises:
+    """F-68. The reader caught every exception and returned [], so an
+    existing, non-empty audit file that could not be parsed read back as
+    "no records were dropped" — the exact false negative this module
+    exists to prevent. Absent or empty still means empty; unreadable now
+    raises a typed error the caller must surface."""
+
+    # structurally invalid: the pre-F-67 writer's output for a lone-CR field
+    STRUCTURALLY_BROKEN = (
+        "stage,record_number,reason,observed_len,expected_len,raw\n"
+        "Harmoniser,3,wrong_column_count,4,3,pre\rpost | 2022 | SURPLUS\n"
+    )
+
+    def test_structurally_invalid_text_raises(self):
+        from plugins._common.input_errors import InputErrorsUnreadableError
+        with pytest.raises(InputErrorsUnreadableError):
+            read_input_errors(self.STRUCTURALLY_BROKEN)
+
+    def test_unknown_schema_raises(self):
+        """A non-empty file with none of the four known layouts was never
+        written by this project; treating it as empty hides whatever it is."""
+        from plugins._common.input_errors import InputErrorsUnreadableError
+        with pytest.raises(InputErrorsUnreadableError):
+            read_input_errors("not,a,known,schema\n1,2,3,4\n")
+
+    def test_the_error_is_a_value_error(self):
+        """Callers that already catch broadly keep working."""
+        from plugins._common.input_errors import InputErrorsUnreadableError
+        assert issubclass(InputErrorsUnreadableError, ValueError)
+
+    def test_bundle_export_over_unreadable_prior_fails_loudly(self, tmp_path):
+        """The write path must refuse, not silently drop the prior rows —
+        and must leave no output zip claiming success."""
+        import json as _json
+        import zipfile
+        from plugins._common.bundle import BundleInfo, _export_next_bundle_zip
+        from plugins._common.input_errors import InputErrorsUnreadableError
+
+        zp = tmp_path / "in.zip"
+        manifest = {"pipeline": {"stages": {}, "history": []}, "sha256": {}}
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("manifest.json", _json.dumps(manifest))
+            zf.writestr("data/current.csv", "local_id,title\nA001,x\n")
+            zf.writestr("data/input_errors.csv", self.STRUCTURALLY_BROKEN)
+        bundle = BundleInfo(zip_path=str(zp), root="", manifest=manifest,
+                            members=[])
+
+        out = tmp_path / "out.zip"
+        with pytest.raises(InputErrorsUnreadableError):
+            _export_next_bundle_zip(
+                str(out), bundle, "data/current.csv", "criteria/c.csv", None,
+                ["local_id", "title"], [{"local_id": "A001", "title": "x"}],
+                [{"local_id": "A001", "title": "x"}], [], {"OUT": 0},
+                stage="EH",
+            )
+        assert not out.exists(), (
+            "F-68: the export must not leave an output bundle behind after "
+            "refusing — a zip that exists claims the export succeeded."
+        )
 
 
 # ---------------------------------------------------------------------------

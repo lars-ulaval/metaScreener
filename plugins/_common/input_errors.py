@@ -49,6 +49,21 @@ INPUT_ERRORS_FIELDS = [
     "stage", "record_number", "reason", "observed_len", "expected_len", "raw",
 ]
 
+
+class InputErrorsUnreadableError(ValueError):
+    """An input_errors.csv exists and is non-empty but cannot be read.
+
+    F-68. The reader used to catch every exception and return ``[]``, so an
+    unreadable audit file was indistinguishable from one recording that no
+    records were dropped — the exact false negative this module exists to
+    prevent. Absent or empty still reads as empty; a file that exists and
+    cannot be parsed raises this, and callers surface it rather than
+    coercing it to "nothing was dropped".
+
+    Subclasses ``ValueError`` so callers that already catch broadly keep
+    working; the ones that must *not* swallow it catch this type first.
+    """
+
 # Legacy column names, mapped onto the canonical ones.
 _RECORD_NUMBER_ALIASES = ("record_number", "record_index_ex_header")
 _RAW_ALIASES = ("raw", "raw_record", "row_json")
@@ -132,35 +147,46 @@ def read_input_errors(text: str, *, default_stage: str = "") -> List[InputError]
     file they are reading; an unknown provenance is better recorded as
     empty than guessed.
 
-    Never raises. A malformed audit file must not take down the load path
-    of the bundle it describes — an unreadable row is dropped and the rest
-    are kept.
+    Absent or empty text reads as ``[]``. Text that exists but cannot be
+    parsed — structurally invalid CSV, or a header matching none of the
+    four layouts this project has ever written — raises
+    :class:`InputErrorsUnreadableError` (F-68). It used to return ``[]``
+    for those too, which made a destroyed audit trail read as a clean one.
     """
     if not (text or "").strip():
         return []
-    out: List[InputError] = []
     try:
         rdr = csv.DictReader(io.StringIO(text))
         fields = set(rdr.fieldnames or [])
-        if "reason" not in fields:
-            # Not an input_errors.csv in any layout we have written.
-            return []
-        for row in rdr:
-            if row is None:
-                continue
-            reason = _first_present(row, ("reason",)).strip()
-            if not reason:
-                continue
-            out.append(InputError(
-                stage=(_first_present(row, ("stage",)).strip() or default_stage),
-                record_number=_as_int(_first_present(row, _RECORD_NUMBER_ALIASES)) or 0,
-                reason=reason,
-                raw=_first_present(row, _RAW_ALIASES),
-                observed_len=_as_int(_first_present(row, ("observed_len",))),
-                expected_len=_as_int(_first_present(row, ("expected_len",))),
-            ))
-    except Exception:
-        return []
+        rows = list(rdr)  # force csv errors here, not lazily mid-loop
+    except csv.Error as e:
+        raise InputErrorsUnreadableError(
+            f"input_errors.csv exists but is not parseable as CSV ({e}). "
+            f"The record of dropped citations is unreadable, which is not "
+            f"the same as there being none — refusing to treat it as empty."
+        )
+    if "reason" not in fields:
+        raise InputErrorsUnreadableError(
+            f"input_errors.csv has a header matching none of the layouts "
+            f"this project has written (columns: {sorted(fields)}). It "
+            f"cannot be read as the record of dropped citations, which is "
+            f"not the same as there being none."
+        )
+    out: List[InputError] = []
+    for row in rows:
+        if row is None:
+            continue
+        reason = _first_present(row, ("reason",)).strip()
+        if not reason:
+            continue
+        out.append(InputError(
+            stage=(_first_present(row, ("stage",)).strip() or default_stage),
+            record_number=_as_int(_first_present(row, _RECORD_NUMBER_ALIASES)) or 0,
+            reason=reason,
+            raw=_first_present(row, _RAW_ALIASES),
+            observed_len=_as_int(_first_present(row, ("observed_len",))),
+            expected_len=_as_int(_first_present(row, ("expected_len",))),
+        ))
 
     # EL/IL's layout carried no index at all, so every row read back as 0.
     # Number them in file order rather than leave the whole column at zero.

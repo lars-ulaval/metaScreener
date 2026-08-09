@@ -85,6 +85,8 @@ from plugins._common.exporters import (
     _export_xlsx as _export_xlsx_common,
 )
 
+from plugins._common.input_errors import InputErrorsUnreadableError
+
 from plugins._common.bundle import (
     BundleInfo,
     _detect_bundle_root,
@@ -406,14 +408,21 @@ class IHView(ttk.Frame):
                 crit_text = _decode_bytes(crit_bytes)
 
                 # Optional input_errors
+                carried_skipped = []
                 try:
                     self.input_errors_full_member, self.input_errors_rel_used = _find_first_member(zf, root, err_candidates)
-                    err_text = _decode_bytes(zf.read(self.input_errors_full_member))
-                    carried_skipped = _load_input_errors_from_text(err_text)
                 except Exception:
                     self.input_errors_full_member = None
                     self.input_errors_rel_used = None
-                    carried_skipped = []
+                else:
+                    # F-68: an unreadable audit file is a warning the user
+                    # sees, not an empty list. Coercing it to [] made a
+                    # destroyed exclusion trail read as a clean one.
+                    try:
+                        err_text = _decode_bytes(zf.read(self.input_errors_full_member))
+                        carried_skipped = _load_input_errors_from_text(err_text)
+                    except InputErrorsUnreadableError as e:
+                        warns.append(f"[bundle] {e}")
 
                 # SHA checks (warn only)
                 sha_map = m.get("sha256", {}) or {}
