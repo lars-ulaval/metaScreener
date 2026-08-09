@@ -501,7 +501,7 @@ class StandaloneILPlugin(ttk.Frame):
         add("abstract", _safe_str(row.get("abstract","")))
         add("keywords", _safe_str(row.get("keywords","")))
         add("IL outcome", _safe_str(row.get("il_outcome","")))
-        add("EL summary", _safe_str(row.get("il_reason_summary","")))
+        add("IL summary", _safe_str(row.get("il_reason_summary","")))
 
         ev = _safe_str(row.get("il_evidence_json","{}"))
         try:
