@@ -44,6 +44,141 @@ def _save_env_key(env_path: Path, key: str):
     except Exception:
         pass  # non-fatal
 
+# ---------------------------------------------------------------------------
+# Plugin entry-point resolution and lifecycle dispatch
+#
+# These are module-level functions rather than methods so they can be unit
+# tested without constructing a Tk root (metascreener/main.py was at 0%
+# coverage). MetaScreenerApp delegates to them.
+# ---------------------------------------------------------------------------
+
+def _title_from(*candidates) -> str:
+    """First usable tab title among the candidates, else "Plugin"."""
+    for c in candidates:
+        if isinstance(c, str) and c.strip():
+            return c.strip()
+        if hasattr(c, "TAB_TITLE"):
+            t = getattr(c, "TAB_TITLE")
+            if isinstance(t, str) and t.strip():
+                return t.strip()
+        if hasattr(c, "tab_title") and callable(getattr(c, "tab_title")):
+            try:
+                t = c.tab_title()
+                if isinstance(t, str) and t.strip():
+                    return t.strip()
+            except Exception:
+                pass
+    return "Plugin"
+
+
+def _call_with_degrading_args(factory, app, meta):
+    """Call factory(app, meta), then (app), then (), taking the first that fits."""
+    try:
+        return factory(app, meta)
+    except TypeError:
+        try:
+            return factory(app)
+        except TypeError:
+            return factory()
+
+
+def resolve_plugin_entrypoint(plugin_mod, parent, app=None, meta=None):
+    """Build a plugin's tab, returning (instance, frame, tab_title).
+
+    Four strategies, tried in order: a module-level build_tab, a class named
+    Plugin, a factory named make_plugin, and finally a scan for the first
+    class exposing build_tab. `instance` is None only for the module-level
+    build_tab strategy, which has no object to hang a lifecycle on; `frame`
+    is None if every strategy failed.
+
+    Returning the instance is what makes the BasePlugin lifecycle work at
+    all: MetaScreenerApp used to discard it, so self._plugins stayed empty
+    and on_select/on_close were never called (F-18).
+    """
+    tab_title = _title_from(plugin_mod)
+    inst = None
+    frame = None
+
+    # 1) module-level build_tab(nb, app=..., meta=...)
+    if hasattr(plugin_mod, "build_tab"):
+        try:
+            try:
+                frame = plugin_mod.build_tab(parent, app=app, meta=meta)
+            except TypeError:
+                try:
+                    frame = plugin_mod.build_tab(parent, app=app)
+                except TypeError:
+                    frame = plugin_mod.build_tab(parent)
+        except Exception as e:
+            print(f"[PLUGIN] build_tab failed in {plugin_mod.__name__}: {e}")
+
+    # 2) class named Plugin
+    if frame is None and hasattr(plugin_mod, "Plugin"):
+        PluginCls = plugin_mod.Plugin
+        try:
+            inst = _call_with_degrading_args(PluginCls, app, meta)
+            tab_title = _title_from(inst, plugin_mod, PluginCls)
+            frame = inst.build_tab(parent)
+        except Exception as e:
+            inst = None
+            print(f"[PLUGIN] Plugin class failed in {plugin_mod.__name__}: {e}")
+
+    # 3) factory named make_plugin
+    if frame is None and hasattr(plugin_mod, "make_plugin"):
+        try:
+            inst = _call_with_degrading_args(plugin_mod.make_plugin, app, meta)
+            tab_title = _title_from(inst, plugin_mod)
+            frame = inst.build_tab(parent)
+        except Exception as e:
+            inst = None
+            print(f"[PLUGIN] make_plugin failed in {plugin_mod.__name__}: {e}")
+
+    # 4) fallback: first class exposing build_tab
+    if frame is None:
+        for name, obj in vars(plugin_mod).items():
+            if not isinstance(obj, type):
+                continue
+            if name.lower() == "baseplugin":
+                continue
+            if getattr(obj, "IS_ABSTRACT", False):
+                continue
+            if not hasattr(obj, "build_tab"):
+                continue
+            try:
+                inst = _call_with_degrading_args(obj, app, meta)
+                tab_title = _title_from(inst, plugin_mod, obj)
+                frame = inst.build_tab(parent)
+                break
+            except Exception as e:
+                inst = None
+                print(f"[PLUGIN] Fallback {name} failed in {plugin_mod.__name__}: {e}")
+
+    return inst, frame, tab_title
+
+
+def notify_plugin(plugin, *hook_names) -> bool:
+    """Call every hook in hook_names that `plugin` defines. Never raises.
+
+    Returns True if at least one hook ran. Plugins declare different
+    lifecycle vocabularies - the BasePlugin contract has on_close, while
+    Plugin 02 implements on_unload for cooperative worker cancellation - so
+    callers pass every name that means the same thing.
+    """
+    if plugin is None:
+        return False
+    ran = False
+    for name in hook_names:
+        hook = getattr(plugin, name, None)
+        if not callable(hook):
+            continue
+        try:
+            hook()
+            ran = True
+        except Exception as e:
+            print(f"[PLUGIN] {name}() failed in {type(plugin).__name__}: {e}")
+    return ran
+
+
 class MetaScreenerApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -92,122 +227,31 @@ class MetaScreenerApp(tk.Tk):
 
     def _load_plugins(self):
         from metascreener.plugin_manager import discover
-    
-        def _maybe(obj, *names, default=None):
-            for n in names:
-                if hasattr(obj, n):
-                    return getattr(obj, n)
-            return default
-    
-        def _title_from(*candidates):
-            for c in candidates:
-                if isinstance(c, str) and c.strip():
-                    return c.strip()
-                if hasattr(c, "TAB_TITLE"):
-                    t = getattr(c, "TAB_TITLE")
-                    if isinstance(t, str) and t.strip():
-                        return t.strip()
-                if hasattr(c, "tab_title") and callable(getattr(c, "tab_title")):
-                    try:
-                        t = c.tab_title()
-                        if isinstance(t, str) and t.strip():
-                            return t.strip()
-                    except Exception:
-                        pass
-            return "Plugin"
-    
-        app = self
-        meta = _maybe(self, "meta", default=None)  # pass if your app exposes .meta
-    
-        for plugin_mod in discover(self):
-            frame = None
-            tab_title = _title_from(plugin_mod)
-    
-            # 1) Preferred: module-level build_tab(nb, app=..., meta=...)
-            if hasattr(plugin_mod, "build_tab"):
-                try:
-                    try:
-                        frame = plugin_mod.build_tab(self.nb, app=app, meta=meta)
-                    except TypeError:
-                        # Try fewer kwargs for legacy signatures
-                        try:
-                            frame = plugin_mod.build_tab(self.nb, app=app)
-                        except TypeError:
-                            frame = plugin_mod.build_tab(self.nb)
-                except Exception as e:
-                    print(f"[PLUGIN] build_tab failed in {plugin_mod.__name__}: {e}")
-    
-            # 2) Class-based: Plugin(...) with optional (app, meta)
-            if frame is None and hasattr(plugin_mod, "Plugin"):
-                PluginCls = plugin_mod.Plugin
-                try:
-                    try:
-                        inst = PluginCls(app, meta)
-                    except TypeError:
-                        try:
-                            inst = PluginCls(app)
-                        except TypeError:
-                            inst = PluginCls()
-                    tab_title = _title_from(inst, plugin_mod, PluginCls)
-                    frame = inst.build_tab(self.nb)
-                except Exception as e:
-                    print(f"[PLUGIN] Plugin class failed in {plugin_mod.__name__}: {e}")
-    
-            # 3) Factory: make_plugin(app, meta) → instance with build_tab(nb)
-            if frame is None and hasattr(plugin_mod, "make_plugin"):
-                try:
-                    try:
-                        inst = plugin_mod.make_plugin(app, meta)
-                    except TypeError:
-                        try:
-                            inst = plugin_mod.make_plugin(app)
-                        except TypeError:
-                            inst = plugin_mod.make_plugin()
-                    tab_title = _title_from(inst, plugin_mod)
-                    frame = inst.build_tab(self.nb)
-                except Exception as e:
-                    print(f"[PLUGIN] make_plugin failed in {plugin_mod.__name__}: {e}")
-    
-            # 4) Fallback: first class with build_tab(self, nb)
-            if frame is None:
-                for name, obj in vars(plugin_mod).items():
-                    if not isinstance(obj, type):
-                        continue
-                    if name.lower() == "baseplugin":
-                        continue
-                    if getattr(obj, "IS_ABSTRACT", False):
-                        continue
-                    if not hasattr(obj, "build_tab"):
-                        continue
-                    try:
-                        try:
-                            inst = obj(app, meta)
-                        except TypeError:
-                            try:
-                                inst = obj(app)
-                            except TypeError:
-                                inst = obj()
-                        tab_title = _title_from(inst, plugin_mod, obj)
-                        frame = inst.build_tab(self.nb)
-                        break
-                    except Exception as e:
-                        print(f"[PLUGIN] Fallback {name} failed in {plugin_mod.__name__}: {e}")
 
+        meta = getattr(self, "meta", None)  # pass if the app exposes .meta
+
+        for plugin_mod in discover(self):
+            inst, frame, tab_title = resolve_plugin_entrypoint(
+                plugin_mod, self.nb, app=self, meta=meta
+            )
             if frame is None:
                 print(f"[PLUGIN] Skipping {plugin_mod.__name__} (no usable entrypoint).")
                 continue
-    
+
+            # Keep _plugins index-aligned with notebook tabs, including the
+            # module-level build_tab case where there is no instance.
+            self._plugins.append((inst, frame))
             self.nb.add(frame, text=tab_title)
 
     def _on_tab_changed(self, _evt):
         idx = self.nb.index("current")
         if 0 <= idx < len(self._plugins):
-            self._plugins[idx][0].on_select()
+            notify_plugin(self._plugins[idx][0], "on_select", "on_show")
 
     def _on_close(self):
+        # on_close is the BasePlugin contract; on_unload is what Plugin 02
+        # implements to cancel its resolve/fetch worker thread. Fire both, or
+        # closing the window mid-run leaves the thread alive.
         for plugin, _frame in self._plugins:
-            try:
-                plugin.on_close()
-            except Exception:
-                pass
+            notify_plugin(plugin, "on_close", "on_unload")
         self.destroy()
