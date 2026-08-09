@@ -7,6 +7,115 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### If you produced results with an earlier version, read this first
+
+This release fixes defects that could have affected screening results. Most
+were silent — they produced a plausible-looking answer rather than an error —
+so the only way to know whether your review was affected is to check the
+conditions below against what you actually did.
+
+They are ordered by how likely they are to have changed **which records were
+included or excluded**.
+
+**1. An inclusion criterion could be applied backwards (IL stage).**
+If a criterion's `type` cell was blank in `criteria_harmonized.csv`, the IL
+stage treated it as an *exclusion*. An inclusion criterion that a record *met* —
+which is the reason to keep the record — therefore dropped it instead. Silent,
+and exactly backwards. **Re-check if:** you ran IL and any row of your criteria
+table had an empty `type`. The stage now refuses such a criterion and names the
+spreadsheet row number in its warnings panel rather than guessing. *(F-04)*
+
+**2. Your whole corpus could have been silently emptied, or lost its titles.**
+A corpus CSV saved as cp1252 or Latin-1 — the ordinary output of Windows
+reference managers — failed to load, and the failure was swallowed: you got zero
+records rather than an error. Separately, a CSV with a byte-order mark produced
+an unreadable first column, so every record's title read as empty and was
+screened as if it had none. **Re-check if:** your corpus came out of EndNote,
+Zotero or Excel on Windows and a stage reported far fewer records than you
+expected, or excluded records for "missing" fields you know were populated.
+*(F-13, F-38)*
+
+**3. Records could vanish between stages 05 and 06.**
+The EH/IH parser accepted repeated `local_id` values but EL silently dropped
+them, so a corpus with a duplicated identifier lost rows at stage 06 with
+nothing recording which. Where a duplicate survived, its evidence was whichever
+copy was processed last. **Re-check if:** your record counts fell between the IH
+and EL stages by an amount you did not account for. Duplicates are now recorded
+as `duplicate_local_id:<id>` in `data/input_errors.csv`. *(F-55)*
+
+**4. Editing a criterion and re-running could return the old criterion's
+answers.** The LLM response cache was keyed on a criterion's *id* but not its
+*content*. Refining a criterion's wording while keeping its id — the most common
+edit during a live review — and re-running EL or IL served every record the
+**previous** wording's decision from cache, complete with evidence quotes taken
+against text the model never saw on that run. The interface reported a normal
+`cache_hits=N`. The same applied to record text: editing an abstract did not
+invalidate a criterion that targeted only the title, even though the model is
+sent all three fields. **Re-check if:** you edited criterion wording or record
+text mid-review and re-ran a stage with the cache enabled. Re-running now with
+the cache on is sufficient to get correct answers, because the key covers
+everything the model sees. *(F-01)*
+
+**5. Cancelling a run could produce a bundle that looked complete.**
+Cancelling stopped the row loop mid-corpus and returned the records reached so
+far as though they were the whole corpus. The exported bundle was
+indistinguishable from a complete run over a smaller corpus — and it is the
+survivor list that becomes the next stage's input, so every record never reached
+was dropped from the review without trace. **Re-check if:** you cancelled a run
+and then exported, or continued to the next stage. Cancelled runs can no longer
+be exported. *(F-02)*
+
+**6. Cancelling could also replace real answers with fabricated ones.**
+Worse than losing work: for the batch in flight, decisions the model had already
+returned were overwritten with manufactured `uncertain` verdicts carrying an
+internal `error="Cancelled"` marker that nothing displayed. Those verdicts are
+indistinguishable in the evidence trail from a genuine model non-answer.
+**Re-check if:** you cancelled an EL or IL run and kept or resumed its results —
+look for records marked uncertain around the point of cancellation. *(F-26)*
+
+**7. A stage that screened nothing reported every record as cleanly passing.**
+If a stage ended up with no enabled criteria — including because its only
+criterion was rejected for the blank-`type` reason in item 1 — it assigned
+`PASS_CLEAN` to every record and reported all of them as survivors. `PASS_CLEAN`
+is the stronger of the two survivor labels: it asserts every criterion was met,
+by a stage that evaluated none. **No record was wrongly excluded by this** — the
+stage excluded nothing — but your report asserts those records were screened and
+passed when they were never examined. **Re-check if:** any stage's report shows
+every record as `PASS_CLEAN` with no exclusions. Such records are now labelled
+`NOT_SCREENED`. *(F-34)*
+
+**8. Agreement statistics could be wrong.**
+In `tools/eval_ingest.py`, rater pairs whose labels were not recognised were
+dropped from the confusion matrix but still counted in the denominator,
+deflating Cohen's and Fleiss' kappa. On a 50-pair fixture with ten unrecognised
+labels, kappa read 0.362 instead of 0.400, with no warning. A tie between raters
+also emitted a non-canonical `uncertain` code that fed this path. **Re-check
+if:** you reported human-vs-LLM agreement figures — recompute them. The tool now
+fails loudly on an unrecognised label instead of quietly miscounting. *(F-06,
+F-07)*
+
+**9. The record of what was dropped as malformed did not survive the pipeline.**
+Citations discarded for being malformed were written to `data/input_errors.csv`
+in three mutually unreadable formats, and the EL stage deleted the file outright
+on any run where EL itself dropped nothing. This does not change which records
+were screened, but it means **you may be unable to reconstruct your PRISMA
+exclusion counts** from an exported bundle. **Re-check if:** you need to report
+how many records were excluded as unparseable. That figure may be missing rather
+than wrong. *(F-03)*
+
+**10. EL/IL bundles failed their own integrity check.**
+Both stages overwrite `data/current.csv` on export but never updated the
+manifest's SHA-256 digests, so a bundle that had passed through EL or IL
+recorded a hash that did not match the file it named, and nothing verified it.
+No screening result is affected. But if you verified a bundle's digests and they
+matched, that check was not meaningful, and if they did not match, that was this
+defect rather than evidence of tampering. *(F-05)*
+
+Not on this list, deliberately: no released version applied a criterion that had
+been switched off in the criteria table. That was investigated during this wave
+and ruled out — the disabled flag is honoured at load, before any stage
+evaluates anything.
+
 ### Fixed
 - A stage with zero enabled criteria no longer reports every record as a clean
   pass (F-34). It assigned `PASS_CLEAN` — the stronger of the two survivor
@@ -63,6 +172,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported a normal `cache_hits=N`. The same omission applied one level down —
   the record text hash covered only the criterion's *target* fields, although
   the prompt ships title, abstract and keywords for every criterion.
+- A criterion whose `type` cell is blank or unrecognised is now rejected with a
+  warning naming its spreadsheet row, in both EL and IL, instead of being
+  defaulted to `exclude` (F-04). The default was harmless in EL, which is an
+  exclusion stage, and inverted the decision in IL. Rejecting rather than
+  defaulting to the stage's own polarity is the safer failure direction: a
+  missing criterion is visible in the criteria panel, an inverted one is not.
+- Corpus CSVs are read through the shared encoding ladder (utf-8-sig, utf-8,
+  cp1252, latin-1) rather than with no encoding argument and a utf-8 fallback
+  (F-13, F-38). A cp1252 file previously failed both attempts, and both failures
+  were logged and swallowed, leaving an empty corpus; a BOM'd file produced a
+  `﻿title` column so every title read as empty.
+- The EH/IH corpus parser now skips repeated `local_id` values instead of
+  accepting them, matching what EL already did, and records them as
+  `duplicate_local_id:<id>` (F-55).
+- `tools/eval_ingest.py` raises on an unrecognised rater label instead of
+  dropping the pair from the confusion matrix while still counting it in the
+  denominator, and `majority_vote` no longer returns the non-canonical
+  `uncertain` on a tie (F-06, F-07).
+- The API-key dialog accepts any non-empty key instead of requiring the OpenAI
+  `sk-` prefix and a 20-character minimum (F-08). The old rule made the README's
+  entire "Using local LLM providers" section unreachable: Ollama and llama.cpp
+  users are told to set `OPENAI_API_KEY` to a placeholder those servers ignore,
+  and both placeholders were refused with no way past the dialog. A key that
+  does not look like OpenAI's now gets a grey advisory rather than a refusal.
+- Plugin instances are registered with the main window, so the lifecycle hooks
+  declared in the plugin API actually fire (F-18). They had all been dead: most
+  visibly, closing the window during a Plugin 02 resolve or fetch run left the
+  worker thread running, because the hook that cancels it was never called.
+- Plugins 01, 02 and 03 expose `make_plugin`, matching the other four and the
+  documented contract, instead of the legacy `create_plugin` (F-31).
+- The IL standalone row-detail pane is labelled "IL summary" rather than "EL
+  summary" (F-50).
+- Removed a duplicated assignment in the LLM quote-validation path (F-51).
+  Idempotent, so no behaviour change; the byte-identity goldens confirm it.
+
+### Documentation
+- Corrected claims in the README and `docs/usage.md` that the code did not
+  support (F-16, F-17, F-30, F-37, F-57), including the SHA-256 integrity claim
+  (F-05), which is now restored in full because all four stages verify.
+- Restored the verbatim MIT licence text and named the copyright holder (F-41).
+- Added the DOI to `CITATION.cff` (F-43), aligned the publication status
+  (F-44), and used the accented affiliation in `.zenodo.json` (F-45).
+- Repaired README mojibake, stripped the LICENSE BOM, re-encoded
+  `docs_/samples/ex_ref_2.txt` from cp1252 to UTF-8, and added a CI guard
+  against both (F-10, F-42, F-56).
+- Added the missing SPDX header to `tools/audit_imports.py` (F-46) and the
+  required `--criteria` flag to `eval_ingest`'s usage example (F-58).
+- Added the internal diagnostic report under `docs/internal/`, exempt from the
+  documentation cross-reference tests (F-29).
 
 ### Changed
 - The EL/IL cache goldens (`tests/golden/{el,il}_cache_v3.1.0.json`) were
