@@ -33,6 +33,7 @@ scratch dir, same write order, same manifest structure, same ZIP layout.
 """
 
 import json
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -99,6 +100,18 @@ def export_screen_a_bundle(
         errors_csv = data_dir / "input_errors.csv"
         clean_stats = _clean_aggregate_csv(a_path, current_csv, errors_csv)
 
+        # F-70: a pre-screening snapshot of the corpus. data/current.csv is
+        # overwritten with the survivor set at every stage, so by IL it names
+        # only the records that survived — and the FINAL sheet of
+        # ScreenA_Report.xlsx, whose master-row loader tries
+        # data/original.csv before falling back to current.csv
+        # (plugins/07_il/ui.py:_load_master_rows), had no metadata for any
+        # record excluded before IL. No stage overwrites this file, so the
+        # copy written here reaches the terminal stage intact. Bundles
+        # created before this change keep the degraded fallback.
+        original_csv = data_dir / "original.csv"
+        shutil.copyfile(current_csv, original_csv)
+
         wrote_errors = errors_csv.exists() and errors_csv.stat().st_size > 0
         if not wrote_errors:
             try:
@@ -121,6 +134,7 @@ def export_screen_a_bundle(
 
         hashes = {
             "data/current.csv": _sha256_file(current_csv),
+            "data/original.csv": _sha256_file(original_csv),
             "criteria/criteria_harmonized.csv": _sha256_file(criteria_csv),
         }
         if wrote_errors:
