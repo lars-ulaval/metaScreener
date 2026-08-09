@@ -656,6 +656,16 @@ every tracked text file:**
 | `README.md` | **27** (25 × `â€`, 2 × `Ã©`) | 17, 21, 25, 33, 34, 52, 89, 90, 91, 92, 93, 101, 107, 111, 192, 194, 243, 244, 245, 299, 311, 312, 369, 411, 415 |
 | everything else | **0** | — |
 
+> **Correction (fix wave 0).** The signature list used for this sweep was too
+> narrow. A structural re-scan — any of `Â`/`Ã`/`â`/`ð` followed by another
+> non-ASCII character — finds **46 affected lines, not 25**: the original list
+> missed the corrupted ASCII-art project tree (lines 336-353), the `⚠` warning
+> glyph (51), `≥` (225), and `✅` (289). Content equivalence was then proved:
+> the ASCII skeleton of `365325c^` plus the intended DOI edit is byte-identical to
+> the ASCII skeleton of the corrupted `HEAD`, so the corruption touched only
+> non-ASCII characters and the repair is exact. `tools/check_encoding.py` now
+> encodes the structural rule.
+
 The damage is confined to `README.md` but sits on the first screen: line 17 is the opening
 sentence of the Overview, line 25 is the 776→73 headline, lines 89-93 are the bundle-format
 list, lines 243-245 are the platform-compatibility table, and line 411 turns `Québec` into

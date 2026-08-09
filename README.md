@@ -1,4 +1,4 @@
-﻿# metaScreener
+# metaScreener
 
 **A plugin-based desktop application for human-in-the-loop systematic literature screening.**
 
@@ -14,15 +14,15 @@
 
 ## Overview
 
-metaScreener is an open-source, cross-platform desktop application that automates citation screening for systematic literature reviews. It combines deterministic heuristic-based filters with large language model (LLM) inference in a sequential, auditable pipeline â€” all through a graphical interface that requires no programming expertise.
+metaScreener is an open-source, cross-platform desktop application that automates citation screening for systematic literature reviews. It combines deterministic heuristic-based filters with large language model (LLM) inference in a sequential, auditable pipeline — all through a graphical interface that requires no programming expertise.
 
 The software is designed around three principles:
 
-- **GUI-first**: every function is accessible through a graphical interface built on Python/Tkinter â€” no command-line interaction, no scripts, no API knowledge required.
+- **GUI-first**: every function is accessible through a graphical interface built on Python/Tkinter — no command-line interaction, no scripts, no API knowledge required.
 - **Bundle pipeline**: each plugin stage consumes a ZIP archive produced by the preceding stage and emits a new archive containing the full accumulated state, ensuring that every intermediate decision is preserved and portable.
 - **Human-in-the-loop**: no record is silently excluded. Records for which automated decisions cannot be grounded in sufficient evidence are routed to an explicit human review queue.
 
-In a demonstration use case comprising 776 candidate records, the pipeline reduced the corpus to 73 records requiring full human review â€” a 90.6% reduction â€” with deterministic pre-filtering accounting for 98.3% of exclusions.
+In a demonstration use case comprising 776 candidate records, the pipeline reduced the corpus to 73 records requiring full human review — a 90.6% reduction — with deterministic pre-filtering accounting for 98.3% of exclusions.
 
 ---
 
@@ -30,8 +30,8 @@ In a demonstration use case comprising 776 candidate records, the pipeline reduc
 
 Full project documentation lives in [`docs/`](docs/index.md):
 
-- [Installation guide](docs/installation.md) â€” detailed setup, configuration reference, verification, troubleshooting, upgrading.
-- [LLM-screening human validation](docs/llm-evaluation.md) â€” methodology, agreement metrics, and limitations from the demonstration-corpus validation study.
+- [Installation guide](docs/installation.md) — detailed setup, configuration reference, verification, troubleshooting, upgrading.
+- [LLM-screening human validation](docs/llm-evaluation.md) — methodology, agreement metrics, and limitations from the demonstration-corpus validation study.
 
 See the [documentation index](docs/index.md) for the full table of contents.
 
@@ -48,8 +48,8 @@ metaScreener organises its screening workflow into seven plugins across four fun
 | 01 | **Reference Markers** (experimental) | Extracts visually-present reference markers (e.g., `[1]`, `[Smith 2022]`) from images supplied as PDF or PNG | GPT-4o vision API |
 | 02 | **References-of-X AI** | Resolves and enriches bibliographic references via federated queries | OpenAlex, Crossref, Semantic Scholar |
 
-> **âš  Plugin 01 is experimental.** It is designed for images containing visible
-> reference markers (e.g., numbered or authorâ€“year citation lists rendered as
+> **⚠ Plugin 01 is experimental.** It is designed for images containing visible
+> reference markers (e.g., numbered or author–year citation lists rendered as
 > image text). Standard PRISMA flow diagrams typically do not contain such
 > markers, and feeding one as input may produce hallucinated output. Plugin 01
 > output should always be verified by the researcher before downstream use.
@@ -86,11 +86,11 @@ Both LLM stages implement **evidence gating**: a screening decision is accepted 
 
 Each plugin produces a **bundle ZIP archive** containing:
 
-- `manifest.json` â€” pipeline configuration (criteria file hash, prompt version, model ID, UTC timestamp)
-- `data/current.csv` â€” the canonical citation table at the current stage
-- `criteria/criteria_harmonized.csv` â€” the machine-executable criteria specification
-- `reports/` â€” per-stage decision reports with full evidence trails
-- `cache/` â€” JSONL caches of LLM responses (one file per stage)
+- `manifest.json` — pipeline configuration (criteria file hash, prompt version, model ID, UTC timestamp)
+- `data/current.csv` — the canonical citation table at the current stage
+- `criteria/criteria_harmonized.csv` — the machine-executable criteria specification
+- `reports/` — per-stage decision reports with full evidence trails
+- `cache/` — JSONL caches of LLM responses (one file per stage)
 
 Bundles are integrity-verified using **SHA-256 hashes** at ingestion and export. Any modification to the record set or configuration between stages is detectable.
 
@@ -98,17 +98,17 @@ Bundles are integrity-verified using **SHA-256 hashes** at ingestion and export.
 
 ## Installation
 
-### Option A â€” Install from PyPI
+### Option A — Install from PyPI
 
 ```bash
 pip install metascreener-lars-ulaval
 ```
 
-### Option B â€” Install from source
+### Option B — Install from source
 
 #### Prerequisites
 
-- **Python 3.10 or later** (with Tkinter â€” included by default on Windows and macOS; on Linux, install `python3-tk`)
+- **Python 3.10 or later** (with Tkinter — included by default on Windows and macOS; on Linux, install `python3-tk`)
 - **An OpenAI API key** (required for Plugins 01, 03, 06, 07; not required for Plugins 02, 04, 05)
 
 ### Windows
@@ -189,9 +189,9 @@ python run.py
 1. **Launch** the application with `python run.py`. You will be prompted for your OpenAI API key.
 
 2. **Prepare your inputs**:
-   - A **criteria file** in plain text (see `docs_/samples/ic_ec_12.txt` for format â€” one criterion per line with `IC-N` / `EC-N` identifiers)
+   - A **criteria file** in plain text (see `docs_/samples/ic_ec_12.txt` for format — one criterion per line with `IC-N` / `EC-N` identifiers)
    - A **citation corpus** as an aggregate CSV (see `docs_/samples/20260122_1654_aggregate.csv` for the expected schema)
-   - Or, for the experimental Plugin 01, an image (PDF or PNG) containing **visible reference markers** (numbered or authorâ€“year citation lists). *Note: standard PRISMA flow diagrams typically do not contain reference markers.*
+   - Or, for the experimental Plugin 01, an image (PDF or PNG) containing **visible reference markers** (numbered or author–year citation lists). *Note: standard PRISMA flow diagrams typically do not contain reference markers.*
 
 3. **Run the pipeline** sequentially through the tabs:
    - **Tab 1 (Reference Markers, experimental)**: supply an image (PDF or PNG) containing visible reference markers; extract them. *Skip this tab if you already have an aggregate CSV.*
@@ -222,7 +222,7 @@ The `docs_/samples/` directory contains minimal sample inputs for testing:
 
 | Package | Role | Stage(s) |
 |---------|------|----------|
-| `openai` (â‰¥1.40.0) | LLM API client | 01, 03, 06, 07 |
+| `openai` (≥1.40.0) | LLM API client | 01, 03, 06, 07 |
 | `pymupdf` | PDF parsing and image extraction | 01 |
 | `pillow` | Image processing | 01 |
 | `pytesseract` | OCR fallback (optional) | 01 |
@@ -240,9 +240,9 @@ All dependencies are listed in `requirements.txt`.
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| Windows 10+ | âœ… Verified by CI | `windows-latest` (Windows Server 2022 runner), Python 3.10â€“3.13 |
-| macOS 14+ (Apple Silicon) | âœ… Verified by CI | `macos-14` runner, Python 3.10â€“3.13 |
-| Linux (Ubuntu 22.04 / 24.04) | âœ… Verified by CI | `ubuntu-22.04` and `ubuntu-24.04` LTS runners, Python 3.10â€“3.13 |
+| Windows 10+ | ✅ Verified by CI | `windows-latest` (Windows Server 2022 runner), Python 3.10–3.13 |
+| macOS 14+ (Apple Silicon) | ✅ Verified by CI | `macos-14` runner, Python 3.10–3.13 |
+| Linux (Ubuntu 22.04 / 24.04) | ✅ Verified by CI | `ubuntu-22.04` and `ubuntu-24.04` LTS runners, Python 3.10–3.13 |
 
 The application is pure Python with no compiled extensions and runs on any platform supporting Python 3.10+ and Tkinter. Cross-platform compatibility is continuously verified by the GitHub Actions matrix on every push; see the [live CI status](https://github.com/lars-ulaval/metaScreener/actions/workflows/test.yml) for current run results.
 
@@ -286,7 +286,7 @@ alongside `pytest -q` as a pre-commit gate when extracting code into new modules
 
 Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 
-> **Status**: âœ… 73 passed
+> **Status**: ✅ 73 passed
 
 ---
 
@@ -296,7 +296,7 @@ Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | Yes (for LLM stages) | â€” | Your OpenAI API key |
+| `OPENAI_API_KEY` | Yes (for LLM stages) | — | Your OpenAI API key |
 | `SCREENA_EL_MODEL` | No | `gpt-4o-mini` | Model identifier for the EL stage |
 | `SCREENA_EL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM |
 | `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call |
@@ -308,8 +308,8 @@ Copy `.env.example` to `.env` and set your API key. The application will prompt 
 
 metaScreener targets any **OpenAI-compatible API endpoint**. The default backend is OpenAI's hosted API, but the same Python client transparently supports:
 
-- **Hosted commercial APIs** â€” Azure OpenAI, DeepSeek, and others that mirror OpenAI's chat completions schema.
-- **Locally hosted models** â€” open-weight models served via compatible inference frameworks such as Ollama, llama.cpp, and vLLM.
+- **Hosted commercial APIs** — Azure OpenAI, DeepSeek, and others that mirror OpenAI's chat completions schema.
+- **Locally hosted models** — open-weight models served via compatible inference frameworks such as Ollama, llama.cpp, and vLLM.
 
 Switching providers requires no code change: set the `OPENAI_BASE_URL` environment variable to the target endpoint and ensure `OPENAI_API_KEY` is non-empty (most local servers ignore the key value but require it to be set). The **Model** field in metaScreener's EL/IL Settings panels then selects which backend model to use. Three commonly used local-model paths are described below.
 
@@ -333,24 +333,24 @@ For higher-throughput self-hosted inference, [vLLM](https://github.com/vllm-proj
 
 ```
 metaScreener/
-â”œâ”€â”€ run.py                       # Application entry point
-â”œâ”€â”€ metascreener/
-â”‚   â”œâ”€â”€ main.py                  # Main window and tab orchestration
-â”‚   â”œâ”€â”€ plugin_api.py            # BasePlugin / PluginMeta contract
-â”‚   â””â”€â”€ plugin_manager.py        # Dynamic plugin discovery and loading
-â”œâ”€â”€ plugins/
-â”‚   â”œâ”€â”€ 01_reference_extractor/        # Plugin 01: Reference Markers (experimental)
-â”‚   â”œâ”€â”€ 02_references_of_x/            # Plugin 02: References-of-X AI
-â”‚   â”œâ”€â”€ 03_harmoniser/                 # Plugin 03: Criteria Parser
-â”‚   â”œâ”€â”€ 04_eh/                         # Plugin 04: EH (Exclusion by Heuristic)
-â”‚   â”œâ”€â”€ 05_ih/                         # Plugin 05: IH (Inclusion by Heuristic)
-â”‚   â”œâ”€â”€ 06_el/                         # Plugin 06: EL (Exclusion by LLM)
-â”‚   â””â”€â”€ 07_il/                         # Plugin 07: IL (Inclusion by LLM)
-â”œâ”€â”€ docs_/
-â”‚   â””â”€â”€ samples/                 # Sample input files
-â”œâ”€â”€ requirements.txt
-â”œâ”€â”€ .env.example
-â””â”€â”€ LICENSE                      # MIT License
+├── run.py                       # Application entry point
+├── metascreener/
+│   ├── main.py                  # Main window and tab orchestration
+│   ├── plugin_api.py            # BasePlugin / PluginMeta contract
+│   └── plugin_manager.py        # Dynamic plugin discovery and loading
+├── plugins/
+│   ├── 01_reference_extractor/        # Plugin 01: Reference Markers (experimental)
+│   ├── 02_references_of_x/            # Plugin 02: References-of-X AI
+│   ├── 03_harmoniser/                 # Plugin 03: Criteria Parser
+│   ├── 04_eh/                         # Plugin 04: EH (Exclusion by Heuristic)
+│   ├── 05_ih/                         # Plugin 05: IH (Inclusion by Heuristic)
+│   ├── 06_el/                         # Plugin 06: EL (Exclusion by LLM)
+│   └── 07_il/                         # Plugin 07: IL (Inclusion by LLM)
+├── docs_/
+│   └── samples/                 # Sample input files
+├── requirements.txt
+├── .env.example
+└── LICENSE                      # MIT License
 ```
 
 ---
@@ -366,7 +366,7 @@ metaScreener's plugin architecture is designed for extensibility. To create a ne
 3. Set `TAB_TITLE = "My Plugin"` at the module level
 4. The plugin manager will automatically discover and load it on the next launch
 
-Plugins communicate exclusively through bundle ZIP files â€” there is no shared state or database. Each plugin reads a bundle, processes it, and emits a new bundle.
+Plugins communicate exclusively through bundle ZIP files — there is no shared state or database. Each plugin reads a bundle, processes it, and emits a new bundle.
 
 ---
 
@@ -408,8 +408,8 @@ metaScreener is released under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
-This work is supported by the Center of Interdisciplinary Research in Rehabilitation and Social Integration ([CIRRIS](https://cirris.ulaval.ca/)), Laval University, QuÃ©bec, Canada, and the International Observatory on the Societal Impacts of AI and Digital Technologies ([OBVIA](https://www.obvia.ca/)).
+This work is supported by the Center of Interdisciplinary Research in Rehabilitation and Social Integration ([CIRRIS](https://cirris.ulaval.ca/)), Laval University, Québec, Canada, and the International Observatory on the Societal Impacts of AI and Digital Technologies ([OBVIA](https://www.obvia.ca/)).
 
 ---
 
-**Developed by [LARS â€” Laboratoire d'automatisation des recherches situÃ©es](https://github.com/lars-ulaval), Laval University**
+**Developed by [LARS — Laboratoire d'automatisation des recherches situées](https://github.com/lars-ulaval), Laval University**

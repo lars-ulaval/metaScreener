@@ -87,7 +87,7 @@ being dropped is also dropped is the most consequential defect in the repository
 
 ### 3. `README.md` is corrupted, by the most recent commit on `main` (F-10, High)
 
-`README.md` carries a UTF-8 BOM and **27 mojibake sequences across 25 lines** — every em-dash
+`README.md` carries a UTF-8 BOM and **mojibake on 46 lines** — every em-dash
 rendered as `â€"`, and `Québec` as `QuÃ©bec`. Affected lines include the opening sentence of
 the Overview (17), the 776→73 headline (25), the bundle-format list (89-93), the platform
 table (243-245), and the acknowledgements (411).
