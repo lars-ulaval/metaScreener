@@ -196,8 +196,8 @@ python run.py
 1. **Launch** the application with `python run.py`. You will be prompted for your OpenAI API key.
 
 2. **Prepare your inputs**:
-   - A **criteria file** in plain text (see `docs_/samples/ic_ec_12.txt` for format — one criterion per line with `IC-N` / `EC-N` identifiers)
-   - A **citation corpus** as an aggregate CSV (see `docs_/samples/20260122_1654_aggregate.csv` for the expected schema)
+   - A **criteria file** in plain text (see `samples/ic_ec_12.txt` for format — one criterion per line with `IC-N` / `EC-N` identifiers)
+   - A **citation corpus** as an aggregate CSV (see `samples/20260122_1654_aggregate.csv` for the expected schema)
    - Or, for the experimental Plugin 01, an image (PDF or PNG) containing **visible reference markers** (numbered or author–year citation lists). *Note: standard PRISMA flow diagrams typically do not contain reference markers.*
 
 3. **Run the pipeline** sequentially through the tabs:
@@ -215,7 +215,7 @@ python run.py
 
 ## Sample data
 
-The `docs_/samples/` directory contains minimal sample inputs for testing:
+The `samples/` directory contains minimal sample inputs for testing:
 
 | File | Description |
 |------|-------------|
@@ -362,8 +362,7 @@ metaScreener/
 │   ├── 05_ih/                         # Plugin 05: IH (Inclusion by Heuristic)
 │   ├── 06_el/                         # Plugin 06: EL (Exclusion by LLM)
 │   └── 07_il/                         # Plugin 07: IL (Inclusion by LLM)
-├── docs_/
-│   └── samples/                 # Sample input files
+├── samples/                     # Sample input files
 ├── requirements.txt
 ├── .env.example
 └── LICENSE                      # MIT License

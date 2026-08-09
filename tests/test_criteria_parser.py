@@ -7,7 +7,7 @@
 test_criteria_parser.py — Tests for _parse_free_text_criteria() and
 _infer_criterion_details() from the Harmoniser plugin (Plugin 03).
 
-Uses the sample ic_ec_12.txt shipped in docs_/samples/.
+Uses the sample ic_ec_12.txt shipped in samples/.
 """
 import pytest
 from conftest import get_harmoniser

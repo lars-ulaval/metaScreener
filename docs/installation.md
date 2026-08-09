@@ -243,14 +243,14 @@ failures are the typical cause on Linux.
 
 ### Run a smoke test with the sample corpus
 
-Sample inputs are bundled at `docs_/samples/`. To verify an end-to-end
+Sample inputs are bundled at `samples/`. To verify an end-to-end
 LLM-free pipeline:
 
 1. Launch the GUI.
-2. In Plugin 03 (Criteria Parser), load `docs_/samples/ic_ec_12.txt`.
+2. In Plugin 03 (Criteria Parser), load `samples/ic_ec_12.txt`.
    Click Run; review the inferred criteria.
 3. In Plugin 02 (References-of-X AI), load
-   `docs_/samples/ex_ref_2.txt`. Click Run.
+   `samples/ex_ref_2.txt`. Click Run.
 4. Pipe the Plugin 02 output through Plugins 04 (EH) and 05 (IH) —
    these are deterministic and require no API key.
 

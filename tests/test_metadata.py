@@ -107,9 +107,9 @@ def _published_docs_markdown_files():
 
 def _markdown_files_in_repo():
     """Return all tracked-by-convention Markdown files: README.md plus
-    the published files under docs/ (recursively). Sample docs under
-    docs_/ are out of scope: they are intentionally minimal and may
-    carry placeholder references. Internal working documents under
+    the published files under docs/ (recursively). The sample data
+    under samples/ is out of scope: it is intentionally minimal and
+    may carry placeholder references. Internal working documents under
     docs/internal/ are out of scope for the same reason.
     """
     return [PROJECT_ROOT / "README.md"] + _published_docs_markdown_files()
@@ -218,4 +218,34 @@ class TestDocsCrossReferences:
             "README.md must contain a link to docs/index.md "
             "(the documentation hub). Was the Documentation section "
             "removed or the link path changed?"
+        )
+
+
+class TestNoStaleSampleFolderReferences:
+    """Wave 5 (F-54) renamed the sample-data folder docs_/ to samples/.
+
+    The old name was one underscore away from docs/ and carried a
+    blanket .gitignore rule that silently hid new files. The rename is
+    only complete if the published documentation stops using the old
+    path, so this pins the old name out of the same corpus the
+    cross-reference tests cover. Historical records keep their original
+    wording on purpose: CHANGELOG.md and docs/internal/ are not
+    scanned (the corpus helper applies the DOCS_INTERNAL_DIRS
+    exemption via _is_internal_doc).
+    """
+
+    def test_published_docs_do_not_reference_docs_underscore(self):
+        problems = []
+        for md_path in _markdown_files_in_repo():
+            text = md_path.read_text(encoding="utf-8")
+            for lineno, line in enumerate(text.splitlines(), 1):
+                if "docs_" in line:
+                    problems.append(
+                        f"{md_path.relative_to(PROJECT_ROOT)}:{lineno}: "
+                        f"{line.strip()}"
+                    )
+        assert not problems, (
+            "Stale docs_ references in published documentation "
+            "(the sample folder is samples/ since wave 5):\n  "
+            + "\n  ".join(problems)
         )

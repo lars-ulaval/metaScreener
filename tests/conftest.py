@@ -66,7 +66,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 # 3. Shared paths / data
 # ---------------------------------------------------------------------------
-SAMPLES_DIR = PROJECT_ROOT / "docs_" / "samples"
+SAMPLES_DIR = PROJECT_ROOT / "samples"
 IC_EC_FILE = SAMPLES_DIR / "ic_ec_12.txt"
 AGGREGATE_CSV = SAMPLES_DIR / "20260122_1654_aggregate.csv"
 

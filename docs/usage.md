@@ -8,7 +8,7 @@ the plugin list on the left and the bundle slot on the right.
 
 The walkthrough below follows the seven plugins in pipeline order
 (01 to 07) and uses the sample data in
-[`docs_/samples/`](../docs_/samples/) as the running example. If you
+[`samples/`](../samples/) as the running example. If you
 have your own corpus and criteria, you can substitute them at the
 appropriate step.
 
@@ -16,7 +16,7 @@ appropriate step.
 
 ### Sample inputs
 
-Three files live in `docs_/samples/`:
+Three files live in `samples/`:
 
 - **`ic_ec_12.txt`** — eight free-text criteria (four inclusion,
   four exclusion) for a systematic review on head-mounted-display
@@ -86,7 +86,7 @@ happens in Plugin 02.
   guarantee. Plan a manual review of the Plugin 01 output before
   proceeding.
 - A copyright-safe sample is not included in the repository; see
-  the [sample data note](../docs_/README.md) for guidance on
+  the [sample data note](../samples/README.md) for guidance on
   preparing your own test image.
 
 ### Plugin 02 - References-of-X AI
@@ -103,13 +103,13 @@ output of Plugin 02 is the standard input to the rest of the
 pipeline.
 
 **Inputs.** Either a raw bibliography text file (like
-`docs_/samples/ex_ref_2.txt`) or an existing aggregate CSV. The
+`samples/ex_ref_2.txt`) or an existing aggregate CSV. The
 plugin will pass through records that already have complete metadata
 and only query the network for records that need enrichment.
 
 **What it produces.** An aggregate CSV in the metaScreener
 canonical schema (the same shape as
-`docs_/samples/20260122_1654_aggregate.csv`). Provenance for each
+`samples/20260122_1654_aggregate.csv`). Provenance for each
 field is recorded in the `field_sources` column, and a per-source
 hit flag (`hit_openalex`, `hit_crossref`, `hit_semanticscholar`)
 makes it easy to spot records that landed in only one database.
@@ -130,7 +130,7 @@ makes it easy to spot records that landed in only one database.
 ### Plugin 03 - Criteria Parser
 
 ![Plugin 03 main view, with sample criteria loaded and the harmonised table populated on the right](images/usage/plugin03_criteria_parser.png)
-> *Figure: Plugin 03 (Criteria Parser / Harmoniser) after loading `docs_/samples/ic_ec_12.txt`. The left panel holds the editable free-text criteria; the right panel shows the inferred harmonised criteria table with stage and operator assignments per row. The log at the bottom records each step of parsing and the optional LLM refinement pass.*
+> *Figure: Plugin 03 (Criteria Parser / Harmoniser) after loading `samples/ic_ec_12.txt`. The left panel holds the editable free-text criteria; the right panel shows the inferred harmonised criteria table with stage and operator assignments per row. The log at the bottom records each step of parsing and the optional LLM refinement pass.*
 
 **Purpose.** Converts free-text inclusion and exclusion criteria
 into a structured, machine-executable criteria table that the
@@ -143,7 +143,7 @@ it.
 
 **Inputs.** A plain-text file with one criterion per line, optionally
 prefixed by an `IC-` or `EC-` tag and a separator. The bundled
-example (`docs_/samples/ic_ec_12.txt`) shows the expected format.
+example (`samples/ic_ec_12.txt`) shows the expected format.
 
 **What it produces.** A CSV with one row per criterion and columns
 including:

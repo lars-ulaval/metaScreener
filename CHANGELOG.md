@@ -325,6 +325,17 @@ evaluates anything.
   documentation cross-reference tests (F-29).
 
 ### Changed
+- The sample-data folder `docs_/` is now top-level `samples/` (F-54). The old
+  name was one underscore away from `docs/` — which holds the actual
+  documentation — and carried a blanket `.gitignore` rule whose only effect
+  was to make files dropped beside the samples invisible to `git status`:
+  nothing writes into the tree at runtime, so the rule protected nothing,
+  and it is deleted with the rename. Layout change only —
+  `docs_/samples/<file>` is now `samples/<file>`, `docs_/README.md` is
+  `samples/README.md`; no file content changed. The no-op
+  `[tool.setuptools.package-data]` entry for the old folder is gone
+  (distributables never contained the samples — see F-83). A regression
+  test keeps the old path out of the published documentation.
 - The EL/IL cache goldens (`tests/golden/{el,il}_cache_v3.1.0.json`) were
   **re-keyed, not re-captured**, to follow the cache-key change above. The
   stored keys are now hashes of the rendered prompt; the stored values —

@@ -22,7 +22,7 @@ quickstart pointers, see the [project README](../README.md).
 - **[Usage guide](usage.md)** — walkthrough of the seven plugins
   from corpus ingestion through to the final bundle export, with
   per-plugin inputs, outputs, configuration knobs, and common
-  gotchas. Uses the sample data in [`docs_/samples/`](../docs_/samples/)
+  gotchas. Uses the sample data in [`samples/`](../samples/)
   as the running example.
 
 - **[FAQ](faq.md)** — answers to common questions about

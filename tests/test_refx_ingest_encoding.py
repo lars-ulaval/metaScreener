@@ -105,7 +105,7 @@ class TestEncodingLadder:
     def test_cp1252_only_characters_survive(self, tmp_path):
         """0x96 en-dash exists in cp1252 but not in latin-1.
 
-        This is the exact byte that made docs_/samples/ex_ref_2.txt
+        This is the exact byte that made samples/ex_ref_2.txt
         undecodable as UTF-8 (F-56), so it is worth pinning on its own.
         """
         path = tmp_path / "corpus.csv"
@@ -140,7 +140,7 @@ class TestEmptyResultIsReported:
 class TestShippedSampleIsReadable:
 
     def test_docs_samples_reference_list_decodes(self):
-        """docs_/samples/ex_ref_2.txt is the documented Plugin 02 input.
+        """samples/ex_ref_2.txt is the documented Plugin 02 input.
 
         It was cp1252 until F-56; this pins that the shipped sample can
         actually be read by the plugin it demonstrates.

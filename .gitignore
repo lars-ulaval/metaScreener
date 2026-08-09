@@ -65,13 +65,6 @@ secrets/*
 # --- Executables ---
 **/*.exe
 
-# docs_ (keep only minimal samples)
-docs_/**
-!docs_/README.md
-!docs_/samples/
-!docs_/samples/**
-
-
 # Office temp files
 ~$*
 

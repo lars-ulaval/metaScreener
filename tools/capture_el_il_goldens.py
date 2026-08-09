@@ -70,7 +70,7 @@ TRUNC_CHARS = 4000
 BATCH_SIZE = 5
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SAMPLES_DIR = PROJECT_ROOT / "docs_" / "samples"
+SAMPLES_DIR = PROJECT_ROOT / "samples"
 GOLDEN_DIR = PROJECT_ROOT / "tests" / "golden"
 
 AGGREGATE_CSV = SAMPLES_DIR / "20260122_1654_aggregate.csv"

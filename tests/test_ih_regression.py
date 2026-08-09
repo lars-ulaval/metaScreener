@@ -18,7 +18,7 @@ these guard against silent drift across the IH module-decomposition refactor
 (Conv 5) and any subsequent change.
 
 Inputs:
-- corpus:   docs_/samples/20260122_1654_aggregate.csv
+- corpus:   samples/20260122_1654_aggregate.csv
 - criteria: tests/golden/criteria_harmonized_v3.1.0.csv  (the harmoniser golden)
 
 Note: IH is exercised against the original aggregate corpus, not against

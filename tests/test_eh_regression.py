@@ -16,7 +16,7 @@ and (c) the reason-summary text. Together these guard against silent drift
 across the EH module-decomposition refactor (Conv 5) and any subsequent change.
 
 Inputs:
-- corpus:   docs_/samples/20260122_1654_aggregate.csv
+- corpus:   samples/20260122_1654_aggregate.csv
 - criteria: tests/golden/criteria_harmonized_v3.1.0.csv  (the harmoniser golden)
 
 Rebuilding the golden file (only when output changes are deliberate)
