@@ -187,3 +187,40 @@ class TestDecodeLadderParity:
         from conftest import get_el
         b = "﻿local_id,title\nA001,Étude\n".encode("utf-8")
         assert get_el()._decode_bytes(b) == "local_id,title\nA001,Étude\n"
+
+
+class TestCarriageReturnCanonicalisation:
+    """F-76. The EH/IH record splitter rewrites every CRLF and lone CR to
+    LF across the whole file text BEFORE parsing, so the rewrite reaches
+    inside quoted fields (plugins/_common/parser.py, _split_csv_records).
+    This is a deliberate canonicalisation of metadata, kept by decision
+    Q-A of docs/internal/FIX_WAVE_4_REPORTS.md — it is load-bearing for
+    the committed goldens (the sample corpus has 4 CR-bearing fields, the
+    EH golden has 0). This class pins it so it stops being an undeclared
+    side effect: removing or changing it must fail here first, on purpose.
+    """
+
+    def test_crlf_inside_a_quoted_field_becomes_lf(self):
+        text = 'local_id,title\nA001,"line one\r\nline two"\n'
+        rep = _parse(text)
+        assert rep.rows[0]["title"] == "line one\nline two"
+
+    def test_lone_cr_inside_a_quoted_field_becomes_lf(self):
+        text = 'local_id,title\nA001,"pre\rpost"\n'
+        rep = _parse(text)
+        assert rep.rows[0]["title"] == "pre\npost"
+
+    def test_embedded_lf_is_preserved_verbatim(self):
+        """Only the CR variants are rewritten; a quoted LF passes through."""
+        text = 'local_id,title\nA001,"line one\nline two"\n'
+        rep = _parse(text)
+        assert rep.rows[0]["title"] == "line one\nline two"
+
+    def test_the_record_structure_survives_the_rewrite(self):
+        """One logical record with multi-line metadata stays one record."""
+        text = ('local_id,title\n'
+                'A001,"a\r\nb"\n'
+                'A002,plain\n')
+        rep = _parse(text)
+        assert [r["local_id"] for r in rep.rows] == ["A001", "A002"]
+        assert rep.skipped == []

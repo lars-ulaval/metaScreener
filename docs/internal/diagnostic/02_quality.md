@@ -484,6 +484,12 @@ additional API cost"*). Audit:
 | **ZIP container bytes** | Yes | `zipfile` stores per-entry mtimes; two bundles built from identical content have different bytes. Only the *contents* are reproducible. |
 | **Default export filenames** | Yes, by design | `_now_stamp()` in `ScreenA_Bundle_EH_{stamp}.zip` etc. |
 
+*Addendum (wave 4a, F-76):* the EH/IH parser canonicalises `CRLF` and lone `CR`
+inside quoted metadata to `LF` (`_common/parser.py`, `_split_csv_records`) — so
+pass-through fields are CR-normalised rather than byte-identical to the ingested
+corpus. Kept by decision Q-A, documented in `docs/usage.md`, and pinned by
+`tests/test_corpus_parser.py::TestCarriageReturnCanonicalisation`.
+
 **Verdict.** The reproducibility claim is **substantially true for the artefacts that carry
 the science** — the report CSVs are byte-reproducible, and the golden tests prove it on
 every CI run across 16 platform cells. It is **not** true for the manifest or the ZIP

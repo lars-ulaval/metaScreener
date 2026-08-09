@@ -208,6 +208,15 @@ the criteria that failed, were missing, or were met and a
 reason summary (e.g., "Failed: EC-1"), and
 `reports/EH_SURVIVORS.csv`, the records that continue to Plugin 05.
 
+**A note on line endings inside metadata.** Record fields pass through to
+the reports otherwise verbatim, with one deliberate canonicalisation: any
+Windows (`CR LF`) or bare-`CR` line break *inside* a metadata value — a
+multi-line abstract, for example — is rewritten to a plain `LF` when the
+deterministic stages (04 and 05) read the corpus. The value stays a single
+CSV field either way; only the flavour of its internal line breaks changes.
+If you diff a report against your source corpus byte-for-byte, this is the
+one expected difference.
+
 **Common gotchas.**
 
 - No LLM cost, no latency. If a record can be excluded by a

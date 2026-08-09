@@ -231,6 +231,17 @@ def _split_csv_records(text: str) -> List[str]:
     """
     Split CSV into record strings by scanning newlines not inside quotes.
     Preserves embedded newlines inside quoted fields.
+
+    F-76: the CR rewrite below applies to the WHOLE text, before parsing,
+    so it reaches inside quoted fields — a metadata value containing
+    ``\\r\\n`` or a lone ``\\r`` comes out of the EH/IH reports with ``\\n``
+    instead. This is a deliberate canonicalisation of metadata (decision
+    Q-A, docs/internal/FIX_WAVE_4_REPORTS.md), documented in
+    docs/usage.md, load-bearing for the committed goldens (the sample
+    corpus carries 4 CR-bearing fields; the EH golden carries 0), and
+    pinned by tests/test_corpus_parser.py
+    ::TestCarriageReturnCanonicalisation. Embedded LF is preserved
+    verbatim; only the CR variants are rewritten.
     """
     if not text:
         return []
