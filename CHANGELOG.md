@@ -65,13 +65,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the record text hash covered only the criterion's *target* fields, although
   the prompt ships title, abstract and keywords for every criterion.
 
-### Pending re-capture
-- The EL/IL cache goldens (`tests/golden/{el,il}_cache_v3.1.0.json`) are keyed
-  by the hash changed above, so `test_el_regression` and `test_il_regression`
-  byte-identity currently fail by construction. Re-keying was verified to be a
-  pure relabelling — 170 EL and 84 IL entries map 1:1 onto new keys with
-  byte-identical decisions, no collisions and no orphans — but the re-capture
-  itself is deliberately **not** committed here and awaits sign-off.
+### Changed
+- The EL/IL cache goldens (`tests/golden/{el,il}_cache_v3.1.0.json`) were
+  **re-keyed, not re-captured**, to follow the cache-key change above. The
+  stored keys are now hashes of the rendered prompt; the stored values —
+  decisions, confidences, evidence quotes and spans — were copied verbatim
+  from the previous goldens. No API call was made and no decision was
+  recomputed. 170 EL and 84 IL entries mapped 1:1 onto new keys with no
+  collisions and no orphans, and the four files that record decisions
+  (`{el,il}_filtered_v3.1.0.csv`, `{el,il}_input_v3.1.0.csv`) are
+  byte-identical to their previous versions, which is the check that the
+  re-key changed only labels. Any future change to the prompt template or to
+  criterion content will invalidate these caches, since the key now covers
+  both; that needs a real re-capture via `tools/capture_el_il_goldens.py`.
 
 ## [3.1.0] - 2026-04-29
 
