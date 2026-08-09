@@ -2,6 +2,12 @@
 
 *Diagnostic report, Phase 8. Read-only analysis; nothing in this report was fixed.*
 
+> **This register is live and has been amended by every wave since.** The line above
+> describes the analysis that produced rows F-01..F-55 on 2026-08-08, not the state of
+> the register today. Forty-six rows are now closed. Before reading any row as open,
+> read **"How this register is counted, and which rows are closed"** below the counts —
+> most closures are recorded in `CHANGELOG.md`, not in the row.
+
 Severity: **Critical** = incorrect scientific output, data loss, or security ·
 **High** = blocks maintenance or peer review · **Medium** · **Low** = cosmetic.
 Effort: **XS** ≤ 30 min · **S** ≤ half a day · **M** 1–3 days · **L** > 3 days.
@@ -161,6 +167,66 @@ They are kept rather than folded into `correctness`/`documentation` because each
 distinct kind of claim the project makes about itself, and collapsing them would hide that
 the LLM diagnostic found defects on axes the first five diagnostics never examined.*
 
+---
+
+### How this register is counted, and which rows are closed
+
+*Two facts that have each cost a verification cycle. Added in wave 6.*
+
+**1. Count rows, not the maximum ID.** The two are not equal and never will be: the
+register contains a permanent gap at **F-56, F-57, F-58**. At wave-6 close there are
+**127 rows** running F-01..F-130. A count taken from the highest ID overstates by three.
+
+The gap is not an accident and must not be backfilled. All three IDs were assigned to
+real findings and consumed **outside this register**, in commits whose messages open with
+the capitalised phrase "NOT IN THE DIAGNOSTIC REGISTER" — so the off-register status was
+deliberate and contemporaneous:
+
+| ID | Commit | Subject |
+|---|---|---|
+| F-56 | `a6d1f0f` | `fix(F-56): re-encode docs_/samples/ex_ref_2.txt from cp1252 to UTF-8` |
+| F-57 | `d6af29c` | `fix(F-57): drop two more unbacked claims from docs/usage.md` |
+| F-58 | `8a000ac` | `fix(F-58): add the required --criteria flag to eval_ingest's usage example` |
+
+All three are recorded in `CHANGELOG.md` [Unreleased] → ### Documentation, though unevenly:
+F-58 has its own clause, F-56 survives as one clause in a three-ID bullet, and **F-57 is a
+bare parenthetical with no description** — `d6af29c`'s commit message is the only substantive
+record of F-57 in the repository. New IDs continue past the maximum; wave 5 started at F-83
+and wave 6 at F-86 for this reason.
+
+*(A note on counting mechanics, since this is where the miscounts came from: rows begin
+`| **F-nn**`, with the ID bolded. A pattern matching `^| F-` returns zero.)*
+
+**2. A row carrying no closure annotation is not necessarily open.** The
+"**Fixed in `<sha>`:**" convention began in wave 3 and was applied consistently only from
+wave 4 onward. Closures from waves 0–2 were recorded in `CHANGELOG.md` and never written
+back into the rows. So the register — which is meant to be the single place the project's
+open work is enumerated — currently understates its own progress by 29 rows.
+
+Until each row is annotated individually, this table is the ledger. **Forty-six of the 127
+rows are closed.**
+
+| Where the closure is recorded | Rows | Count |
+|---|---|---|
+| **In the row** (`Fixed in <sha>`, Effort `(done)`) | F-09, F-23, F-24, F-40, F-54, F-61, F-67, F-68, F-69, F-70, F-71, F-72, F-73, F-74, F-75, F-76, F-83 | 17 |
+| **In `CHANGELOG.md` [Unreleased] only** — the row still reads as open | F-01, F-02, F-03, F-04, F-05, F-06, F-07, F-08, F-10, F-13, F-16, F-17, F-18, F-26, F-29, F-30, F-31, F-34, F-37, F-38, F-41, F-42, F-43, F-44, F-45, F-46, F-50, F-51, F-55 | 29 |
+| **Open** (including all 45 wave-6 rows) | the remainder | 81 |
+
+**F-01..F-05 are the precedent worth naming**, because they are the register's three
+Criticals and its first two Highs, and all five read as open. They are not, however, the
+same class as F-56..F-58, and the distinction matters: F-01..F-05 have rows whose *closure*
+is recorded elsewhere; F-56..F-58 have no rows at all. The first is a stale row, repairable
+by annotation. The second is an absent row, and the wave-5 decision not to backfill it
+stands. Do not cite F-01..F-05 as licence to create F-56..F-58.
+
+Two consequences a reader should carry: `§ Top 10 actions` below still lists F-01, F-02,
+F-03 and F-10 as actions 1, 2, 4 and 5 — **all four are closed**; and the register's own
+opening line ("nothing in this report was fixed") describes the 2026-08-08 analysis, not
+the register's state. Annotating the 29 rows individually is a wave in itself and was
+deliberately not attempted here — wave 6 is a documentation wave whose own subject is
+register truth, and rewriting 29 rows' fix cells while also sweeping 42 candidates into it
+would have made both changes unreviewable.
+
 ### Note on F-64: what was reported, and what was actually there
 
 F-64 was raised as "`{el,il}_evidence_json` reports `UNCERTAIN` without recording
@@ -305,6 +371,110 @@ Relevant to F-14's migration order: the row-preparation logic was unit-tested
 headlessly against hostile metadata during this diagnostic and found clean in all
 three copies, so adopting the shared widget carries no behavioural risk beyond
 the constructor signature. No renumbering; F-14 and F-49 are unchanged.
+
+---
+
+### Wave-6 sweep: `06_llm_integration.md` §B9 against F-01..F-85
+
+**What was swept against what.** The 42 candidates of the single deduplicated `C-n`
+namespace in `06_llm_integration.md` § "B9 Candidate findings" (committed `895e51c`,
+2026-08-09) against **all 82 rows** then in this register — not only against the rows
+the diagnostic named inline. Swept on **2026-08-09**, at `895e51c`, on branch
+`fix/wave-6-register`. The diagnostic deliberately assigned no `F-nn` and did not touch
+this file; §B9's own note said the sweep was "a later wave". This is that wave.
+
+**Outcome.** 38 candidates became **45 new rows, F-86..F-130**; four were true duplicates
+or refinements of existing rows and were merged rather than added. No row was deleted and
+nothing was renumbered.
+
+**The true duplicates — four, and only four.**
+
+- **C-16 → F-12.** F-12's *substance* is still true, but its headline ("the entire LLM
+  interaction path is 0% covered … never executed") is stale:
+  `tests/test_cancellation.py` drives `run_m1_llm_for_criterion` directly against a fake
+  client. F-12 was **narrowed**, not closed. Its evidence cell's *mechanism* was also
+  wrong and is corrected in place — the golden tests do not short-circuit because
+  `test_el_regression.py` unsets the key (it does unset it), but because a complete cache
+  leaves `to_call` at zero, so the guard in `plugins/06_el/screen.py::run_el_screen` is
+  never entered.
+- **C-21 → F-25.** A magnitude sharpening, as the diagnostic offered it: 3 × 600 s, not
+  600 s, because the SDK also defaults `max_retries=2`. It carried one thing beyond
+  magnitude — every logged "batch failed" line under-reports the request count threefold —
+  which is folded into the same row because the same fix closes it. F-25's `max_tokens` /
+  `finish_reason` half is preserved; a merge that replaced the row would have deleted it.
+- **C-22 → F-63 and F-64.** The only candidate that split across two existing rows. Its
+  span half is a straight duplicate of **F-63** and contributes new evidence (169/170 EL
+  and 77/84 IL golden spans do not locate their quote — so the defect is in the shipped
+  fixtures, not merely in one archived run). Its `error` half extends **F-64**, whose
+  proposed `uncertain_reason` vocabulary has no member for "the call failed".
+- **C-23 → F-22.** A refinement: the gate normalises whitespace only, and F-22's proposed
+  NFKC fix is necessary but not sufficient — measured, NFKC leaves U+200B/200C/200D,
+  U+FEFF and U+00AD untouched and does not fold case.
+
+**Near-misses checked and rejected**, so the next reader does not re-derive them: C-2
+against F-33 (same artefact, opposite direction — F-33 is unreported corruption on *read*,
+C-2 is deliberate persistence of failures on *write*); C-4 against F-01 (same shape,
+different axis, and F-01 is closed); C-6 against F-08 (C-6 is F-08's *residual*, not a
+duplicate — F-08 removed the key rule and left the endpoint barrier standing, which is why
+F-91 records that F-08's changelog entry over-states its own closure); C-13 against F-28
+(both concern the goldens; F-28 is about the settings they were captured at, C-13 about
+the two incompatible roles they serve); C-19 against F-33; C-26 against F-69 (the same
+shape with the model as consumer, but F-69 is closed and its fix does not reach a prompt);
+C-31 against F-81 (same files, different defect); C-35 against F-15 and F-09/F-40; C-36
+against F-16 and F-83; C-37 against F-25; C-41 against F-15; C-42 against F-49, F-50 and
+F-51.
+
+**Corrections to the sweep brief's own premises**, recorded because they were checked
+rather than accepted: C-23's claim that F-22 "implies `_normalize_space` mishandles the
+NBSP class" is **withdrawn** — F-22's row never mentions NBSP, whitespace classes or
+spaces, and says only that the check is "not Unicode-normalised or case-folded", naming
+NFC/NFD and smart punctuation. The *code* fact behind the claim is true and is recorded in
+F-22's refinement; the attribution to F-22 was not, and F-22 needed no correction on that
+point. Likewise C-24 was offered as "F-66's failure shape one layer down": only its
+spec-test half is, and the candidate was split (F-105, F-106) rather than merged.
+
+---
+
+### Wave-6 cross-reference: `C-n` → register
+
+*So that a reader of `06_llm_integration.md` §B9 can navigate to this register and back.
+Each new row also names its `C-n` in its own evidence cell, matching how F-67..F-82 name
+their `05_report_production.md` candidate.*
+
+| C-n | Outcome | C-n | Outcome |
+|---|---|---|---|
+| C-1 | F-86 | C-22 | **merged → F-63 + F-64** |
+| C-2 | F-87 | C-23 | **merged → F-22** |
+| C-3 | F-88 *(graduates F-82)* | C-24 | F-105 + F-106 *(split)* |
+| C-4 | F-89 | C-25 | F-107 |
+| C-5 | F-90 | C-26 | F-108 |
+| C-6 | F-91 *(residual of F-08)* | C-27 | F-109 |
+| C-7 | F-92 | C-28 | F-110 |
+| C-8 | F-93 | C-29 | F-111 + F-112 *(split)* |
+| C-9 | F-94 | C-30 | F-113 + F-114 *(split; its plugin-02 item → F-130)* |
+| C-10 | F-95 | C-31 | F-115 |
+| C-11 | F-96 | C-32 | F-116 |
+| C-12 | F-97 | C-33 | F-117 |
+| C-13 | F-98 | C-34 | F-118 + F-119 *(split)* |
+| C-14 | F-99 | C-35 | F-120 |
+| C-15 | F-100 | C-36 | F-121 |
+| C-16 | **merged → F-12** | C-37 | F-122 |
+| C-17 | F-101 | C-38 | F-123 + F-124 + F-125 *(split)* |
+| C-18 | F-102 | C-39 | F-126 |
+| C-19 | F-103 | C-40 | F-127 |
+| C-20 | F-104 | C-41 | F-128 |
+| C-21 | **merged → F-25** | C-42 | F-129 + F-130 *(split)* |
+
+No candidate was retired. Two were deliberately **not** split: F-125 (from C-38) and
+F-130 (from C-42) each keep an enumerated evidence cell rather than becoming ten and six
+rows — the reasoning, and the rule used to decide it in both directions, is in
+`../FIX_WAVE_6_REGISTER.md` § "The two clusters".
+
+**Severities changed from the diagnostic author's assessment**, with reasons, in
+`../FIX_WAVE_6_REGISTER.md` § "Severity": C-20 raised Medium → High (**F-104**); C-38's
+provenance and test-count items raised off Low (**F-123**, **F-124**); C-34's string half
+lowered to Low (**F-119**). C-4 was kept at High against its own row's "Medium today"
+hedge. All other severities stand as filed.
 
 ---
 
