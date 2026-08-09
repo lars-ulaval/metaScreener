@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+
 """tools/audit_imports.py - Static check for unresolved name references in Python modules.
 
 Walks each .py file's AST. Flags any `ast.Name` reference (Load context) that
