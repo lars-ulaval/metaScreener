@@ -47,6 +47,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from plugins._common.parser import ParseReport, CriteriaLoadReport
 from plugins._common.evaluator import _eval_criterion, _summarize_reason
+from plugins._common.bundle import NOT_SCREENED
 
 
 PROGRESS_EVERY_N = 200
@@ -87,19 +88,27 @@ def run_screen(
     sl = stage.lower()
     header_set = set(parse.header)
     rows = parse.rows
-    crits = criteria_report.criteria
+    # F-34: a criterion that exists but is switched off has screened nothing,
+    # exactly like one that is absent. This used to take criteria_report.criteria
+    # wholesale, so a stage with every criterion disabled ran the normal loop
+    # over an empty effective set and called the result PASS_CLEAN.
+    crits = [c for c in criteria_report.criteria if c.enabled]
 
     counts = {
         "OUT": 0,
         "PASS_CLEAN": 0,
         "PASS_FLAGGED": 0,
+        NOT_SCREENED: 0,
         "SKIPPED_INVALID": len(parse.skipped),
         "TOTAL_INTEGRAL": len(rows),
         "TOTAL_INPUT_RECORDS_EX_HEADER": len(parse.rows) + len(parse.skipped),
     }
 
+    # Impacts are keyed over ALL criteria, enabled or not, so the criteria
+    # table still has a row (showing zeroes) for a disabled one.
     crit_impacts: Dict[str, Dict[str, int]] = {
-        c.cid: {"failed": 0, "missing": 0, "met": 0, "unknown": 0} for c in crits
+        c.cid: {"failed": 0, "missing": 0, "met": 0, "unknown": 0}
+        for c in criteria_report.criteria
     }
 
     full_rows: List[Dict[str, str]] = []
@@ -114,15 +123,23 @@ def run_screen(
                 cancelled = True
                 break
             fr = dict(r)
-            fr[f"{sl}_outcome"] = "PASS_CLEAN"
+            # F-34: NOT_SCREENED, not PASS_CLEAN. PASS_CLEAN is the stronger
+            # of the two survivor labels — it means every criterion was met —
+            # so using it here made a stage that did no work look like one
+            # that ran correctly and excluded nothing.
+            fr[f"{sl}_outcome"] = NOT_SCREENED
             fr[f"{sl}_failed_ids"] = ""
             fr[f"{sl}_missing_ids"] = ""
             fr[f"{sl}_met_ids"] = ""
-            fr[f"{sl}_reason_summary"] = f"No active {stage} criteria: default PASS_CLEAN."
+            fr[f"{sl}_reason_summary"] = (
+                f"{NOT_SCREENED}: {stage} had no enabled criteria. This record "
+                f"was neither included nor excluded; it passed through "
+                f"unexamined."
+            )
             full_rows.append(fr)
             survivors.append(dict(r))
             row_eval_lists.append({"failed": [], "missing": [], "met": [], "unknown": []})
-        counts["PASS_CLEAN"] = len(survivors)
+        counts[NOT_SCREENED] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
         return full_rows, survivors, counts, crit_impacts, row_eval_lists, cancelled

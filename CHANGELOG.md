@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- A stage with zero enabled criteria no longer reports every record as a clean
+  pass (F-34). It assigned `PASS_CLEAN` — the stronger of the two survivor
+  labels, meaning "every criterion was met" — to every record and reported
+  every record as a survivor, so a stage that did no work was indistinguishable
+  from one that ran correctly and excluded nothing. Records now get a distinct
+  `NOT_SCREENED` outcome counted in its own bucket, the run summary and status
+  line say so instead of "Done.", export requires an explicit acknowledgement,
+  and `manifest.pipeline.history[]` records the no-op so a reviewer
+  reproducing the pipeline can see it without re-running the GUI. The records
+  still pass through to the next stage — not having screened them is no reason
+  to drop them. A criterion that exists but is disabled now counts as absent
+  for this purpose; disabled criteria were previously still being evaluated.
 - EL and IL now refresh the manifest's SHA-256 map on export and verify it on
   load (F-05). Neither did before — the string `sha` appeared nowhere in either
   UI or either standalone shell — while both overwrite `data/current.csv` with

@@ -63,11 +63,11 @@ from plugins._common.llm_client import (
     _render_prompt_for_key,
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
-from plugins._common.bundle import _verify_sha256_map
+from plugins._common.bundle import NOT_SCREENED, _verify_sha256_map
 
 from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
-OUTCOMES = ("OUT", "PASS_CLEAN", "REVIEW")
+OUTCOMES = ("OUT", "PASS_CLEAN", "REVIEW", NOT_SCREENED)
 
 # ------------------------------ dataclasses -----------------------------------
 
@@ -426,17 +426,25 @@ def run_il_screen(
                 cancelled = True
                 break
             fr = dict(r)
-            fr["il_outcome"] = "PASS_CLEAN"
+            # F-34: NOT_SCREENED, not PASS_CLEAN. PASS_CLEAN is the
+            # stronger of the two survivor labels — it means every
+            # criterion was met — so using it for a stage that
+            # evaluated none asserted the opposite of the truth.
+            fr["il_outcome"] = NOT_SCREENED
             fr["il_failed_ids"] = ""
             fr["il_missing_ids"] = ""
             fr["il_met_ids"] = ""
             fr["il_uncertain_ids"] = ""
-            fr["il_reason_summary"] = "No active IL criteria: default PASS_CLEAN."
+            fr["il_reason_summary"] = (
+                f"{NOT_SCREENED}: IL had no enabled criteria. This record "
+                f"was neither included nor excluded; it passed through "
+                f"unexamined."
+            )
             fr["il_evidence_json"] = "{}"
             full_rows.append(fr)
             survivors.append(dict(r))
             row_eval_lists.append({"failed": [], "missing": [], "met": [], "uncertain": []})
-        counts["PASS_CLEAN"] = len(survivors)
+        counts[NOT_SCREENED] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
         return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled

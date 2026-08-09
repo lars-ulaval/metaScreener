@@ -93,6 +93,9 @@ from plugins._common.bundle import (
     _load_bundle,
     _export_next_bundle_zip as _export_next_bundle_zip_common,
     _export_block_reason,
+    _export_confirm_reason,
+    _run_summary_counts_text,
+    NOT_SCREENED,
 )
 
 from plugins._common.runner import run_screen
@@ -157,12 +160,13 @@ def _export_next_bundle_zip(
     skipped: List[Tuple[int, str, str]],
     counts: Dict[str, int],
     cancelled: bool = False,
+    not_screened: bool = False,
 ) -> None:
     """Backward-compat wrapper. Real implementation in plugins._common.bundle."""
     return _export_next_bundle_zip_common(
         out_zip_path, bundle, data_rel, criteria_rel, input_errors_rel,
         parse_header, full_rows, survivors, skipped, counts,
-        stage="EH", cancelled=cancelled,
+        stage="EH", cancelled=cancelled, not_screened=not_screened,
     )
 
 
@@ -191,6 +195,7 @@ class EHView(ttk.Frame):
 
         self.full_rows: List[Dict[str, str]] = []
         self.cancelled: bool = False   # F-02: last run stopped mid-corpus
+        self.not_screened: bool = False  # F-34: last run had no criteria
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
 
@@ -315,9 +320,9 @@ class EHView(ttk.Frame):
         msg = f"Integral rows: {len(pr.rows)} | Skipped invalid: {len(pr.skipped)}"
         if self.counts:
             msg += (
-                f" | OUT: {self.counts.get('OUT',0)}"
-                f" | PASS_CLEAN: {self.counts.get('PASS_CLEAN',0)}"
-                f" | PASS_FLAGGED: {self.counts.get('PASS_FLAGGED',0)}"
+                " | " + _run_summary_counts_text(
+                    self.counts, stage="EH",
+                    total_rows=len(pr.rows))
             )
         self.lbl_counts.configure(text=msg)
 
@@ -360,6 +365,7 @@ class EHView(ttk.Frame):
         warns: List[str] = []
         self.full_rows = []
         self.cancelled = False
+        self.not_screened = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -635,6 +641,7 @@ class EHView(ttk.Frame):
 
         self.full_rows = []
         self.cancelled = False
+        self.not_screened = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -686,6 +693,8 @@ class EHView(ttk.Frame):
         self.crit_impacts = impacts
         self.row_evals_full = row_evals
         self.cancelled = bool(cancelled)
+        # F-34: the engine reports the no-op through the counts.
+        self.not_screened = bool(counts.get(NOT_SCREENED, 0))
 
         self.btn_run.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
@@ -716,9 +725,17 @@ class EHView(ttk.Frame):
         if len(full) > MAX_UI_ROWS_HINT or len(surv) > MAX_UI_ROWS_HINT:
             note = " (rendering incrementally; export contains all rows.)"
 
-        self.lbl_status.configure(
-            text=f"Done. OUT={counts.get('OUT',0)} CLEAN={counts.get('PASS_CLEAN',0)} FLAGGED={counts.get('PASS_FLAGGED',0)}{note}"
-        )
+        # F-34: "Done." plus three zeroes is what a no-op stage used to
+        # report, and it reads as a complete run that excluded nothing.
+        if self.not_screened:
+            self.lbl_status.configure(
+                text=_run_summary_counts_text(counts, stage="EH",
+                                              total_rows=len(full))
+            )
+        else:
+            self.lbl_status.configure(
+                text=f"Done. OUT={counts.get('OUT',0)} CLEAN={counts.get('PASS_CLEAN',0)} FLAGGED={counts.get('PASS_FLAGGED',0)}{note}"
+            )
         self._refresh_counts_label()
 
     # -------- Reports rendering --------
@@ -828,6 +845,12 @@ class EHView(ttk.Frame):
         if blocked:
             messagebox.showwarning("Cannot export", blocked)
             return
+        # F-34: a stage that screened nothing may still be exported,
+        # but not without the user saying so out loud.
+        confirm = _export_confirm_reason(not_screened=self.not_screened,
+                                         stage="EH")
+        if confirm and not messagebox.askyesno("Nothing was screened", confirm):
+            return
 
         default_name = f"{_now_stamp()}_EH_reports.xlsx"
         p = filedialog.asksaveasfilename(
@@ -877,6 +900,12 @@ class EHView(ttk.Frame):
         if blocked:
             messagebox.showwarning("Cannot export", blocked)
             return
+        # F-34: a stage that screened nothing may still be exported,
+        # but not without the user saying so out loud.
+        confirm = _export_confirm_reason(not_screened=self.not_screened,
+                                         stage="EH")
+        if confirm and not messagebox.askyesno("Nothing was screened", confirm):
+            return
 
         default_name = f"ScreenA_Bundle_EH_{_now_stamp()}.zip"
         p = filedialog.asksaveasfilename(
@@ -901,6 +930,7 @@ class EHView(ttk.Frame):
                 skipped=self.parse_report.skipped,
                 counts=self.counts,
                 cancelled=self.cancelled,
+                not_screened=self.not_screened,
             )
         except Exception as e:
             messagebox.showerror("Export failed", str(e))

@@ -40,7 +40,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 # F-02: one shared export gate, so the rule that a cancelled run
 # cannot be exported lives in one place for all four stages.
 from plugins._common.bundle import (
+    NOT_SCREENED,
     _export_block_reason,
+    _export_confirm_reason,
+    _run_summary_counts_text,
     _write_llm_stage_bundle,
 )
 
@@ -493,6 +496,7 @@ class ILView(ttk.Frame):
 
         self.full_rows: List[Dict[str, Any]] = []
         self.cancelled: bool = False   # F-02: last run stopped mid-corpus
+        self.not_screened: bool = False  # F-34: last run had no criteria
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
 
@@ -669,9 +673,9 @@ class ILView(ttk.Frame):
         msg = f"Integral rows: {len(pr.rows)} | Skipped invalid: {len(pr.skipped)}"
         if self.counts:
             msg += (
-                f" | OUT: {self.counts.get('OUT',0)}"
-                f" | PASS_CLEAN: {self.counts.get('PASS_CLEAN',0)}"
-                f" | REVIEW: {self.counts.get('REVIEW',0)}"
+                " | " + _run_summary_counts_text(
+                    self.counts, stage="IL",
+                    total_rows=len(pr.rows))
             )
         self.lbl_counts.configure(text=msg)
 
@@ -716,6 +720,7 @@ class ILView(ttk.Frame):
         warns: List[str] = []
         self.full_rows = []
         self.cancelled = False
+        self.not_screened = False
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -1105,6 +1110,8 @@ class ILView(ttk.Frame):
                 self.full_rows = full_rows
                 self.survivors = survivors
                 self.counts = counts
+                # F-34: the engine reports the no-op through the counts.
+                self.not_screened = bool(counts.get(NOT_SCREENED, 0))
                 self.crit_impacts = crit_impacts
                 self.row_eval_lists = row_eval_lists
                 self.cache_map = cache_out
@@ -1113,7 +1120,12 @@ class ILView(ttk.Frame):
                 self.after(0, self._refresh_reports_view)
                 self.after(0, lambda: self._refresh_criteria_table(pre_run=False))
                 self.after(0, self._refresh_counts_label)
-                self.after(0, lambda: self.lbl_status.configure(text="IL done."))
+                # F-34: a stage that evaluated no criteria is not "done"
+                # in any sense the user means by the word.
+                _status = (_run_summary_counts_text(
+                    counts, stage="IL", total_rows=len(full_rows))
+                    if self.not_screened else "IL done.")
+                self.after(0, lambda t=_status: self.lbl_status.configure(text=t))
 
             except Exception as e:
                 self.after(0, lambda m=str(e): messagebox.showerror("IL run failed", m))
@@ -1141,6 +1153,12 @@ class ILView(ttk.Frame):
                                        cancelled=self.cancelled)
         if blocked:
             messagebox.showwarning("Cannot export", blocked)
+            return
+        # F-34: a stage that screened nothing may still be exported,
+        # but not without the user saying so out loud.
+        confirm = _export_confirm_reason(not_screened=self.not_screened,
+                                         stage="IL")
+        if confirm and not messagebox.askyesno("Nothing was screened", confirm):
             return
 
         default_name = f"{_now_stamp()}_IL_reports.xlsx"
@@ -1230,6 +1248,12 @@ class ILView(ttk.Frame):
         if blocked:
             messagebox.showwarning("Cannot export", blocked)
             return
+        # F-34: a stage that screened nothing may still be exported,
+        # but not without the user saying so out loud.
+        confirm = _export_confirm_reason(not_screened=self.not_screened,
+                                         stage="IL")
+        if confirm and not messagebox.askyesno("Nothing was screened", confirm):
+            return
 
         default_name = f"{_now_stamp()}_post_IL_bundle.zip"
         out_zip = filedialog.asksaveasfilename(
@@ -1300,6 +1324,8 @@ class ILView(ttk.Frame):
                 full_rows=self.full_rows,
                 full_header=header_full,
                 skipped=self.bundle.parse.skipped,
+                counts=self.counts,
+                not_screened=self.not_screened,
                 cache_text=(_dump_cache_to_jsonl(self.cache_map)
                             if self.var_use_cache.get() else None),
                 extra_members={

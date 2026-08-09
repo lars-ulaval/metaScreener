@@ -76,6 +76,58 @@ class BundleInfo:
 
 
 # ----------------------------
+# Outcomes
+# ----------------------------
+
+NOT_SCREENED = "NOT_SCREENED"
+"""Outcome for a record that passed through a stage which evaluated no
+criteria at all.
+
+F-34. A stage with zero enabled criteria used to assign ``PASS_CLEAN`` to
+every record and report every record as a survivor. ``PASS_CLEAN`` is the
+stronger of the two survivor labels — it means "every criterion was met" —
+so a stage that did no work reported itself with the label that most
+strongly asserts the opposite, and was indistinguishable from a stage that
+ran correctly and excluded nothing.
+
+The records still pass through to the next stage: not having screened them
+is no reason to drop them, and emptying the corpus would be a worse failure
+than the one being fixed. What changes is that they are no longer described
+as having passed anything.
+"""
+
+
+# ----------------------------
+# Run summary
+# ----------------------------
+
+def _run_summary_counts_text(counts: Dict[str, int], *, stage: str,
+                             total_rows: int) -> str:
+    """The counts line the stage shows after a run.
+
+    F-34, requirement 2. The warning that a stage has no criteria already
+    existed and already reached the GUI, but it is an eight-line read-only
+    text box in the left pane, while this line and the survivors table are
+    what the user actually reads. When two parts of one screen disagree, the
+    part that looks like a result wins — so the no-op has to be said here,
+    not only in the warning box.
+    """
+    n = int(counts.get(NOT_SCREENED, 0) or 0)
+    if n:
+        return (f"{NOT_SCREENED}: {n} of {total_rows} records — {stage} had no "
+                f"enabled criteria, so nothing was screened. These records "
+                f"were neither included nor excluded; they passed through "
+                f"unexamined.")
+    parts = [f"OUT: {counts.get('OUT', 0)}",
+             f"PASS_CLEAN: {counts.get('PASS_CLEAN', 0)}"]
+    if "PASS_FLAGGED" in counts:
+        parts.append(f"PASS_FLAGGED: {counts.get('PASS_FLAGGED', 0)}")
+    if "REVIEW" in counts:
+        parts.append(f"REVIEW: {counts.get('REVIEW', 0)}")
+    return " | ".join(parts)
+
+
+# ----------------------------
 # Export gate
 # ----------------------------
 
@@ -106,6 +158,33 @@ def _export_block_reason(*, has_rows: bool, cancelled: bool) -> Optional[str]:
     if not has_rows:
         return "Run the stage first — there are no results to export."
     return None
+
+
+def _export_confirm_reason(*, not_screened: bool, stage: str) -> Optional[str]:
+    """Return the question the user must answer yes to before exporting, or
+    None if export may proceed without asking.
+
+    F-34, requirement 3: "allow it and require an explicit acknowledgement
+    before the bundle can be exported". This is deliberately a confirmation
+    rather than a hard block — passing a stage through with no criteria is a
+    legitimate thing to want, and refusing outright would leave no way to do
+    it. What is not legitimate is doing it without noticing, which is what a
+    read-only warning box permitted.
+    """
+    if not not_screened:
+        return None
+    return (
+        f"{stage} had no enabled criteria, so no record was screened at this "
+        f"stage.\n\n"
+        f"Every record passed through unexamined. They are recorded as "
+        f"{NOT_SCREENED} rather than as having passed, and the bundle's "
+        f"manifest will say the stage was a no-op.\n\n"
+        f"This usually means the criteria table has no rows for {stage}, or "
+        f"that a criterion was rejected — a blank or unrecognised 'type' cell "
+        f"is enough to reject one, and rejecting the only one empties the "
+        f"stage.\n\n"
+        f"Export anyway?"
+    )
 
 
 # ----------------------------
@@ -243,6 +322,7 @@ def _export_next_bundle_zip(
     *,
     stage: str,
     cancelled: bool = False,
+    not_screened: bool = False,
 ) -> None:
     """
     Create a new bundle zip where data/current.csv becomes the {stage} survivors.
@@ -300,7 +380,15 @@ def _export_next_bundle_zip(
     stages = dict(pipeline.get("stages", {}) or {})
     history = list(pipeline.get("history", []) or [])
 
-    stages[stage] = "cancelled" if cancelled else "done"
+    # F-34: "not_screened" is a distinct state from "done". A reviewer
+    # reproducing the pipeline must be able to tell that a stage evaluated no
+    # criteria without re-running the GUI, and "done" would not tell them.
+    if cancelled:
+        stages[stage] = "cancelled"
+    elif not_screened:
+        stages[stage] = "not_screened"
+    else:
+        stages[stage] = "done"
     history.append({
         "stage": stage,
         "ran_at": _iso_now(),
@@ -308,6 +396,7 @@ def _export_next_bundle_zip(
         "survivors_rows": len(survivors),
         "out_rows_full": len(full_rows),
         "cancelled": bool(cancelled),
+        "not_screened": bool(not_screened),
     })
     pipeline["stages"] = stages
     pipeline["history"] = history
@@ -387,8 +476,10 @@ def _write_llm_stage_bundle(
     full_rows: Sequence[Dict[str, Any]],
     full_header: Sequence[str],
     skipped: Sequence[Dict[str, Any]],
+    counts: Optional[Dict[str, int]] = None,
     cache_text: Optional[str] = None,
     extra_members: Optional[Dict[str, bytes]] = None,
+    not_screened: bool = False,
 ) -> Dict[str, bytes]:
     """Write the next-stage bundle for an LLM stage (EL or IL).
 
@@ -434,6 +525,30 @@ def _write_llm_stage_bundle(
         written["data/input_errors.csv"] = merged_errors.encode("utf-8")
     if cache_text is not None:
         written[cache_rel] = cache_text.encode("utf-8")
+
+    # F-34, requirement 4: record the run in pipeline.history, marking a
+    # no-op as such. EL/IL wrote no history entry at all before — only a
+    # stages[STAGE] = "done" marker — so a reviewer reproducing the pipeline
+    # from the bundle had nothing to read. "done" for a stage that evaluated
+    # no criteria is the manifest repeating the same false claim the run
+    # summary used to make.
+    manifest = dict(manifest)
+    pipeline = dict(manifest.get("pipeline", {}) or {})
+    stages = dict(pipeline.get("stages", {}) or {})
+    history = list(pipeline.get("history", []) or [])
+    stages[stage] = "not_screened" if not_screened else "done"
+    history.append({
+        "stage": stage,
+        "ran_at": _iso_now(),
+        "counts": dict(counts or {}),
+        "survivors_rows": len(survivors),
+        "out_rows_full": len(full_rows),
+        "cancelled": False,
+        "not_screened": bool(not_screened),
+    })
+    pipeline["stages"] = stages
+    pipeline["history"] = history
+    manifest["pipeline"] = pipeline
 
     # Digests must be computed before the manifest is serialised. The old
     # code wrote manifest.json first and the payloads afterwards, which is
