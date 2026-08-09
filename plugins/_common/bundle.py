@@ -368,9 +368,22 @@ def _export_next_bundle_zip(
     except Exception:
         prior_errors_text = ""
 
+    # F-71: prior rows pass through verbatim; only this stage's own drops get
+    # this stage's stamp. The EH/IH views historically merged the
+    # carried-forward rows into the skipped list they pass here, and stamping
+    # those with the current stage made one dropped citation grow by one row
+    # per hop — with the Harmoniser's observed_len/expected_len present on the
+    # original and absent on every copy. Anything identical to a prior row on
+    # (record_number, reason, raw) is a carried copy and is subtracted before
+    # stamping; a genuine new drop cannot collide, because the indices are
+    # into a current.csv that no longer contains the previously dropped rows.
+    prior_keys = {(e.record_number, e.reason, e.raw)
+                  for e in read_input_errors(prior_errors_text)}
+    own_drops = [e for e in from_tuple_skipped(skipped, stage=stage)
+                 if (e.record_number, e.reason, e.raw) not in prior_keys]
+
     input_errors_bytes = None
-    merged_errors = merge_input_errors_csv(
-        prior_errors_text, from_tuple_skipped(skipped, stage=stage))
+    merged_errors = merge_input_errors_csv(prior_errors_text, own_drops)
     if read_input_errors(merged_errors):
         input_errors_bytes = merged_errors.encode("utf-8")
 

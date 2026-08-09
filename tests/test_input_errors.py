@@ -438,6 +438,87 @@ class TestSurvivesTheRealBundleWriter:
         assert [e.stage for e in errs] == ["EH", "IH"]
 
 
+class TestCarriedRowsAreNotRestamped:
+    """F-71. EH/IH merged the carried-forward rows into ParseReport.skipped
+    and the export writer stamped the whole list with the current stage, so
+    one citation dropped at the Harmoniser grew to two rows after EH and
+    three after IH — with the Harmoniser's observed_len/expected_len present
+    on the original and absent on every copy. Prior rows must pass through
+    verbatim; only this stage's own drops get this stage's stamp.
+
+    The seed text is written with the same canonical writer the Harmoniser's
+    _clean_aggregate_csv uses, so the bytes match a real first-hop bundle.
+    """
+
+    HARM = InputError("Harmoniser", 7, "wrong_column_count", "raw-h",
+                      observed_len=12, expected_len=15)
+
+    _seed = staticmethod(TestSurvivesTheRealBundleWriter._seed)
+    _export = staticmethod(TestSurvivesTheRealBundleWriter._export)
+    _errors_in = staticmethod(TestSurvivesTheRealBundleWriter._errors_in)
+
+    @classmethod
+    def _carried_tuples(cls, zip_path):
+        """What the pre-fix EH/IH load path fed into pr.skipped: the prior
+        file re-read through _load_input_errors_from_text."""
+        import zipfile
+        from plugins._common.parser import _load_input_errors_from_text
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            text = zf.read("data/input_errors.csv").decode("utf-8")
+        return _load_input_errors_from_text(text)
+
+    def test_one_harmoniser_drop_stays_one_row_across_two_hops(self, tmp_path):
+        bundle = self._seed(tmp_path, write_input_errors_csv([self.HARM]))
+        eh_out = tmp_path / "eh.zip"
+        # the contaminated list the old UI passed: carried copies + nothing new
+        self._export(bundle, eh_out, self._carried_tuples(bundle.zip_path), "EH")
+
+        errs = self._errors_in(eh_out)
+        assert [e.stage for e in errs] == ["Harmoniser"], (
+            f"F-71: the carried-forward row was re-stamped as EH — one drop "
+            f"became {len(errs)} rows after one hop (stages: "
+            f"{[e.stage for e in errs]})."
+        )
+
+        from plugins._common.bundle import _load_bundle
+        ih_out = tmp_path / "ih.zip"
+        self._export(_load_bundle(str(eh_out)), ih_out,
+                     self._carried_tuples(eh_out), "IH")
+        errs = self._errors_in(ih_out)
+        assert [e.stage for e in errs] == ["Harmoniser"]
+        assert errs[0].observed_len == 12 and errs[0].expected_len == 15, (
+            "F-71: the Harmoniser's ragged-row diagnostics were dropped in "
+            "transit — the surviving row must keep observed_len/expected_len."
+        )
+
+    def test_own_drops_still_get_this_stages_stamp(self, tmp_path):
+        bundle = self._seed(tmp_path, write_input_errors_csv([self.HARM]))
+        out = tmp_path / "out.zip"
+        skipped = self._carried_tuples(bundle.zip_path) + \
+            [(3, "missing_local_id", "raw-eh")]
+        self._export(bundle, out, skipped, "EH")
+        errs = self._errors_in(out)
+        assert [e.stage for e in errs] == ["Harmoniser", "EH"]
+        assert errs[1].reason == "missing_local_id"
+
+    def test_re_exporting_the_same_stage_is_idempotent(self, tmp_path):
+        bundle = self._seed(tmp_path, write_input_errors_csv([self.HARM]))
+        first = tmp_path / "first.zip"
+        skipped = self._carried_tuples(bundle.zip_path) + \
+            [(3, "missing_local_id", "raw-eh")]
+        self._export(bundle, first, skipped, "EH")
+
+        from plugins._common.bundle import _load_bundle
+        again = tmp_path / "again.zip"
+        self._export(_load_bundle(str(first)), again,
+                     self._carried_tuples(first) +
+                     [(3, "missing_local_id", "raw-eh")], "EH")
+        errs = self._errors_in(again)
+        assert [e.stage for e in errs] == ["Harmoniser", "EH"], (
+            "F-71: re-running a stage must not grow the file."
+        )
+
+
 class TestLegacyTupleReader:
 
     def test_load_input_errors_from_text_reads_the_harmoniser_schema(self):

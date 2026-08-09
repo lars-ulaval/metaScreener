@@ -39,22 +39,32 @@ from typing import Dict, List, Sequence, Tuple
 from plugins._common.parser import _safe_str
 from plugins._common.input_errors import (
     from_tuple_skipped,
+    merge_input_errors_csv,
+    read_input_errors,
     write_input_errors_csv,
 )
 
 
 def _export_input_errors_csv(path: str, skipped: Sequence[Tuple[int, str, str]],
-                             *, stage: str = "") -> None:
+                             *, stage: str = "", prior_text: str = "") -> None:
     """Write the standalone "Export input_errors.csv…" file.
 
     F-03: emits the canonical schema via the single writer in
-    plugins._common.input_errors instead of EH/IH's own three-column
-    layout. ``skipped`` here has already had any carried-forward records
-    merged into it at bundle-load time, so this file is the accumulated
-    trail rather than only what this stage dropped.
+    plugins._common.input_errors instead of EH/IH's own three-column layout.
+
+    F-71: the accumulated trail is now assembled here — ``prior_text`` is the
+    bundle's incoming input_errors.csv, carried through verbatim, and
+    ``skipped`` is this stage's own drops, stamped with ``stage``. The old
+    contract (callers pre-merging carried rows into ``skipped``) re-stamped
+    every prior row with the current stage; the same carried-copy subtraction
+    the bundle writer applies is applied here for callers that still do.
     """
+    prior_keys = {(e.record_number, e.reason, e.raw)
+                  for e in read_input_errors(prior_text)}
+    own_drops = [e for e in from_tuple_skipped(skipped, stage=stage)
+                 if (e.record_number, e.reason, e.raw) not in prior_keys]
     with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(write_input_errors_csv(from_tuple_skipped(skipped, stage=stage)))
+        f.write(merge_input_errors_csv(prior_text, own_drops))
 
 def _export_xlsx(path: str, full_rows: List[Dict[str, str]], survivors: List[Dict[str, str]], aggregate_header: List[str], stage: str) -> None:
     try:

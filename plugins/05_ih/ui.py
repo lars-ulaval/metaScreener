@@ -194,6 +194,10 @@ class IHView(ttk.Frame):
 
         self.parse_report: Optional[ParseReport] = None
         self.criteria_report: Optional[CriteriaLoadReport] = None
+        # F-71: the incoming bundle's input_errors.csv, verbatim. Kept
+        # separate from ParseReport.skipped so prior stages' rows are never
+        # re-stamped with this stage's name.
+        self.prior_errors_text: str = ""
 
         self.full_rows: List[Dict[str, str]] = []
         self.cancelled: bool = False   # F-02: last run stopped mid-corpus
@@ -372,6 +376,7 @@ class IHView(ttk.Frame):
         self.counts = {}
         self.crit_impacts = {}
         self.row_evals_full = []
+        self.prior_errors_text = ""
         self.active_criterion_id = None
         self.lbl_crit_filter.configure(text="Criterion filter: (none)")
         self.btn_clear_filter.configure(state="disabled")
@@ -421,6 +426,7 @@ class IHView(ttk.Frame):
                     try:
                         err_text = _decode_bytes(zf.read(self.input_errors_full_member))
                         carried_skipped = _load_input_errors_from_text(err_text)
+                        self.prior_errors_text = err_text
                     except InputErrorsUnreadableError as e:
                         warns.append(f"[bundle] {e}")
 
@@ -449,13 +455,11 @@ class IHView(ttk.Frame):
             messagebox.showerror("Data CSV parse failed", str(e))
             return
 
-        # Merge skipped: carried-forward first, then newly detected
-        skipped_all: List[Tuple[int, str, str]] = []
-        if carried_skipped:
-            skipped_all.extend(carried_skipped)
-        if pr.skipped:
-            skipped_all.extend(pr.skipped)
-        pr = ParseReport(header=pr.header, rows=pr.rows, skipped=skipped_all)
+        # F-71: carried-forward rows are NOT merged into pr.skipped. They
+        # used to be, and the export writer then stamped the whole list with
+        # this stage's name -- one dropped citation grew by one row per hop.
+        # The prior file travels separately (self.prior_errors_text) and the
+        # writers append this stage's own drops to it verbatim.
         self.parse_report = pr
 
         # Criteria (IH stage only)
@@ -491,7 +495,8 @@ class IHView(ttk.Frame):
         self._set_warnings(warns)
 
         self.btn_run.configure(state="normal")
-        self.btn_export_err.configure(state="normal" if pr.skipped else "disabled")
+        self.btn_export_err.configure(
+            state="normal" if (pr.skipped or carried_skipped) else "disabled")
         self.btn_export.configure(state="disabled")
         self.btn_export_bundle.configure(state="disabled")
 
@@ -880,7 +885,8 @@ class IHView(ttk.Frame):
         self.lbl_status.configure(text=f"Exported: {Path(p).name}")
 
     def _export_errors_clicked(self):
-        if not self.parse_report or not self.parse_report.skipped:
+        if not self.parse_report or not (self.parse_report.skipped
+                                         or self.prior_errors_text.strip()):
             messagebox.showinfo("No input errors", "No skipped/invalid records to export.")
             return
 
@@ -894,7 +900,8 @@ class IHView(ttk.Frame):
         if not p:
             return
         try:
-            _export_input_errors_csv(p, self.parse_report.skipped, stage="IH")
+            _export_input_errors_csv(p, self.parse_report.skipped, stage="IH",
+                                     prior_text=self.prior_errors_text)
         except Exception as e:
             messagebox.showerror("Export failed", str(e))
             return
