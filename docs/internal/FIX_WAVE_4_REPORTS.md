@@ -14,8 +14,10 @@ golden file — and that line is the wave split.
 - **Wave 4b** — one finding plus one carried site, **golden-touching, under an
   equivalence proof**. The deliverable format: line terminators, BOM, and the
   spreadsheet-delimiter problem.
-- **Backlog** — six findings deliberately not scheduled: F-77, F-78, F-80, F-81,
-  F-82, and the `used`-rename family they belong with.
+- **Backlog** — **five** findings deliberately not scheduled: F-77, F-78, F-80,
+  F-81, F-82. (F-77 and F-78 belong with the pre-existing F-62/F-63/F-64
+  `used`-rename cluster, which shares their golden re-capture cost — that
+  cluster is prior work, not a sixth wave-4 finding.)
 
 Four questions are **pending human observation** and gate part of 4b. They are at
 the end of this document.
@@ -229,6 +231,37 @@ corpus field containing `\r\n` must come out of `EH_FULL.csv` as `\n`.
 The evidence it is already load-bearing: `docs_/samples/20260122_1654_aggregate.csv`
 has 4 fields containing CR, `tests/golden/eh_filtered_v3.1.0.csv` has 0.
 
+## Closing 4a — reconcile the changelog
+
+The register update that preceded this wave added items **11–13** to the
+`[Unreleased]` "read this first" list (commit `fa74f69`). Each currently ends
+"**Not yet fixed** — scheduled for the next wave," and the section intro says
+"The last three entries are defects this release *records* rather than fixes."
+The last commit of 4a must make that section internally consistent again:
+
+- **Item 11 (F-67, F-68)** — rewrite as fixed *for the `input_errors` chain*:
+  the writer now quotes a lone CR (`input_errors.py` site) and the reader
+  distinguishes unparseable from empty. State explicitly that one F-67 site
+  remains open — the EH/IH report writer at `_common/exporters.py:84` — and
+  that it is deferred to 4b because fixing it moves golden bytes. That residual
+  does not affect `input_errors.csv`, which is what item 11 is about.
+- **Item 12 (F-69)** — rewrite as fixed: the stage sheets now carry data, header
+  derived from the row builder, workbook golden added. Nothing remains.
+- **Item 13 (F-70)** — rewrite as fixed, with the one honest caveat: bundles
+  created *before* this fix have no `data/original.csv`, so a final report
+  rebuilt from an old bundle still falls back to the survivor set and still
+  lacks metadata for early-excluded records. New bundles are complete.
+- Remove or rewrite the intro sentence "The last three entries are defects this
+  release records rather than fixes…" — after 4a it is false as written. If the
+  F-67 residual is judged worth a sentence there, fold it into item 11 instead.
+- Keep all F-references. Add the fixed entries to the `### Fixed` section in the
+  established style, as the other waves did — the "read this first" items say
+  what a past user must re-check; `### Fixed` says what changed.
+
+Commit as part of the wave's final `docs`/changelog commit, not as a separate
+afterthought — a reader of `[Unreleased]` should never see the fixes and the
+"not yet fixed" markers in the same checkout.
+
 ---
 
 # Wave 4b — the deliverable format
@@ -345,5 +378,6 @@ display defect the diagnostic could not reach.
 ---
 
 Finish with: what you committed, the suite result, confirmation that no golden
-moved in 4a, and — if 4b ran — the equivalence-proof output showing that old and
-new goldens agree field-for-field.
+moved in 4a, confirmation that changelog items 11–13 no longer read "not yet
+fixed" (see *Closing 4a*), and — if 4b ran — the equivalence-proof output
+showing that old and new goldens agree field-for-field.
