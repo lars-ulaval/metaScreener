@@ -989,8 +989,10 @@ launched for this diagnostic):
   If they are, they should call `_export_input_errors_csv`; if they are not,
   removing them removes the last two writers of the legacy schema.
 
-**Note for whoever adds this file to the tree:** `tests/test_metadata.py`
-requires every markdown file under `docs/` to be listed in `docs/index.md`, so
-this document will fail `test_every_doc_listed_in_index` exactly as the other
-four diagnostic documents already do. That is pre-existing and is not addressed
-here.
+**Note for whoever adds this file to the tree — corrected after the fact:**
+this document predicted it would fail `test_every_doc_listed_in_index`. It does
+not. `tests/test_metadata.py:85` defines `DOCS_INTERNAL_DIRS = ("internal",)`
+and both cross-reference tests skip anything under `docs/internal/`, which is
+F-29's fix and it is already in the tree. The suite is green with all five
+diagnostic documents present: **390 passed, 4 skipped**. No index action is
+needed for this file or any future one under `docs/internal/`.
