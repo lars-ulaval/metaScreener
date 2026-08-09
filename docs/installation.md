@@ -221,9 +221,14 @@ auditable.
 python -m pytest tests/ -q
 ```
 
-Expected: `162 passed, 1 xfailed` (the xfailed test
-`test_pyproject_citation_changelog_version_match` is intentional and
-documented).
+Expected: every test passes, with a small number skipped. A few tests skip
+themselves when an optional dependency or a display server is unavailable;
+that is normal and is not an installation problem.
+
+The count is deliberately not quoted here. It changes with every release,
+and a stale number is worse than none — it tells you your install is broken
+when it is not. What matters is that nothing **fails** and nothing
+**errors**.
 
 If tests fail, the most common causes are (a) a Python version older
 than 3.10, (b) a partial install where `pip install -r

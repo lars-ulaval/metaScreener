@@ -257,27 +257,35 @@ The application is pure Python with no compiled extensions and runs on any platf
 
 ## Testing
 
-The project includes 166 automated tests covering the deterministic components of the pipeline as well as quote-based evidence gating, plugin imports, bundle integrity, repo metadata consistency, per-stage regression goldens, and the human-vs-LLM agreement toolchain. No OpenAI API key, network access, or graphical display server is required.
+The automated test suite covers the deterministic components of the pipeline as well as quote-based evidence gating, plugin imports, bundle integrity, repo metadata consistency, per-stage regression goldens, and the human-vs-LLM agreement toolchain. No OpenAI API key, network access, or graphical display server is required.
 
 ```bash
 pip install pytest
 python -m pytest tests/ -v
 ```
 
-The test suite covers nine areas:
+The suite is the authority on its own size and shape; for the current count and
+the per-module breakdown, run it:
 
-| Module | Tests | Coverage |
-|--------|-------|----------|
-| `test_criteria_parser.py` | 16 | Free-text criteria parsing, operator/stage inference |
-| `test_deterministic_filters.py` | 15 | EH/IH `_eval_criterion` for all operator types |
-| `test_evidence_gating.py` | 23 | Quote validation, SHA-256 hashing, cache key construction |
-| `test_bundle_integrity.py` | 12 | Bundle ZIP structure, manifest schema, hash verification |
-| `test_imports.py` | 27 | Module imports, plugin shim regression, cache-key invariants |
-| `test_metadata.py` | 5 | Repo metadata consistency (version match, README CI badge, docs cross-references) |
-| `test_eval_ingest.py` | 32 | Cohen's/Fleiss' kappa, polarity-aware status mapping, grid ingestion |
-| `test_eval_grid_generator.py` | 27 | Rater-workbook generation, stratified partitioning, rater blindness |
-| Per-stage regression suites | 9 | Byte-identity goldens for the EH, IH, EL, IL, and Harmoniser plugins (one file per stage) |
-| **Total** | **166** | |
+```bash
+python -m pytest tests/ --collect-only -q
+```
+
+The areas covered are:
+
+| Area | What it covers |
+|--------|----------|
+| Criteria parsing | Free-text criteria parsing, operator/stage inference |
+| Deterministic filters | EH/IH `_eval_criterion` for all operator types |
+| Evidence gating | Quote validation, SHA-256 hashing, cache key construction |
+| Bundle integrity | Bundle ZIP structure, manifest schema, hash verification |
+| Audit trail | `input_errors.csv` schema, round-trip, and carry-forward across stages |
+| Imports and contracts | Module imports, plugin shim regression, plugin contract and lifecycle |
+| Repo metadata | Version match, README CI badge, docs cross-references, sample-folder references |
+| Agreement toolchain | Cohen's/Fleiss' kappa, polarity-aware status mapping, grid ingestion |
+| Rater workbooks | Generation, stratified partitioning, rater blindness |
+| Final report | The `ScreenA_Report.xlsx` workbook's sheets and headers |
+| Per-stage regression | Byte-identity goldens for the EH, IH, EL, IL, and Harmoniser plugins |
 
 ### Refactoring safety: static import audit
 
@@ -295,7 +303,8 @@ alongside `pytest -q` as a pre-commit gate when extracting code into new modules
 
 Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 
-> **Status**: ✅ 166 passed
+> **Status**: ✅ suite green — see the CI badge above for the current run across all
+> supported platforms and Python versions.
 
 ---
 
