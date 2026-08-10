@@ -30,9 +30,20 @@ from .parser import (
     _load_structured_criteria_table, _normalize_structured_row,
 )
 from .inference import DEFAULT_THRESHOLD, _infer_criterion_details, _validate_row
-from .llm_refine import _llm_available, _llm_refine
+from .llm_refine import STAGE as LLM_STAGE, _llm_refine, _sdk_importable
 from .exporters import BUNDLE_ROOT_NAME
 from .bundle import export_screen_a_bundle
+
+# Wave 11 session C. The harmoniser's LLM path gets the same provider
+# treatment as EL and IL: session A's unified key predicate and session
+# B's readiness gate, rather than a third answer of its own.
+from plugins._common.provider_detect import last_known, model_choices
+from plugins._common.settings import (
+    apply_stage_fields,
+    load_settings,
+    resolve_stage,
+)
+from plugins._common.stage_state import Readiness, llm_readiness
 
 
 @dataclass
@@ -65,7 +76,7 @@ class HarmoniserView(ttk.Frame):
         self._worker_done: bool = False
 
         self._build_ui()
-        self._refresh_buttons()
+        self.on_provider_changed()      # seeds the combobox and the label
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -113,16 +124,51 @@ class HarmoniserView(ttk.Frame):
 
         ttk.Label(left_top, text="Criteria text (editable):").grid(row=0, column=0, sticky="w")
 
-        self.var_llm = tk.BooleanVar(value=False)
-        ttk.Checkbutton(left_top, text="LLM refine", variable=self.var_llm, command=self._refresh_buttons).grid(row=0, column=1, padx=(10, 0), sticky="w")
+        # D9. The "LLM refine" checkbox is DELETED, not wired. This
+        # REVERSES the coordinator's wave-8 decision to wire it, and the
+        # reversal is recorded in F-118's register row so it is not
+        # re-litigated.
+        #
+        # The reasoning: the LLM/no-LLM choice is already expressed by
+        # two buttons a few inches to the right — "Harmonise (no-LLM)"
+        # and "Harmonise + LLM" — and `_harmonise_llm` never consulted
+        # `var_llm`. Wiring it would mean deciding what it should mean
+        # when it disagrees with the button pressed, and every answer to
+        # that is worse than not having the control: a third control that
+        # can contradict two explicit ones is a control that makes the
+        # user wrong about what they asked for. F-118's row calls the
+        # checkbox the worst of that finding's three halves precisely
+        # because it reads as the cost-and-provider safety switch, and
+        # a wired version that could be overridden by a button would
+        # still read that way while still not being one.
 
-        ttk.Label(left_top, text="Model:").grid(row=0, column=2, padx=(10, 0), sticky="e")
-        self.ent_model = ttk.Entry(left_top, width=18)
-        self.ent_model.insert(0, "gpt-4o-mini")
-        self.ent_model.grid(row=0, column=3, sticky="w")
+        ttk.Label(left_top, text="Model:").grid(row=0, column=1, padx=(10, 0), sticky="e")
+        # The same editable combobox EL and IL carry, for the same
+        # reason: llama.cpp ignores the model field, so a readonly
+        # dropdown would make a server that will not enumerate unusable.
+        self.var_model = tk.StringVar(value=self._seed_model())
+        self.cmb_model = ttk.Combobox(left_top, textvariable=self.var_model,
+                                      width=18, values=())
+        self.cmb_model.grid(row=0, column=2, sticky="w")
+        self.ent_model = self.cmb_model      # kept: the old attribute name
 
-        self.lbl_key = ttk.Label(left_top, text="API key: " + ("OK" if os.getenv("OPENAI_API_KEY") else "missing"))
-        self.lbl_key.grid(row=0, column=4, padx=(10, 0), sticky="w")
+        # F-117's third predicate, removed. This label read
+        # `os.getenv("OPENAI_API_KEY")` directly, so it said "missing" to
+        # a user running locally who needs no key — and disagreed with
+        # the button beside it. It now shows exactly what EL and IL show,
+        # from the same function.
+        self.lbl_key = ttk.Label(left_top, text="")
+        self.lbl_key.grid(row=0, column=3, padx=(10, 0), sticky="w")
+
+        self.lbl_models = ttk.Label(left_top, text="", foreground="#555")
+        self.lbl_models.grid(row=1, column=0, columnspan=5, sticky="w",
+                             pady=(2, 0))
+
+        self.var_model.trace_add(
+            "write", lambda *_a: self._refresh_buttons())
+        self.cmb_model.bind("<<ComboboxSelected>>",
+                            lambda _e: self._model_edited())
+        self.cmb_model.bind("<FocusOut>", lambda _e: self._model_edited())
 
         txt_frame = ttk.Frame(left)
         txt_frame.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
@@ -217,6 +263,73 @@ class HarmoniserView(ttk.Frame):
         self.txt_log.see("end")
         self.txt_log.configure(state="disabled")
 
+    STAGE = LLM_STAGE
+
+    def _stored_config(self):
+        """This stage's effective configuration.
+
+        Guarded: ``load_settings`` raises on a settings file that exists
+        and cannot be parsed, and ``main.py::resolve_plugin_entrypoint``
+        swallows every exception into a ``print()``, so an unguarded read
+        would make this tab silently absent.
+        """
+        try:
+            cfg = load_settings()
+        except Exception:
+            cfg = {}
+        return resolve_stage(cfg, self.STAGE,
+                             env_endpoint=os.environ.get("OPENAI_BASE_URL", ""),
+                             env_api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+    def _seed_model(self) -> str:
+        return self._stored_config().model or "gpt-4o-mini"
+
+    def _model_edited(self) -> None:
+        try:
+            apply_stage_fields(self.STAGE, model=self.var_model.get())
+        except Exception as e:
+            self._log(f"Model not saved: {e}")
+        self._refresh_buttons()
+
+    def _readiness(self) -> Readiness:
+        """Whether this stage's LLM path may run — **the same function EL
+        and IL ask**.
+
+        The harmoniser used to decide for itself, and got three things
+        different from the other two stages: it never checked
+        ``NOT_CONFIGURED``, it never consulted the probe, and its
+        provider default was a keyless one. A user running locally found
+        that this one button still demanded a paid key, while a user with
+        an unreachable server found it live.
+
+        ``has_bundle=True`` is passed deliberately. This stage has no
+        bundle — its inputs are the criteria text and the A vector — and
+        ``_ensure_ready`` owns that check with messages that name those
+        two things. ``NO_BUNDLE`` would tell a harmoniser user to load a
+        ScreenA bundle ZIP, which is the wrong file at the wrong stage.
+        """
+        cfg = self._stored_config()
+        return llm_readiness(stage="Harmonise",
+                             has_bundle=True,
+                             provider=cfg.provider,
+                             api_key=cfg.api_key,
+                             model=self.var_model.get(),
+                             endpoint=cfg.endpoint,
+                             probe=last_known())
+
+    def on_provider_changed(self) -> None:
+        """Re-seed after the application settled or re-probed a provider."""
+        seed = self._stored_config()
+        if seed.model:
+            self.var_model.set(seed.model)
+        choices = model_choices(last_known())
+        try:
+            self.cmb_model.configure(values=list(choices.values))
+        except Exception:
+            pass
+        self.lbl_models.configure(text=choices.note)
+        self._refresh_buttons()
+
     def _refresh_buttons(self) -> None:
         has_crit = bool(self.txt_criteria.get("1.0", "end").strip()) or bool(self.state.rows)
         has_a = bool(self.state.a_path) and bool(self.state.a_columns)
@@ -224,8 +337,13 @@ class HarmoniserView(ttk.Frame):
 
         self.btn_harmonise.configure(state=("normal" if can_h else "disabled"))
 
-        llm_ok = _llm_available()
-        self.lbl_key.configure(text="API key: " + ("OK" if llm_ok else "missing"))
+        # F-117/F-118. Two questions, each asked of whoever can answer it:
+        # whether this configuration may run is `llm_readiness`'s, shared
+        # with EL and IL; whether the SDK is importable is the refine
+        # module's. What used to be here was a third answer to the first.
+        ready = self._readiness()
+        llm_ok = ready.can_run and _sdk_importable()
+        self.lbl_key.configure(text=ready.label)
 
         self.btn_harmonise_llm.configure(state=("normal" if (can_h and llm_ok) else "disabled"))
         self.btn_validate.configure(state=("normal" if (bool(self.state.rows) and has_a and self._worker is None) else "disabled"))
@@ -441,8 +559,24 @@ class HarmoniserView(ttk.Frame):
     def _harmonise_llm(self) -> None:
         if not self._ensure_ready():
             return
-        if not _llm_available():
-            messagebox.showwarning("LLM unavailable", "OPENAI_API_KEY missing or OpenAI package not available.")
+        # Session C: the same gate, and the same words, as EL and IL. The
+        # old message was "OPENAI_API_KEY missing or OpenAI package not
+        # available", which is wrong twice for a local user — they need
+        # no key, and the thing that is actually missing might be a
+        # running server or a chosen provider. `ready.detail` names the
+        # one next thing to fix.
+        self._model_edited()
+        ready = self._readiness()
+        if not ready.can_run:
+            messagebox.showwarning("Harmonise + LLM cannot start",
+                                   ready.detail)
+            return
+        if not _sdk_importable():
+            messagebox.showwarning(
+                "LLM unavailable",
+                "The OpenAI client library is not installed, so no "
+                "provider can be reached — including a local one.\n\n"
+                "Install it with: pip install openai")
             return
 
         if not self.state.rows:
@@ -450,7 +584,7 @@ class HarmoniserView(ttk.Frame):
             if not self.state.rows:
                 return
 
-        model = self.ent_model.get().strip() or "gpt-4o-mini"
+        model = ready.model
         full_text = self.txt_criteria.get("1.0", "end").strip() or self.state.criteria_text
 
         def worker():

@@ -271,83 +271,151 @@ def _harmoniser_tree():
 
 
 class TestTheHarmoniserCheckboxIsReadByNothingToday:
-    """**Characterisation. Inverted by the D9 commit, which DELETES it.**
+    """**FLIPPED by the D9 commit, which DELETES the checkbox.**
 
-    F-118's remaining half, and the row calls it the worst of the three:
-    it reads as the cost-and-provider safety switch — the one control a
-    cautious user would untick before doing anything expensive — and
-    unticking it changes nothing.
+    Was: ``self.var_llm`` is bound to a ``Checkbutton`` and nothing calls
+    ``.get()`` on it, so unticking the one control a cautious user would
+    untick before doing anything expensive changes nothing.
+
+    Now: it is gone. **This reverses the coordinator's wave-8 decision to
+    wire it**, and the reversal is recorded in F-118's register row so it
+    is not re-litigated. Wiring would have meant deciding what the flag
+    means when it disagrees with the button pressed, and a third control
+    that can contradict two explicit ones makes the user wrong about what
+    they asked for.
     """
 
-    def test_var_llm_is_assigned(self):
-        src = HARMONISER_UI.read_text(encoding="utf-8")
-        assert "self.var_llm" in src
-
-    def test_nothing_ever_reads_var_llm(self):
-        """Read as structure, not as text: an attribute *load* of
-        ``var_llm`` is what a read is. The assignment and the
-        ``variable=`` keyword are both stores or references, not reads of
-        its value."""
+    def test_the_variable_is_gone_entirely(self):
+        """Read as structure, not as text — the third time this session
+        has needed that rule, and the reason is always the same: the
+        comment that *explains* the deletion names the thing deleted, so
+        a substring search matches the explanation. The repository
+        already learned this for the ``subprocess`` check in
+        ``test_provider_detect.py``."""
         tree = _harmoniser_tree()
-        loads = [
-            n for n in ast.walk(tree)
-            if isinstance(n, ast.Attribute) and n.attr == "var_llm"
-            and isinstance(n.ctx, ast.Load)
-        ]
-        # The only Load is the one handed to `variable=`, which passes the
-        # object rather than reading the flag.
-        gets = [
-            n for n in ast.walk(tree)
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-            and n.func.attr == "get"
-            and isinstance(n.func.value, ast.Attribute)
-            and n.func.value.attr == "var_llm"
-        ]
-        assert loads, "characterisation: the variable exists"
-        assert gets == [], (
-            "characterisation: F-118 — nothing calls self.var_llm.get(), so "
-            "the checkbox cannot affect anything"
-        )
+        refs = [n for n in ast.walk(tree)
+                if isinstance(n, ast.Attribute) and n.attr == "var_llm"]
+        assert refs == []
 
-    def test_the_llm_choice_is_already_expressed_by_two_buttons(self):
+    def test_no_checkbutton_remains_in_the_criteria_row(self):
+        """Any ``Checkbutton`` here would be a new control in the place
+        the deleted one occupied."""
+        tree = _harmoniser_tree()
+        checkbuttons = [n for n in ast.walk(tree)
+                        if isinstance(n, ast.Call)
+                        and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "Checkbutton"]
+        assert checkbuttons == []
+
+    def test_the_llm_choice_is_still_expressed_by_the_two_buttons(self):
+        """What the checkbox was redundant *with*. If these ever went
+        away, deleting the checkbox would have removed the only control."""
         src = HARMONISER_UI.read_text(encoding="utf-8")
         assert "Harmonise (no-LLM)" in src
         assert "Harmonise + LLM" in src
 
 
 class TestTheHarmoniserHasAThirdKeyPredicateToday:
-    """**Characterisation. Inverted by the harmoniser commit.**
+    """**FLIPPED by the harmoniser commit.**
 
-    F-117 unified two predicates over one environment variable. This is
-    the third, and it is in a *label*, so it reports a different answer
-    from the button beside it.
+    Was: the key indicator read ``os.getenv("OPENAI_API_KEY")`` directly
+    — a third predicate after F-117 unified two — so it said *missing* to
+    a user running locally who needs no key, and disagreed with the
+    button beside it. And ``_llm_available`` never consulted the probe or
+    the unconfigured check.
+
+    Now: both questions go to whoever can answer them.
+    ``stage_state.llm_readiness`` decides whether this stage may run, the
+    same function EL and IL ask; ``_sdk_importable`` answers only whether
+    the SDK is present, which is the one part this module owns.
     """
 
-    def test_the_view_reads_the_environment_variable_directly(self):
-        src = HARMONISER_UI.read_text(encoding="utf-8")
-        assert 'os.getenv("OPENAI_API_KEY")' in src, (
-            "characterisation: the key indicator is a bare getenv, so it "
-            "says 'missing' for a local provider that needs no key"
+    def test_the_environment_is_read_in_one_place_and_only_as_an_input(self):
+        """The property, stated precisely.
+
+        The environment is not forbidden — it is a legitimate *input* to
+        ``settings.resolve_stage``, which is the one function that
+        decides. What is forbidden is a second place **deciding** from
+        it, which is what the old key indicator did. So: every read lives
+        inside ``_stored_config``, and hands its value straight to the
+        resolver.
+
+        Checked by AST, because the comment recording the removal names
+        the call it removed and a text search matches the record rather
+        than the defect.
+        """
+        tree = _harmoniser_tree()
+
+        def _is_env_read(node):
+            if not isinstance(node, ast.Call):
+                return False
+            fn = node.func
+            if isinstance(fn, ast.Attribute) and fn.attr == "getenv":
+                return True
+            return (isinstance(fn, ast.Attribute) and fn.attr == "get"
+                    and isinstance(fn.value, ast.Attribute)
+                    and fn.value.attr == "environ")
+
+        allowed = next(n for n in ast.walk(tree)
+                       if isinstance(n, ast.FunctionDef)
+                       and n.name == "_stored_config")
+        inside = {id(n) for n in ast.walk(allowed) if _is_env_read(n)}
+
+        stray = [n.lineno for n in ast.walk(tree)
+                 if _is_env_read(n) and id(n) not in inside]
+        assert stray == [], (
+            f"lines {stray}: a second place deciding from the environment "
+            f"is the third predicate coming back"
         )
 
-    def test_the_button_gate_never_consults_the_probe(self):
-        """``_llm_available`` is key-only: it cannot report unreachable,
-        and it does not check that a provider was chosen at all.
+        # And the reads that are allowed must be arguments to the
+        # resolver, not decisions of their own.
+        for node in ast.walk(allowed):
+            if not _is_env_read(node):
+                continue
+            holders = [c for c in ast.walk(allowed)
+                       if isinstance(c, ast.Call)
+                       and isinstance(c.func, ast.Name)
+                       and c.func.id == "resolve_stage"
+                       and any(kw.value is node for kw in c.keywords)]
+            assert holders, ast.unparse(node)
 
-        Read from the file rather than through an import, because
-        ``llm_refine`` uses relative imports and the plugin directories
-        start with digits, so ``spec_from_file_location`` cannot give it
-        a parent package.
-        """
+    def test_the_view_asks_the_shared_readiness_function(self):
+        tree = _harmoniser_tree()
+        assert any(isinstance(n, ast.Call)
+                   and isinstance(n.func, ast.Name)
+                   and n.func.id == "llm_readiness"
+                   for n in ast.walk(tree))
+
+    def test_the_old_availability_predicate_is_removed_not_aliased(self):
+        """Removed rather than kept as an alias, for the reason session A
+        gave when it removed ``has_key=``: a caller left on the old name
+        would silently keep the old meaning, and two predicates is the
+        defect being closed. A ``NameError`` is the cheaper failure."""
+        path = PROJECT_ROOT / "plugins" / "03_harmoniser" / "llm_refine.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = {n.name for n in ast.walk(tree)
+                 if isinstance(n, ast.FunctionDef)}
+        assert "_llm_available" not in names
+        assert "_sdk_importable" in names
+
+    def test_what_remains_answers_only_the_question_it_can(self):
+        """``_sdk_importable`` must not have quietly kept a key check."""
         path = PROJECT_ROOT / "plugins" / "03_harmoniser" / "llm_refine.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
         fn = next(n for n in ast.walk(tree)
                   if isinstance(n, ast.FunctionDef)
-                  and n.name == "_llm_available")
-        src = ast.unparse(fn)
-        assert "probe" not in src
-        assert "llm_readiness" not in src
-        assert "NOT_CONFIGURED" not in src and "not_configured" not in src
+                  and n.name == "_sdk_importable")
+        # Strip the docstring: it *describes* the checks that were taken
+        # out, so unparsing it back in would match every one of them.
+        statements = [n for n in fn.body
+                      if not (isinstance(n, ast.Expr)
+                              and isinstance(n.value, ast.Constant)
+                              and isinstance(n.value.value, str))]
+        body = "\n".join(ast.unparse(n) for n in statements)
+        for forbidden in ("key_ok", "load_settings", "api_key", "provider"):
+            assert forbidden not in body, forbidden
+        assert "openai" in body, "it must still check the thing it is for"
 
 
 # ---------------------------------------------------------------------------

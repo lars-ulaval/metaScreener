@@ -8,7 +8,11 @@ llm_refine.py - Plugin 03 Harmoniser: optional LLM refinement of harmonised rows
 
 Concerns owned by this module:
   - OpenAI-compatible JSON-mode helper (_call_openai_json)
-  - Availability predicate (_llm_available): API key + importable client
+  - SDK importability (_sdk_importable) — and nothing else about
+    availability. Whether this stage MAY run is
+    `plugins/_common/stage_state.py::llm_readiness`, the same function
+    EL and IL ask, because a third answer to that question is the defect
+    F-117 closed arriving one module further down.
   - Optional refinement pass (_llm_refine) that re-evaluates already-harmonised
     rows under the row-count, identifier, and polarity guardrails specified in
     manuscript Algorithm 1; falls back to the rule-based output if any
@@ -39,7 +43,14 @@ from .parser import (
 from .inference import _validate_row
 
 
-def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120) -> Dict[str, Any]:
+#: This stage's name in the settings store. Named rather than inlined
+#: because two spellings would be two stages as far as ``resolve_stage``
+#: is concerned, and one of them would silently have no configuration.
+STAGE = "harmoniser"
+
+
+def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120,
+                      stage: str = STAGE) -> Dict[str, Any]:
     """Best-effort OpenAI call returning JSON."""
     try:
         # F-117, review of this session. This was a bare ``OpenAI()`` —
@@ -51,8 +62,14 @@ def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120) 
         # meaningless error. It also meant this stage ignored the
         # endpoint EL and IL honour, so a "local" run refined criteria
         # against the vendor. One client builder for all three stages.
+        #
+        # Session C passes the stage, so this call honours the same
+        # per-stage resolution EL and IL do — and, more importantly, the
+        # same invariant: `_openai_client_for` decides the credential on
+        # the resolved (provider, endpoint) pair, so this stage cannot be
+        # handed the placeholder string while pointed at a billing host.
         from plugins._common.llm_client import _openai_client_for
-        client = _openai_client_for()
+        client = _openai_client_for(stage)
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -77,34 +94,37 @@ def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120) 
         raise RuntimeError(f"LLM call failed: {e}")
 
 
-def _llm_available() -> bool:
-    """Whether this stage may call a model.
+def _sdk_importable() -> bool:
+    """Whether the OpenAI SDK can be imported at all.
 
-    F-117. This used to read ``os.getenv("OPENAI_API_KEY")`` with bare
-    truthiness while ``llm_client._has_openai_key`` stripped — so a
-    whitespace-only key made *this* stage offer to spend money while EL
-    and IL refused. One subsystem, one variable, two answers.
+    **This is all that is left of ``_llm_available``, and the narrowing
+    is the fix (F-118/D9, wave 11 session C).**
 
-    The two now share one predicate, and it asks about the provider
-    rather than about the string: a local server authenticates nothing,
-    so a user running locally is no longer asked for a credential in
-    order to reach a free model. The importability check is kept — a key
-    without the SDK is still not availability.
+    F-117 removed one of the two key predicates from this module. What
+    remained still answered three questions at once — is the SDK here, is
+    a key present, may this stage run — and only the first is a question
+    this module can answer. The other two are ``stage_state``'s, and this
+    stage was answering them differently from EL and IL:
+
+    * it never checked ``NOT_CONFIGURED``, so a store with a leftover key
+      and **no provider chosen** lit the button, ahead of the check that
+      exists precisely because the key and model tests can each be
+      satisfied while the path as a whole is unconfigured;
+    * it never consulted the probe, so an unreachable endpoint lit the
+      button too, and the run failed one call in;
+    * ``cfg.get("provider", "local")`` defaulted to a **keyless**
+      provider on a missing key, which waives the key gate — the same
+      shape as session A's ``defaults()``.
+
+    The name is *removed* rather than kept as an alias, for the reason
+    session A gave when it removed ``has_key=``: a caller left on the old
+    name would silently keep the old meaning, and two predicates is the
+    defect being closed. A ``NameError`` is the cheaper failure.
+
+    The View now asks ``stage_state.llm_readiness`` exactly as EL and IL
+    do, and combines it with this. A key without the SDK is still not
+    availability, and that remains this module's to say.
     """
-    from plugins._common.settings import load_settings
-    from plugins._common.stage_state import key_ok
-
-    try:
-        cfg = load_settings()
-    except Exception:
-        # Unreadable settings must not silently enable a paid call. The
-        # dialog that reports it belongs to the GUI; here the safe answer
-        # is "not available".
-        return False
-
-    if not key_ok(provider=cfg.get("provider", "local"),
-                  api_key=cfg.get("api_key", "")):
-        return False
     try:
         import openai  # noqa: F401
         return True

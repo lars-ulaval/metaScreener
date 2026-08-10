@@ -51,6 +51,21 @@ class HarmoniserPlugin(BasePlugin):
         self.view.pack(fill="both", expand=True)
         return frame
 
+    def on_provider_changed(self):
+        """Relay the application's provider news to the View.
+
+        ``main.py`` notifies this name on the *plugin*, and until session
+        C nothing implemented it anywhere, so the call reached nothing.
+        This stage needs it as much as EL and IL do: its LLM button is
+        gated on the same readiness, so a provider change it never hears
+        about leaves the button reporting the previous answer.
+        """
+        try:
+            if self.view:
+                self.view.on_provider_changed()
+        except Exception as e:                      # pragma: no cover - GUI
+            print(f"[PLUGIN] Harmoniser on_provider_changed failed: {e}")
+
     def on_close(self):
         try:
             if self.view:
