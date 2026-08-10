@@ -45,6 +45,7 @@ not touch values, so it must survive this migration and every later one.
 Obligation 5 is asserted directly.
 """
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -174,6 +175,59 @@ class TestTheMigrationArtifactIsUsable:
         assert set(tool.VALUE_MULTISET_SHA256) == {"EL", "IL"}
         for digest in tool.VALUE_MULTISET_SHA256.values():
             assert len(digest) == 64
+
+
+class TestTheCaptureToolPinsTheEndpoint:
+    """F-89 made the endpoint a cache-key input, which made the capture tool
+    environment-dependent while the tests that replay its output are not.
+
+    Found in review of this wave: the two regression replays were pinned and
+    the capture tool was not. A maintainer re-capturing on the machine where
+    they had been testing Ollama would key the goldens to
+    ``http://localhost:11434/v1``; the tests key with the default, miss every
+    entry, and fail byte-identity with nothing in the committed file to
+    explain why — ``_invocation`` records only model, truncation and batch
+    size (F-128).
+    """
+
+    def _tool(self):
+        name = "tools_capture_el_il_goldens"
+        if name in sys.modules:
+            return sys.modules[name]
+        spec = importlib.util.spec_from_file_location(
+            name, str(PROJECT_ROOT / "tools" / "capture_el_il_goldens.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_an_exported_override_is_ignored(self, monkeypatch):
+        from plugins._common.llm_client import DEFAULT_OPENAI_BASE_URL
+
+        monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+        assert self._tool()._pin_endpoint() == DEFAULT_OPENAI_BASE_URL
+        assert os.environ["OPENAI_BASE_URL"] == DEFAULT_OPENAI_BASE_URL
+
+    def test_an_unset_variable_is_pinned_too(self, monkeypatch):
+        """Pinned rather than left absent, so the capture cannot depend on
+        the shell even when the shell happens to be right."""
+        from plugins._common.llm_client import DEFAULT_OPENAI_BASE_URL
+
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        assert self._tool()._pin_endpoint() == DEFAULT_OPENAI_BASE_URL
+        assert os.environ["OPENAI_BASE_URL"] == DEFAULT_OPENAI_BASE_URL
+
+    def test_the_pinned_endpoint_is_the_one_the_goldens_are_keyed_at(self):
+        """The tool and this wave's migration must agree, or a re-capture
+        would silently invalidate the fixtures it just produced."""
+        from plugins._common.llm_client import DEFAULT_OPENAI_BASE_URL
+
+        reports = {
+            stage: _rekey_tool().verify_stage(stage, DEFAULT_OPENAI_BASE_URL)
+            for stage in ("EL", "IL")
+        }
+        assert all(r.ok for r in reports.values())
 
 
 class TestGoldenSerialisationConventions:

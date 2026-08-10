@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import stat
+import uuid
 from pathlib import Path
 from typing import List, NamedTuple
 import tkinter as tk
@@ -76,6 +78,27 @@ def _save_env_key(env_path: Path, key: str) -> EnvSaveResult:
     removed if the move fails, because it holds the user's key and a
     stray copy of a secret in the project root is its own defect.
 
+    Three properties of that write are load-bearing, and each was a
+    regression in the first version of this fix, found in review:
+
+    * **Symlinks are followed.** Renaming onto the link path would replace
+      the *link* with a regular file, so a ``.env`` symlinked to a shared
+      location would silently stop being updated while the function
+      reported success — this function's own defect class, reintroduced by
+      its own fix.
+    * **Permissions are carried over.** The plain write truncated the
+      original inode, so a ``chmod 600`` survived it. A fresh temporary is
+      born at ``0o666 & ~umask``, so without this the first save after
+      ``chmod 600`` would quietly make a file holding an API key
+      world-readable.
+    * **The temporary name is unique.** A constant one lets two instances
+      overwrite each other's, so one could move the *other's* key into
+      place while reporting its own save as failed. The app prompts on
+      every launch, so two windows at once is ordinary. This does not make
+      the read-modify-write atomic — the last writer still wins on the file
+      as a whole, which needs a lock and is wave 11's — but each save now
+      reports what it actually wrote.
+
     **Silence is not success.** The result says which happened. Refusing
     to write and then saying nothing is the same silence one layer up.
 
@@ -97,29 +120,63 @@ def _save_env_key(env_path: Path, key: str) -> EnvSaveResult:
                 f"Could not read {env_path}, so it was left unchanged and "
                 f"the key was not saved: {e.__class__.__name__}: {e}\n\n"
                 f"The file exists but could not be decoded as UTF-8 or "
-                f"could not be opened. Nothing was overwritten. Fix or "
-                f"remove the file, then save again.",
+                f"could not be opened. Nothing was overwritten, and your "
+                f"other settings in it are intact.\n\n"
+                f"Fix or remove the file, then restart metaScreener. The "
+                f"key you just entered is active for this session either "
+                f"way.",
             )
 
     lines = [ln for ln in lines if not ln.strip().startswith(f"{ENV_KEY}=")]
     lines.append(f"{ENV_KEY}={key}")
 
-    tmp_path = env_path.with_name(env_path.name + ".tmp")
+    # Follow a symlink, the way the plain write this replaced did. Renaming
+    # onto the link path would replace the LINK with a regular file, so a
+    # user who keeps `.env` symlinked to a shared location would silently
+    # stop updating the file they manage — and the stale target would keep
+    # serving an old key. Reporting that as a success is the defect class
+    # this function exists to fix, so it must not be reintroduced by the fix.
+    target = Path(os.path.realpath(env_path))
+
+    # Unique per call. A constant `.env.tmp` lets two instances overwrite
+    # each other's temporary, so one could move the OTHER's key into place
+    # and still report its own save as failed. The app prompts for the key
+    # on every launch, so two windows at once is ordinary rather than
+    # exotic. This does not make a read-modify-write atomic — the last
+    # writer still wins on the file as a whole — but it stops the two saves
+    # from interleaving, so each reports what it actually wrote.
+    tmp_path = target.with_name(
+        f"{target.name}.tmp.{os.getpid()}.{uuid.uuid4().hex[:8]}"
+    )
     try:
         tmp_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        os.replace(tmp_path, env_path)
+        # Carry the existing file's permissions onto the replacement. The
+        # plain write truncated the original inode, so a `chmod 600` on a
+        # file holding an API key survived it; a fresh temporary is created
+        # at `0o666 & ~umask` and `os.replace` would carry that mode in,
+        # quietly widening the file. No-op on Windows, which does not use
+        # these bits.
+        try:
+            if target.exists():
+                os.chmod(tmp_path, stat.S_IMODE(target.stat().st_mode))
+        except Exception:
+            pass
+        os.replace(tmp_path, target)
     except Exception as e:
         try:
             tmp_path.unlink()
         except Exception:
             pass
+        # Name the path that actually failed. `target` and `env_path` differ
+        # when `.env` is a symlink, and sending the user to inspect the
+        # wrong file is its own small defect.
         return EnvSaveResult(
             False,
-            f"Could not write {env_path}, so it was left unchanged and the "
+            f"Could not write {target}, so it was left unchanged and the "
             f"key was not saved: {e.__class__.__name__}: {e}",
         )
 
-    return EnvSaveResult(True, f"Saved {ENV_KEY} to {env_path}.")
+    return EnvSaveResult(True, f"Saved {ENV_KEY} to {target}.")
 
 # ---------------------------------------------------------------------------
 # Plugin entry-point resolution and lifecycle dispatch

@@ -352,6 +352,44 @@ def _print_prompt_hashes(el, il) -> None:
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
+def _pin_endpoint() -> str:
+    """Force the capture to run against the default endpoint, and say so.
+
+    F-89 made the endpoint a **cache-key input**, which quietly made this
+    tool environment-dependent while its consumers are not:
+    ``tests/test_el_regression.py`` and ``tests/test_il_regression.py``
+    pop ``OPENAI_BASE_URL`` before replaying, precisely because the key
+    covers it.
+
+    Without this, a maintainer who re-captures on the machine where they
+    had been testing Ollama would produce goldens keyed to
+    ``http://localhost:11434/v1``; the regression tests would key with the
+    default, miss all 170/84 entries, short-circuit to empty evidence and
+    fail byte-identity — with nothing in the committed file to explain
+    why, since ``_invocation`` records only model, truncation and batch
+    size (F-128).
+
+    Overriding rather than merely warning is deliberate: the goldens are
+    this project's regression fixtures, and what makes them useful is that
+    everyone derives the same keys from them. Capturing against a local
+    server is a different job, and it needs the endpoint recorded in the
+    envelope first — which is F-128's, not this tool's.
+    """
+    from plugins._common.llm_client import (
+        DEFAULT_OPENAI_BASE_URL, OPENAI_BASE_URL_ENV,
+    )
+    override = os.environ.get(OPENAI_BASE_URL_ENV, "").strip()
+    if override and override != DEFAULT_OPENAI_BASE_URL:
+        print(f"WARNING: {OPENAI_BASE_URL_ENV}={override!r} is set and is "
+              f"being IGNORED for this capture.", file=sys.stderr)
+        print(f"         Goldens are always captured against "
+              f"{DEFAULT_OPENAI_BASE_URL}, because the endpoint is part of "
+              f"the cache key (F-89) and the regression tests replay at the "
+              f"default.", file=sys.stderr)
+    os.environ[OPENAI_BASE_URL_ENV] = DEFAULT_OPENAI_BASE_URL
+    return DEFAULT_OPENAI_BASE_URL
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument(
@@ -361,6 +399,7 @@ def main() -> int:
     args = ap.parse_args()
 
     _setup_headless_imports()
+    _pin_endpoint()
     eh = _import_plugin("04_eh")
     ih = _import_plugin("05_ih")
     el = _import_plugin("06_el")

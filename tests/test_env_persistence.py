@@ -228,6 +228,96 @@ class TestNormalPersistence:
         assert result.ok is False
         assert env.read_text(encoding="utf-8") == original
 
+    def test_a_symlinked_env_is_followed(self, tmp_path):
+        """The atomic write must not replace a symlink with a regular file.
+
+        Regression found in review of wave 9's own F-139 fix.
+        ``Path.write_text`` follows a symlink; a naive ``os.replace`` onto
+        the link path replaces **the link**, so a user who keeps ``.env``
+        symlinked to a shared location silently stops updating the file
+        they actually manage — and the old target keeps serving a stale
+        key on the next launch. Worse, it reported ``ok=True``: a success
+        for a write that missed, which is the exact defect class F-139 is
+        about, reintroduced by its own fix.
+        """
+        real = tmp_path / "real_env"
+        real.write_text("OPENAI_BASE_URL=http://localhost:11434/v1\n"
+                        "OPENAI_API_KEY=sk-old\n", encoding="utf-8")
+        link = tmp_path / ".env"
+        try:
+            link.symlink_to(real)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks not permitted on this machine")
+
+        main = _main_module()
+        result = main._save_env_key(link, "sk-new")
+
+        assert result.ok is True
+        assert link.is_symlink(), "the symlink was replaced by a regular file"
+        text = real.read_text(encoding="utf-8")
+        assert "OPENAI_API_KEY=sk-new" in text
+        assert "OPENAI_BASE_URL=http://localhost:11434/v1" in text
+
+    @pytest.mark.skipif(sys.platform == "win32",
+                        reason="POSIX permission bits")
+    def test_existing_permissions_are_preserved(self, tmp_path):
+        """A user who runs ``chmod 600 .env`` must keep it.
+
+        Regression found in review. The old code truncated the existing
+        inode, so its mode survived; writing a fresh temporary and moving
+        it in carries the *temporary's* mode — ``0666 & ~umask``, usually
+        ``0644`` — so protecting the file made it world-readable on the
+        next save. The file holds an API key.
+        """
+        import stat as _stat
+
+        main = _main_module()
+        env = tmp_path / ".env"
+        env.write_text("OPENAI_API_KEY=sk-old\n", encoding="utf-8")
+        env.chmod(0o600)
+
+        assert main._save_env_key(env, "sk-new").ok is True
+        assert _stat.S_IMODE(env.stat().st_mode) == 0o600
+
+    def test_the_temporary_name_is_unique_per_process(self, tmp_path,
+                                                      monkeypatch):
+        """A fixed ``.env.tmp`` lets two instances corrupt each other.
+
+        Regression found in review. The app prompts for the key on **every**
+        launch, so two windows open at once is the ordinary path, not an
+        exotic one. With a constant name, one instance overwrites the
+        other's temporary and can move *its* key into place while
+        reporting the first instance's save as failed — or, worse, report
+        success having written the other instance's key.
+
+        A unique name cannot make a read-modify-write atomic — the last
+        writer still wins on the file as a whole — but it stops the two
+        saves from being *interleaved*, so each reports what it actually
+        wrote.
+        """
+        main = _main_module()
+        env = tmp_path / ".env"
+        env.write_text("OPENAI_API_KEY=sk-old\n", encoding="utf-8")
+
+        seen = []
+        real_replace = main.os.replace
+
+        def _spy(src, dst):
+            seen.append(Path(src).name)
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(main.os, "replace", _spy)
+        main._save_env_key(env, "sk-1")
+        main._save_env_key(env, "sk-2")
+
+        assert len(seen) == 2
+        assert seen[0] != seen[1], (
+            f"both saves used the same temporary name {seen[0]!r}; two "
+            f"concurrent instances would collide on it"
+        )
+        for name in seen:
+            assert name.startswith(".env.tmp")
+
     def test_no_temporary_file_is_left_behind(self, tmp_path, monkeypatch):
         """A ``.env.tmp`` holding the user's key would be a second copy of a
         secret, in a directory the user does not inspect."""
