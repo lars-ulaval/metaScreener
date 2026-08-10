@@ -274,3 +274,100 @@ class TestTheProbeCache:
                              api_key="", model="m", probe=D.last_known())
         assert r.can_run is False
         assert r.code == ss.NOT_CHECKED
+
+
+class TestTheVendorIsReachableAtAll:
+    """Session B's review, found by execution.
+
+    ``llm_readiness`` demands ``probe.state == "ready"`` for every
+    provider, and the only supplier of that probe was an
+    **unauthenticated** GET of ``<endpoint>/models``. api.openai.com
+    answers 401, so ``_fetch_models`` returned ``None``, ``detect`` fell
+    through to the Ollama binary check, and a user with a **valid OpenAI
+    key was permanently blocked** — and told to install Ollama.
+
+    The suite was green because this file's own helper hand-built
+    ``probe=SimpleNamespace(state="ready")`` for ``provider="openai"`` —
+    **a probe the real detector could not produce for the vendor.** A test
+    that asserts a state the system cannot reach is worse than no test:
+    it certifies the path it hides.
+    """
+
+    def test_the_probe_authenticates_when_a_key_is_available(self):
+        import inspect
+        src = inspect.getsource(D._fetch_models)
+        assert "Authorization" in src, (
+            "an unauthenticated probe can never succeed against a vendor "
+            "that requires a key, so 'reachable' becomes 'refused'"
+        )
+
+    def test_a_non_local_provider_is_never_told_to_install_ollama(self):
+        """Sending an OpenAI user to fix their Ollama installation is the
+        wasted afternoon D4/D5 exist to prevent, produced by the code
+        written to prevent it."""
+        d = D.detect("http://127.0.0.1:1/v1", which=lambda n: None,
+                     timeout=0.25, provider="openai")
+        assert "ollama" not in d.detail.lower()
+        assert D.OLLAMA_DOWNLOAD_URL not in d.detail
+
+    def test_a_local_provider_still_gets_the_ollama_guidance(self):
+        d = D.detect("http://127.0.0.1:1/v1", which=lambda n: "/bin/ollama",
+                     timeout=0.25, provider="local")
+        assert "ollama serve" in d.detail
+
+
+class TestAKeylessProviderNeverResolvesToTheVendor:
+    """The billing defect, reproduced by the review through a new route
+    and closed by an invariant rather than by patching the route.
+
+    Selecting local and clearing the endpoint box stored
+    ``{provider: "local", endpoint: ""}``. ``key_required("local")`` is
+    False so the gate opened, and a blank endpoint fell straight through
+    to the vendor default — so the client was built against
+    api.openai.com carrying whatever key was left over, for a run the
+    store labelled local. The same shape arrives with **no user error at
+    all** from any settings file naming a provider and omitting an
+    endpoint.
+    """
+
+    @pytest.fixture
+    def store(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("APPDATA", str(tmp_path / "a"))
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "x"))
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        return S
+
+    @pytest.mark.parametrize("provider", ["local", "custom"])
+    @pytest.mark.parametrize("endpoint", ["", "   "])
+    def test_a_blank_endpoint_does_not_become_the_paid_vendor(
+            self, store, provider, endpoint):
+        import plugins._common.llm_client as lc
+        store.update_settings(provider=provider, endpoint=endpoint,
+                              api_key="sk-left-over")
+        resolved = lc.resolve_openai_base_url()
+        assert resolved != lc.DEFAULT_OPENAI_BASE_URL, (
+            f"provider={provider!r} waives the key gate and still resolves "
+            f"to the paid vendor, carrying a leftover key"
+        )
+
+    def test_a_settings_file_with_no_endpoint_key_is_safe(self, store):
+        """No user error required — just a file that names a provider."""
+        import json
+        import plugins._common.llm_client as lc
+        store.settings_path().parent.mkdir(parents=True, exist_ok=True)
+        store.settings_path().write_text(
+            json.dumps({"schema": 1, "provider": "local", "model": "m"}),
+            encoding="utf-8")
+        assert lc.resolve_openai_base_url() != lc.DEFAULT_OPENAI_BASE_URL
+
+    def test_openai_still_resolves_to_the_vendor(self, store):
+        import plugins._common.llm_client as lc
+        store.update_settings(provider="openai", endpoint="",
+                              api_key="sk-real")
+        assert lc.resolve_openai_base_url() == lc.DEFAULT_OPENAI_BASE_URL
+
+    def test_an_explicit_endpoint_is_still_honoured(self, store):
+        import plugins._common.llm_client as lc
+        store.update_settings(provider="local",
+                              endpoint="http://elsewhere:8080/v1")
+        assert lc.resolve_openai_base_url() == "http://elsewhere:8080/v1"

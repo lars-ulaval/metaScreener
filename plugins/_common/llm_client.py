@@ -180,15 +180,34 @@ def resolve_openai_base_url() -> str:
     to the paid vendor. Reading the endpoint here is one half of that fix;
     not presuming a provider (``settings.defaults``) is the other.
     """
+    provider = ""
     try:
         from plugins._common.settings import load_settings
-        stored = (load_settings().get("endpoint") or "").strip()
+        cfg = load_settings()
+        stored = (cfg.get("endpoint") or "").strip()
+        provider = (cfg.get("provider") or "").strip()
     except Exception:
         # Unreadable or unavailable settings must never change where a
         # run is sent; fall through to the behaviour that predates them.
         stored = ""
     if stored:
         return stored
+
+    # **A keyless provider must never resolve to the paid vendor.**
+    # Session B's review reproduced session A's billing defect by a new
+    # route: a user who selects local and blanks the endpoint box stores
+    # {provider: "local", endpoint: ""}, and a blank endpoint used to fall
+    # straight through to DEFAULT_OPENAI_BASE_URL — so `key_required`
+    # waived the gate while the client was built against the vendor,
+    # carrying whatever key was left over. The same shape arrives with no
+    # user error from any settings file that names a provider and omits an
+    # endpoint. Falling back to the local default is wrong-but-harmless;
+    # falling back to the vendor is wrong-and-billable.
+    from plugins._common.stage_state import key_required
+    if provider and not key_required(provider):
+        from plugins._common.settings import DEFAULT_LOCAL_ENDPOINT
+        return DEFAULT_LOCAL_ENDPOINT
+
     return os.environ.get(OPENAI_BASE_URL_ENV, "").strip() or DEFAULT_OPENAI_BASE_URL
 
 

@@ -422,10 +422,13 @@ class MetaScreenerApp(tk.Tk):
 
         pd.forget()
         endpoint = resolve_openai_base_url()
+        provider = (cfg.get("provider") or "").strip()
+        api_key = (cfg.get("api_key") or "").strip() or os.environ.get(ENV_KEY, "")
 
         def _work():
             try:
-                found = pd.refresh(endpoint)
+                found = pd.refresh(endpoint, api_key=api_key,
+                                   provider=provider)
             except Exception:
                 found = None            # detection never raises; belt and braces
             self.after(0, lambda: self._provider_status_arrived(

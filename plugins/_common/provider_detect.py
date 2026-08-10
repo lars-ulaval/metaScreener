@@ -128,10 +128,11 @@ def forget() -> None:
 
 
 def refresh(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
-            which: Optional[Callable[[str], Optional[str]]] = None
-            ) -> "Detection":
+            which: Optional[Callable[[str], Optional[str]]] = None,
+            api_key: str = "", provider: str = "") -> "Detection":
     """Detect and cache. Safe to call from a worker thread."""
-    d = detect(endpoint, timeout=timeout, which=which)
+    d = detect(endpoint, timeout=timeout, which=which,
+               api_key=api_key, provider=provider)
     remember(d)
     return d
 
@@ -140,8 +141,8 @@ def _models_url(endpoint: str) -> str:
     return (endpoint or "").rstrip("/") + "/models"
 
 
-def _fetch_models(endpoint: str,
-                  timeout: float) -> Optional[Tuple[str, ...]]:
+def _fetch_models(endpoint: str, timeout: float,
+                  api_key: str = "") -> Optional[Tuple[str, ...]]:
     """One request, tri-state.
 
     ``None`` means *the endpoint did not answer usably*; a tuple means it
@@ -154,9 +155,16 @@ def _fetch_models(endpoint: str,
     call doubles the latency on a launch path, and the two could observe
     different states either side of a server starting or stopping.
     """
+    # Authenticated when a key is available. Session B's review found the
+    # unauthenticated form making the vendor **permanently unreachable**:
+    # api.openai.com answers 401, urlopen raises, and a user with a valid
+    # key was told to install Ollama. A probe that cannot succeed for a
+    # supported provider is not a reachability check, it is a refusal.
+    headers = {"Accept": "application/json"}
+    if (api_key or "").strip():
+        headers["Authorization"] = f"Bearer {api_key.strip()}"
     try:
-        req = urllib.request.Request(_models_url(endpoint),
-                                     headers={"Accept": "application/json"})
+        req = urllib.request.Request(_models_url(endpoint), headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if getattr(resp, "status", 200) != 200:
                 return None
@@ -194,7 +202,8 @@ def list_models(endpoint: str,
 
 
 def detect(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
-           which: Optional[Callable[[str], Optional[str]]] = None) -> Detection:
+           which: Optional[Callable[[str], Optional[str]]] = None,
+           api_key: str = "", provider: str = "") -> Detection:
     """Classify a provider endpoint without starting anything.
 
     ``which`` is injected so both branches of the binary check can be
@@ -202,7 +211,7 @@ def detect(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
     """
     which = which or shutil.which
 
-    models = _fetch_models(endpoint, timeout)
+    models = _fetch_models(endpoint, timeout, api_key)
     if models is not None:
         if models:
             return Detection(READY, models,
@@ -213,6 +222,18 @@ def detect(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
             "Pull one to start screening — a recommended model is offered "
             "below.",
             endpoint)
+
+    # The Ollama discrimination only makes sense for a local endpoint.
+    # Telling a user on OpenAI to run `ollama serve`, or to install Ollama,
+    # sends them to fix something that has nothing to do with their
+    # problem — the wasted afternoon D4/D5 exist to prevent, produced by
+    # the very code meant to prevent it.
+    if provider and provider not in ("local", ""):
+        return Detection(
+            NOT_RUNNING, (), endpoint=endpoint,
+            detail=("The configured endpoint did not answer. Check the "
+                    "endpoint and the API key, and that this machine can "
+                    "reach it."))
 
     try:
         installed = bool(which(OLLAMA_BINARY))

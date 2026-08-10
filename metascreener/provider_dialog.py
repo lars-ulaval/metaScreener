@@ -166,8 +166,11 @@ class ProviderDialog(tk.Toplevel):
         endpoint = self.var_endpoint.get().strip()
         self.lbl_status.configure(text="Checking…")
 
+        provider = self.var_provider.get()
+        api_key = self.var_key.get().strip()
+
         def _work():
-            found = pd.detect(endpoint)
+            found = pd.detect(endpoint, api_key=api_key, provider=provider)
             self.after(0, lambda: self._status_arrived(found))
 
         threading.Thread(target=_work, daemon=True).start()
@@ -250,9 +253,20 @@ class ProviderDialog(tk.Toplevel):
 
     def _accept(self):
         provider = self.var_provider.get()
+        # Repair a blank endpoint rather than storing one. Session B's
+        # review reproduced session A's billing defect through exactly
+        # this hole: selecting local and clearing the endpoint box stored
+        # {provider: "local", endpoint: ""}, and a blank endpoint used to
+        # resolve to the paid vendor while `key_required("local")` waived
+        # the key gate. `resolve_openai_base_url` now refuses that too, so
+        # this is the second of two independent guards.
+        endpoint = self.var_endpoint.get().strip()
+        if not endpoint:
+            endpoint = (DEFAULT_OPENAI_ENDPOINT if provider == "openai"
+                        else DEFAULT_LOCAL_ENDPOINT)
         self.result = {
             "provider": provider,
-            "endpoint": self.var_endpoint.get().strip(),
+            "endpoint": endpoint,
             "api_key": self.var_key.get().strip(),
             "model": self.var_model.get().strip(),
         }
