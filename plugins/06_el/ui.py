@@ -44,6 +44,13 @@ from plugins._common.bundle import (
     _write_llm_stage_bundle,
 )
 
+from plugins._common.stage_state import (
+    Outcome,
+    control_states,
+    run_outcome,
+    tk_state,
+)
+
 from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
     from_dict_skipped,
@@ -290,6 +297,8 @@ class ELView(ttk.Frame):
         # view holds, which is what made "EL done." the only thing the
         # interface could say for either.
         self.llm_report: Dict[str, int] = {}
+        # Wave 8 part 2: how the last run is classified, as data.
+        self.outcome: Optional[Outcome] = None
         self.not_screened: bool = False  # F-34: last run had no criteria
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
@@ -471,11 +480,21 @@ class ELView(ttk.Frame):
         self.lbl_counts.configure(text=msg)
 
     def _set_controls_running(self, running: bool) -> None:
-        self.btn_cancel.configure(state=("normal" if running else "disabled"))
-        self.btn_run.configure(state=("disabled" if running else ("normal" if self.bundle_zip_path else "disabled")))
-        self.btn_export.configure(state=("disabled" if running else ("normal" if self.full_rows else "disabled")))
-        self.btn_export_err.configure(state=("disabled" if running else ("normal" if (self.bundle and self.bundle.parse.skipped) else "disabled")))
-        self.btn_export_bundle.configure(state=("disabled" if running else ("normal" if self.full_rows else "disabled")))
+        # Wave 8 part 2: the five expressions that used to live here are
+        # now plugins/_common/stage_state.py::control_states, so they can
+        # be asserted on. This method reads state and writes widgets; it
+        # decides nothing.
+        st = control_states(
+            running=running,
+            has_bundle=bool(self.bundle_zip_path),
+            has_rows=bool(self.full_rows),
+            has_input_errors=bool(self.bundle and self.bundle.parse.skipped),
+        )
+        self.btn_cancel.configure(state=tk_state(st.cancel))
+        self.btn_run.configure(state=tk_state(st.run))
+        self.btn_export.configure(state=tk_state(st.export))
+        self.btn_export_err.configure(state=tk_state(st.export_errors))
+        self.btn_export_bundle.configure(state=tk_state(st.export_bundle))
 
     def _sorted_rows(self, rows: List[Dict[str, Any]], col: str, asc: bool) -> List[Dict[str, Any]]:
         def _key(r: Dict[str, Any]):
@@ -512,6 +531,7 @@ class ELView(ttk.Frame):
         self.cancelled = False
         self.not_screened = False
         self.llm_report = {}
+        self.outcome = None
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -898,8 +918,11 @@ class ELView(ttk.Frame):
                     self.after(0, lambda: self._log(
                         "\n[CANCELLED] Partial results discarded; export stays "
                         "disabled until EL is re-run to completion.\n"))
-                    self.after(0, lambda: self.lbl_status.configure(
-                        text="Cancelled — partial run, nothing exported."))
+                    self.outcome = run_outcome(
+                        stage="EL", counts=counts, cancelled=True,
+                        not_screened=False, total_rows=len(full_rows))
+                    self.after(0, lambda t=self.outcome.label:
+                               self.lbl_status.configure(text=t))
                     return
 
                 self.full_rows = full_rows
@@ -916,11 +939,14 @@ class ELView(ttk.Frame):
                 self.after(0, lambda: self._refresh_criteria_table(pre_run=False))
                 self.after(0, self._refresh_counts_label)
                 # F-34: a stage that evaluated no criteria is not "done"
-                # in any sense the user means by the word.
-                _status = (_run_summary_counts_text(
-                    counts, stage="EL", total_rows=len(full_rows))
-                    if self.not_screened else "EL done.")
-                self.after(0, lambda t=_status: self.lbl_status.configure(text=t))
+                # in any sense the user means by the word. The
+                # classification is stage_state::run_outcome's now.
+                self.outcome = run_outcome(
+                    stage="EL", counts=counts, cancelled=False,
+                    not_screened=self.not_screened,
+                    total_rows=len(full_rows))
+                self.after(0, lambda t=self.outcome.label:
+                           self.lbl_status.configure(text=t))
 
             except Exception as e:
                 self.after(0, lambda m=str(e): messagebox.showerror("EL run failed", m))
