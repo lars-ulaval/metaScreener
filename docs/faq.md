@@ -115,9 +115,21 @@ criteria, every per-stage decision report so far, the LLM response
 cache, and a manifest recording SHA-256 digests of the bundle's
 files, the per-stage run history, and creation timestamps. Each
 plugin consumes a bundle and produces a new one with its stage's
-report appended. Note that the manifest does **not** record which
-model, endpoint or prompt version produced the LLM decisions. See
+report appended. For the two LLM stages, the history entry also
+records **which engine produced that run**: the model, the resolved
+endpoint, the temperature, the prompt version, the truncation limit
+and the batch size. See
 [Bundle format and audit trail](../README.md#bundle-format-and-audit-trail).
+
+Two limits worth knowing. The record is per *run*, not per decision:
+a bundle whose stage ran more than once carries one entry per run, and
+an individual row of a report is not stamped with the engine that
+decided it. And a run can serve decisions from its cache, which
+outlives the run that filled it — but the cache key is itself a digest
+over the model, the resolved endpoint, the temperature, the prompt
+version and the rendered prompt, so a cached decision cannot be served
+into a run that differs in any of them. Batch size is the one recorded
+field the cache key does not cover.
 
 ### Can I resume from a saved bundle?
 

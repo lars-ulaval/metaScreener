@@ -623,7 +623,23 @@ def _write_llm_stage_bundle(
     # zeroes: a stage that did not measure must not claim it measured
     # nothing. EH/IH go through a different writer and never supply one.
     if llm_report:
-        entry["llm"] = dict(llm_report)
+        report = dict(llm_report)
+        # F-88. Provenance travels *inside* the run report — the engine is
+        # the only layer that knows the resolved endpoint, and
+        # `run_el_screen`'s docstring rules out a ninth tuple position
+        # ("a positional append is exactly what silently rebinds an
+        # existing unpack"). It is lifted back out here so the manifest
+        # reads correctly: `llm` is the counting block — how many records
+        # were answered, failed or rejected — and which engine answered is
+        # not a count. A reader looking for the model should not have to
+        # find it inside a block named after failure counting.
+        #
+        # Same omission rule as `llm` itself: absent when the stage
+        # consulted no model, never zero-filled or inferred.
+        provenance = report.pop("provenance", None)
+        entry["llm"] = report
+        if isinstance(provenance, dict) and provenance:
+            entry["provenance"] = dict(provenance)
     history.append(entry)
     pipeline["stages"] = stages
     pipeline["history"] = history

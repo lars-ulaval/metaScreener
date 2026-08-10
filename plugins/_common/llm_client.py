@@ -514,6 +514,48 @@ def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
         stats[key] = int(stats.get(key, 0)) + 1
 
 
+def llm_provenance(*, model: str, endpoint: str, temperature: float,
+                   prompt_version: str, trunc_chars: int,
+                   batch_size: int) -> Dict[str, Any]:
+    """Which engine produced this run's decisions (F-88).
+
+    Shared by both stages so the two cannot drift into recording different
+    field sets — the same reason the four near-identical EL/IL export
+    copies became one writer under F-05.
+
+    **These are observations, not settings.** Every value is what the run
+    actually used, threaded from the engine rather than re-read from a
+    widget or the environment at export time: the model the user typed may
+    have been edited between the run and the export, and the endpoint is
+    resolved once per run precisely so that two consumers cannot disagree
+    about it (F-92).
+
+    Why these six. The first four are §B8.1's tier 1 — the minimum needed
+    to say which engine answered. ``trunc_chars`` is here because of the
+    asymmetry wave 8 surfaced: **"the model answered" and "the model was
+    shown something" are different claims**, and the run report records
+    only the first. A negative ``trunc_chars`` makes the builder's
+    ``s[:trunc_chars]`` a negative slice, so fields are *emptied* rather
+    than truncated, and the resulting run report is byte-identical to a
+    healthy one — four records, four answered, none failed. Recording what
+    the model was shown is what keeps ``answered`` interpretable.
+    ``batch_size`` completes the set the capture harness already records
+    in its ``_invocation`` envelope, so a manifest and a golden describe a
+    run in the same terms.
+
+    Not a call fingerprint (F-135): this is per *run*, it is written only
+    into the manifest, and it does not touch a cache value.
+    """
+    return {
+        "model": _safe_str(model),
+        "endpoint": _safe_str(endpoint),
+        "temperature": float(temperature),
+        "prompt_version": _safe_str(prompt_version),
+        "trunc_chars": int(trunc_chars),
+        "batch_size": int(batch_size),
+    }
+
+
 def summarize_llm_evidence(
         evidence: Optional[Dict[Tuple[str, str], Dict[str, Any]]]
 ) -> Dict[str, int]:

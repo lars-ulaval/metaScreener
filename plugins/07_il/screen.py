@@ -59,6 +59,7 @@ from plugins._common.llm_client import (
     _make_item_for_llm,
     _row_target_text_hash,
     _is_cacheable_evidence,
+    llm_provenance,
     new_llm_call_stats,
     summarize_llm_evidence,
     _load_cache_from_jsonl,
@@ -499,9 +500,17 @@ def run_il_screen(
     # rather than accumulated here.
     call_stats: Dict[str, int] = new_llm_call_stats()
 
-    def _run_report(evidence: Dict[Tuple[str, str], Dict[str, Any]]) -> Dict[str, int]:
-        report = dict(summarize_llm_evidence(evidence))
+    # F-88. Filled once the endpoint is resolved, below. It stays empty on
+    # the zero-criteria path, which returns before that point: a stage that
+    # consulted no model must not name one — the same rule the run report
+    # itself follows.
+    provenance: Dict[str, Any] = {}
+
+    def _run_report(evidence: Dict[Tuple[str, str], Dict[str, Any]]) -> Dict[str, Any]:
+        report: Dict[str, Any] = dict(summarize_llm_evidence(evidence))
         report.update(call_stats)
+        if provenance:
+            report["provenance"] = dict(provenance)
         return report
 
     if not crits:
@@ -609,6 +618,18 @@ def run_il_screen(
     # it builds the client, so the endpoint a key was computed for is the
     # endpoint the call actually went to.
     endpoint = resolve_openai_base_url()
+
+    # F-88. Recorded here rather than at export, because this is the only
+    # point at which all six facts are simultaneously true of *this run*:
+    # the endpoint has just been resolved and is not available to the UI at
+    # all, and the model and temperature the UI holds are live widget values
+    # that may be edited between the run and the export.
+    provenance.update(llm_provenance(
+        model=model, endpoint=endpoint, temperature=temperature,
+        prompt_version=PROMPT_VERSION, trunc_chars=trunc_chars,
+        batch_size=batch_size,
+    ))
+
     if log_cb:
         # F-119's lesson: say what the code observed. Whether the variable
         # was set is the actionable half — a user following the README's

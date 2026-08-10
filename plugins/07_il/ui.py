@@ -516,7 +516,7 @@ class ILView(ttk.Frame):
         # wholly uncertain run are identical in every other field this
         # view holds, which is what made "IL done." the only thing the
         # interface could say for either.
-        self.llm_report: Dict[str, int] = {}
+        self.llm_report: Dict[str, Any] = {}
         # Wave 8 part 2: how the last run is classified, as data.
         self.outcome: Optional[Outcome] = None
         self.not_screened: bool = False  # F-34: last run had no criteria

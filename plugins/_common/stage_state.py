@@ -93,7 +93,7 @@ class Outcome:
 
 
 def run_outcome(*, stage: str, counts: Mapping[str, int],
-                llm_report: Mapping[str, int], cancelled: bool,
+                llm_report: Mapping[str, Any], cancelled: bool,
                 not_screened: bool, total_rows: int) -> Outcome:
     """Classify a finished run.
 

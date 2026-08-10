@@ -80,7 +80,7 @@ class StandaloneILPlugin(ttk.Frame):
         # wholly uncertain run are identical in every other field this
         # view holds, which is what made "IL done." the only thing the
         # interface could say for either.
-        self.llm_report: Dict[str, int] = {}
+        self.llm_report: Dict[str, Any] = {}
         self.not_screened: bool = False  # F-34: last run had no criteria
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}

@@ -348,8 +348,9 @@ bundle**, as `cache/EL_cache.jsonl` and `cache/IL_cache.jsonl`, which
 is why a bundle handed to a colleague carries its own decisions with
 it. Each line is a JSON object with an opaque `key` and the stored
 `val`; the key is a SHA-256 digest of the fully rendered prompt
-together with the model, temperature and prompt version, so there is
-no per-record identifier in the file to search on.
+together with the model, the resolved endpoint, the temperature and
+the prompt version, so there is no per-record identifier in the file
+to search on.
 
 ## Exporting and final outputs
 
