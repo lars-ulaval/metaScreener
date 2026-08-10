@@ -611,6 +611,114 @@ def parse_numeric_settings(*, batch_raw: Any, trunc_raw: Any,
                            problems=tuple(problems))
 
 
+# ----------------------------
+# Batch size — D6
+# ----------------------------
+
+#: What a keyless (i.e. local) provider gets when nobody has chosen.
+#:
+#: The coordinator's range is 5–10 and this is the bottom of it,
+#: deliberately. The two costs of a smaller batch are more requests and
+#: more wall-clock, and against a local server both are free — there is no
+#: per-request charge and the machine is the user's own. The benefit is a
+#: shorter list for the model to keep track of. When one side of a
+#: trade-off costs nothing, taking the safer end of the stated range is
+#: not a judgement call.
+#:
+#: It also happens to be the value the committed goldens were captured at
+#: (`_invocation: {'batch_size': 5, …}`), which is a coincidence rather
+#: than a reason: the goldens are replayed with an explicit batch size and
+#: nothing here reaches them.
+LOCAL_BATCH_SIZE = 5
+
+#: The range the coordinator specified, kept as data so the constant above
+#: cannot drift outside it without a test noticing.
+LOCAL_BATCH_RANGE = (5, 10)
+
+
+def recommended_batch_size(provider: str) -> Optional[int]:
+    """The batch size to suggest for this provider, or ``None``.
+
+    ``None`` means *no suggestion* — the stage's own module default
+    answers, which for EL and IL is 50. Only a provider this application
+    knows to be a small local model gets a number.
+
+    The question is asked about the provider rather than the endpoint,
+    unlike :func:`key_required_for`, and the asymmetry is deliberate:
+    getting the key gate wrong spends money, so it takes the cautious
+    reading of an ambiguous pair, while getting the batch size wrong
+    costs a slower run. A ``custom`` endpoint may well be a large hosted
+    model, but it may equally be llama.cpp on a laptop, and 5 is the
+    reading that works for both.
+    """
+    return LOCAL_BATCH_SIZE if not key_required(provider) else None
+
+
+def batch_size_tooltip(provider: str) -> str:
+    """Why this number is what it is — beside the number.
+
+    **Three things this wording must not do**, each of which would be
+    false reassurance rather than an explanation:
+
+    1. **It must not read as a safety measure.** Batch size is a
+       *quality* knob. The correctness defect in this neighbourhood was
+       F-86 — a response naming a record from another batch, whose quote
+       then validated against *that* record's text — and it is closed, in
+       the engine, since wave 7. It also fired at ``batch_size = 1``,
+       because the acceptance guard admitted any known ``a_id`` whatever
+       batch it came from. So nothing here may suggest that a smaller
+       batch makes a run *safer*: it does not, and a user who believed it
+       would be trusting the wrong thing.
+    2. **It must not imply the cache is affected.** F-101: the cache key
+       hashes a synthetic **one-item** prompt, so ``batch_size`` is
+       invisible to it. Entries produced at 50 are served to a run at 5
+       and the other way round. That is exactly what a user needs to know
+       before touching this box — otherwise the reasonable fear "will
+       this throw away my cached decisions?" stops them changing it.
+    3. **It must not claim anything about how well a local model
+       screens.** That needs a live measurement and belongs to wave 12.
+       The claim here is narrow and defensible: asking for fewer JSON
+       objects per reply is easier for a small model to keep track of.
+    """
+    suggested = recommended_batch_size(provider)
+    lead = (
+        "How many records go into one request.\n\n"
+        "Each request asks the model for one JSON object per record in a "
+        "single reply, so a batch of 50 asks for fifty at once."
+    )
+
+    if suggested is not None:
+        why = (
+            f"\n\nThis drops to {suggested} for a local model. Small models "
+            f"lose track of a long list well before fifty and start "
+            f"returning fewer objects than they were given. Raise it if "
+            f"yours keeps up — against a server on this machine the only "
+            f"cost of a small batch is more requests, and those are free."
+        )
+    else:
+        why = (
+            "\n\nA hosted model of this class generally keeps track of a "
+            "fifty-item list. This drops to "
+            f"{LOCAL_BATCH_SIZE} when a local provider is selected."
+        )
+
+    honesty = (
+        "\n\nThis is a QUALITY setting, not a correctness one. A smaller "
+        "batch does not make a run safer: the cross-batch substitution "
+        "defect (F-86) fired at a batch size of 1 as readily as at 50, and "
+        "it is closed in the engine rather than by this number."
+    )
+
+    cache = (
+        "\n\nChanging it does not invalidate your cache. The cache key is "
+        "computed from a one-record prompt (F-101), so the batch size is "
+        "invisible to it and cached decisions are reused whatever this "
+        "box says."
+    )
+
+    return lead + why + honesty + cache
+
+
 def tk_state(enabled: bool) -> str:
     """``True``/``False`` to the two strings ``configure(state=…)`` wants.
 

@@ -50,12 +50,14 @@ from plugins._common.bundle import (
 from plugins._common.stage_state import (
     Outcome,
     Readiness,
+    batch_size_tooltip,
     control_states,
     llm_readiness,
     parse_numeric_settings,
     run_outcome,
     tk_state,
 )
+from plugins._common.widgets import Tooltip
 
 from plugins._common.settings import (
     apply_stage_fields,
@@ -700,6 +702,13 @@ class ILView(ttk.Frame):
         self.ent_batch.bind("<Return>", lambda _e: self._stage_fields_edited())
         self.ent_batch.bind("<FocusOut>",
                             lambda _e: self._stage_fields_edited())
+        # D6. The reason lives beside the number. The wording is decided
+        # in stage_state -- pure, and therefore assertable -- because what
+        # it must NOT say is the load-bearing part: batch size is a
+        # quality knob, not a safety one, and changing it does not
+        # invalidate a cache.
+        self.tip_batch = Tooltip(self.ent_batch,
+                                 batch_size_tooltip(self._stored_config().provider))
 
         ttk.Label(settings, text="Trunc chars").grid(row=7, column=0, sticky="w", padx=6, pady=2)
         ttk.Entry(settings, textvariable=self.var_trunc, width=10).grid(row=7, column=1, sticky="w", padx=6, pady=2)
@@ -830,6 +839,13 @@ class ILView(ttk.Frame):
             self.var_model.set(seed.model)
         if seed.batch_size is not None:
             self.var_batch.set(str(seed.batch_size))
+        # D6: the reason beside the number is provider-specific, so a
+        # provider change that left the old wording in place would be a
+        # tooltip explaining a number the box no longer shows.
+        try:
+            self.tip_batch.set_text(batch_size_tooltip(seed.provider))
+        except Exception:
+            pass
         self._refresh_discovery()
         self._refresh_readiness_label()
         self._set_controls_running(False)

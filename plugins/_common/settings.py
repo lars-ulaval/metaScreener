@@ -174,7 +174,19 @@ def defaults() -> Dict[str, Any]:
         "endpoint": "",
         "api_key": "",
         "model": "",
-        "batch_size": 5,
+        # **Not chosen**, not 5. Session A shipped ``5`` here and nothing
+        # read it; session C made the store's batch size live, and the
+        # value would then have silently dropped every stage — including
+        # a stage running against OpenAI — from the module default of 50
+        # to 5, i.e. ten times the requests, with nothing said. Measured
+        # before the change shipped, not after.
+        #
+        # ``None`` means *nobody has chosen*, which lets
+        # ``stage_state.recommended_batch_size`` answer for the provider
+        # (D6) and the stage's own module default answer otherwise. A
+        # concrete number here is a choice this file is not entitled to
+        # make, because it cannot see which provider is selected.
+        "batch_size": None,
         "stages": {},
     }
 
@@ -488,7 +500,13 @@ def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
         endpoint = DEFAULT_OPENAI_ENDPOINT
         endpoint_source = ENDPOINT_FROM_VENDOR_DEFAULT
 
-    batch = effective(settings, stage, "batch_size", None)
+    # D6. When nobody has chosen a batch size, the provider gets to
+    # suggest one — 50 JSON objects in one reply is where small models
+    # lose track. ``None`` still means "no suggestion either", and the
+    # stage's own module default answers.
+    from plugins._common.stage_state import recommended_batch_size
+    batch = effective(settings, stage, "batch_size",
+                      recommended_batch_size(provider))
     try:
         batch = int(batch) if batch is not None else None
     except (TypeError, ValueError):
