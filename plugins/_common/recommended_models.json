@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "Models metaScreener offers to pull when a local server is running with",
+    "nothing installed (D3). This file is DATA, not code, and that is the",
+    "point: putting a model name in a Python constant is the enumeration",
+    "this project keeps removing, and it would mean a new model needs a code",
+    "change and a release.",
+    "",
+    "Edit this file to change what is offered. A copy placed in your settings",
+    "directory - %APPDATA%\\metaScreener\\recommended_models.json on Windows,",
+    "$XDG_CONFIG_HOME/metaScreener/recommended_models.json elsewhere - takes",
+    "precedence over this one and survives reinstalling metaScreener.",
+    "",
+    "size_bytes is what the user is told BEFORE any download starts. It is an",
+    "approximation of the published tag size; the server reports the exact",
+    "figure once a pull begins, and that supersedes this one.",
+    "",
+    "metaScreener makes no claim about how well any of these screens. That",
+    "requires a measurement nobody has taken yet."
+  ],
+  "recommended": [
+    {
+      "name": "qwen2.5:7b-instruct-q4_K_M",
+      "size_bytes": 4700000000,
+      "note": "General-purpose 7B, 4-bit. A reasonable first choice on 8 GB of RAM."
+    },
+    {
+      "name": "llama3.1:8b-instruct-q4_K_M",
+      "size_bytes": 4900000000,
+      "note": "Alternative 8B, 4-bit."
+    },
+    {
+      "name": "qwen2.5:14b-instruct-q4_K_M",
+      "size_bytes": 9000000000,
+      "note": "Larger, slower, needs roughly 16 GB of RAM."
+    }
+  ]
+}

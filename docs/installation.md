@@ -185,36 +185,71 @@ is installing Tkinter (see [Prerequisites](#tkinter) above).
 
 ## Configuration
 
-metaScreener reads configuration from a `.env` file in the project
-root. Copy `.env.example` to `.env` and edit it:
+metaScreener asks which model provider to use the first time it runs, and
+remembers the answer. You do not have to edit any file to get started.
+
+### Where settings are stored
+
+| Platform | Location |
+|---|---|
+| Windows | `%APPDATA%\metaScreener\settings.json` |
+| macOS / Linux | `$XDG_CONFIG_HOME/metaScreener/settings.json`, or `~/.config/metaScreener/settings.json` |
+
+That directory is used rather than the project folder because it survives
+reinstalling, and because the packaged Windows build unpacks itself into a
+temporary directory that is deleted when the application exits — anything
+written beside the executable is lost on close.
+
+The file holds your provider choice, endpoint, model and API key, with an
+optional per-stage override. It is written only by metaScreener; you may
+edit it by hand, and a file that cannot be parsed is reported and left
+alone rather than overwritten.
+
+### Which models are offered for download
+
+When a local server is running with no models installed, metaScreener
+offers to pull one. What it offers is data, not code:
 
 ```text
-OPENAI_API_KEY=sk-...your-key-here...
+plugins/_common/recommended_models.json
 ```
 
-### Optional environment variables
+Edit that file to change the list. A copy placed in your settings
+directory — `recommended_models.json` beside `settings.json` — takes
+precedence and survives reinstalling. Each entry carries a name, an
+approximate size and a note; the size is shown before any download
+starts, and the download can be cancelled at any point.
+
+metaScreener makes no claim about how well any listed model screens. That
+requires a measurement that has not been made.
+
+### `.env` and environment variables
+
+A `.env` file in the project root is still **read** at start-up, and
+environment variables still work, so an existing source-tree setup keeps
+working. Neither is written to any more. A stored provider choice takes
+precedence over `OPENAI_BASE_URL`, so that changing the endpoint in the
+interface is not silently overridden by a leftover shell export.
 
 | Variable           | Default                       | Purpose                                                                                  |
 |--------------------|-------------------------------|------------------------------------------------------------------------------------------|
-| `OPENAI_API_KEY`   | (required for LLM plugins)    | Authentication for the OpenAI-compatible endpoint.                                       |
-| `OPENAI_BASE_URL`  | `https://api.openai.com/v1`   | Override to use an alternative OpenAI-compatible endpoint (Azure OpenAI, local proxy).   |
-| `OPENAI_MODEL`     | `gpt-4o` | Model identifier for **Plugin 01 only** (the experimental reference extractor). The EL and IL screening stages do not read it — see below. |
+| `OPENAI_API_KEY`   | (required for hosted providers) | Authentication. A local server needs none, and metaScreener no longer asks you to invent a placeholder for one. |
+| `OPENAI_BASE_URL`  | `https://api.openai.com/v1`   | Endpoint, when nothing is stored. |
+| `OPENAI_MODEL`     | `gpt-4o` | Model identifier for **Plugin 01 only** (the experimental reference extractor). The EL and IL screening stages do not read it. |
 | `SCREENA_EL_MODEL` | `gpt-4o-mini`                 | Default model for the EL stage. `SCREENA_IL_MODEL` does the same for IL.                 |
-
-The `.env` file is loaded at application start; changes require a
-restart.
 
 ### Per-plugin model selection
 
 Each LLM-using plugin (01, 03, 06, 07) has its own model field in the
 GUI — a free-text box, not a dropdown, so any identifier your endpoint
-accepts is valid and nothing validates the string. Defaults can be
-overridden per run.
+accepts is valid and nothing validates the string.
 
-The selected model is **not** recorded in the bundle's `manifest.json`,
-and neither is the endpoint or the prompt version. If you change model
-mid-review, or run different stages against different models, note it
-yourself — nothing in the archive distinguishes the runs afterwards.
+The model, the resolved endpoint, the temperature, the prompt version,
+the truncation limit and the batch size **are** recorded in the bundle's
+`manifest.json`, once per stage run, in the `provenance` block of the
+run-history entry. Two limits are worth knowing: the record is per run
+rather than per decision, and a bundle whose stage ran more than once
+carries one entry per run.
 
 ## Verifying the installation
 

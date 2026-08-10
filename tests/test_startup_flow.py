@@ -181,3 +181,26 @@ class TestTheKeyGoesToTheStore:
         assert _func(tree, "MetaScreenerApp", "__init__") is not None
         src = MAIN.read_text(encoding="utf-8")
         assert "_load_env_file" in src
+
+
+class TestPluginOneDeclaresItsProvider(object):
+    """D8. Plugin 01 needs OpenAI whatever the screening stages are set to,
+    and the tab must say so rather than failing mid-run.
+
+    The failure it replaces is specific: a user who has chosen a local
+    model reasonably expects the whole application to be free. This tab
+    calls OpenAI directly and is billed, and until now the only way to
+    learn that was to run it.
+    """
+
+    def test_the_banner_names_openai_and_the_cost(self):
+        src = (PROJECT_ROOT / "plugins" / "01_reference_extractor"
+               / "plugin.py").read_text(encoding="utf-8")
+        assert "OpenAI API key" in src
+        assert "billed" in src
+
+    def test_it_says_the_screening_provider_does_not_apply(self):
+        """The specific confusion: 'I chose local, so this is free too.'"""
+        src = (PROJECT_ROOT / "plugins" / "01_reference_extractor"
+               / "plugin.py").read_text(encoding="utf-8")
+        assert "local model" in src

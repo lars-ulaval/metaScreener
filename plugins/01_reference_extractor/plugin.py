@@ -44,7 +44,11 @@ class ReferenceExtractorEmbedded(BasePlugin):
                     "\u26A0 Experimental: extracts visually-present reference "
                     "markers from images.\n"
                     "Does not parse standard PRISMA flow diagrams. "
-                    "Verify all output."
+                    "Verify all output.\n"
+                    "\u26A0 Requires an OpenAI API key. This tab does not use "
+                    "the model provider chosen for screening \u2014 it calls "
+                    "OpenAI directly, and is billed, even when the screening "
+                    "stages are set to a local model."
                 ),
                 background="#FFF3CD",
                 foreground="#856404",

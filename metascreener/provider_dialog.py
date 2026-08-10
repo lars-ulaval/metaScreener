@@ -37,6 +37,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 
+from plugins._common import model_pull as mp
 from plugins._common import provider_detect as pd
 from plugins._common.settings import (
     DEFAULT_LOCAL_ENDPOINT,
@@ -118,6 +119,11 @@ class ProviderDialog(tk.Toplevel):
         self.ent_model = ttk.Entry(frm, textvariable=self.var_model, width=46)
         self.ent_model.grid(row=7, column=1, columnspan=2, sticky="we", **pad)
 
+        self.btn_pull = ttk.Button(frm, text="Download a model…",
+                                   command=self._offer_pull)
+        self.btn_pull.grid(row=4, column=2, sticky="e", **pad)
+        self.btn_pull.grid_remove()
+
         actions = ttk.Frame(frm)
         actions.grid(row=8, column=0, columnspan=3, sticky="e", **pad)
         ttk.Button(actions, text="Not now", command=self._dismiss
@@ -166,6 +172,78 @@ class ProviderDialog(tk.Toplevel):
     def _status_arrived(self, found):
         self._status = found
         self.lbl_status.configure(text=found.detail or "Ready.")
+        # D3: a server that is running with nothing pulled is the one state
+        # where metaScreener can help directly. Offered, never automatic.
+        self.btn_pull.grid_remove()
+        if found.state == pd.NO_MODELS and mp.recommended_models():
+            self.btn_pull.grid()
+
+    def _offer_pull(self):
+        """Offer, then pull — sized before a byte moves, and cancellable.
+
+        The ceremony is deliberate. ``_run_clicked`` elsewhere in this
+        application starts a *billable* operation with no estimate and no
+        confirmation; adding a multi-gigabyte download with less ceremony
+        than that deserves would repeat the mistake in a form the user
+        cannot undo.
+        """
+        from tkinter import messagebox
+
+        models = mp.recommended_models()
+        if not models:
+            return
+        model = models[0]
+        if not messagebox.askyesno("Download a model?",
+                                   mp.offer_text(model), parent=self):
+            return                      # refusable
+
+        self._cancel = threading.Event()
+        win = tk.Toplevel(self)
+        win.title(f"Downloading {model.name}")
+        win.transient(self)
+        ttk.Label(win, text=f"{model.name} — about {model.human_size}",
+                  padding=10).pack(anchor="w")
+        bar = ttk.Progressbar(win, length=380, mode="determinate", maximum=1000)
+        bar.pack(padx=10, pady=6)
+        lbl = ttk.Label(win, text="Starting…", padding=(10, 0))
+        lbl.pack(anchor="w")
+        ttk.Button(win, text="Cancel",
+                   command=self._cancel.set).pack(pady=8)
+        win.protocol("WM_DELETE_WINDOW", self._cancel.set)
+
+        def _progress(p):
+            def _apply():
+                if not win.winfo_exists():
+                    return
+                bar["value"] = int(p.fraction * 1000)
+                shown = f"{p.status} — {p.fraction * 100:.0f}%" if p.total \
+                    else p.status
+                lbl.configure(text=shown)
+            self.after(0, _apply)
+
+        def _work():
+            result = mp.pull(self.var_endpoint.get().strip(), model.name,
+                             on_progress=_progress, cancel=self._cancel)
+            self.after(0, lambda: self._pull_finished(win, model, result))
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _pull_finished(self, win, model, result):
+        from tkinter import messagebox
+
+        try:
+            win.destroy()
+        except Exception:
+            pass
+        if result.cancelled:
+            self.lbl_status.configure(text="Download cancelled. Nothing kept.")
+        elif result.ok:
+            self.var_model.set(model.name)
+            self._probe()
+        else:
+            messagebox.showwarning("Download failed", result.error,
+                                   parent=self)
+        self._probe()
 
     def _accept(self):
         provider = self.var_provider.get()
