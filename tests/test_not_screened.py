@@ -166,7 +166,8 @@ class TestELILZeroCriteria:
         """The exact shape recorded in the finding: 85 records, no criteria,
         counts {'OUT': 0, 'PASS_CLEAN': 85, ...}, survivors 85 of 85."""
         mod = getter()
-        full, surv, counts, _imp, _ev, _cache, _c = self._run(mod, stage, [])
+        (full, surv, counts, _imp, _ev, _cache, _c,
+         _report) = self._run(mod, stage, [])
         sl = stage.lower()
 
         assert counts["PASS_CLEAN"] == 0, (
@@ -364,7 +365,7 @@ def test_one_blank_type_cell_cannot_silently_empty_a_stage(getter, stage):
         header=["local_id", "title", "abstract", "keywords"],
         rows=_rows(85), skipped=[])
     run = mod.run_el_screen if stage == "EL" else mod.run_il_screen
-    _full, _surv, counts, _imp, _ev, _cache, _c = run(
+    (_full, _surv, counts, _imp, _ev, _cache, _c, _report) = run(
         parse, report, model="gpt-4o-mini", trunc_chars=1500, batch_size=5,
         use_cache=False, cache_in={}, cancel_event=threading.Event())
 

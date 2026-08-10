@@ -125,7 +125,8 @@ def _run(mod, stage, monkeypatch, behaviour, *, rows=None, cache_in=None,
     monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
     monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
     run = mod.run_el_screen if stage == "EL" else mod.run_il_screen
-    full_rows, _surv, counts, _imp, _ev, cache_out, cancelled = run(
+    (full_rows, _surv, counts, _imp, _ev, cache_out, cancelled,
+     _report) = run(
         _parse(mod, rows if rows is not None else _rows()),
         mod.CriteriaLoadReport(criteria=[_criterion(mod, stage)], warnings=[]),
         model="gpt-4o-mini", trunc_chars=1500, batch_size=batch_size,

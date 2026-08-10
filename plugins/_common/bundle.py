@@ -492,6 +492,8 @@ def _write_llm_stage_bundle(
     cache_text: Optional[str] = None,
     extra_members: Optional[Dict[str, bytes]] = None,
     not_screened: bool = False,
+    cancelled: bool = False,
+    llm_report: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, bytes]:
     """Write the next-stage bundle for an LLM stage (EL or IL).
 
@@ -549,7 +551,19 @@ def _write_llm_stage_bundle(
     pipeline = dict(manifest.get("pipeline", {}) or {})
     stages = dict(pipeline.get("stages", {}) or {})
     history = list(pipeline.get("history", []) or [])
-    marker = "not_screened" if not_screened else "done"
+    # Wave 8. `cancelled` used to be hard-coded False in the history entry
+    # below, and the stage marker knew only "done" and "not_screened" — so a
+    # truncated corpus written through this path claimed to be a completed
+    # stage. ``_export_next_bundle_zip`` has taken a real `cancelled` since
+    # F-02 and marks the stage `cancelled`; this is the same rule for the LLM
+    # stages, and the ordering matches: cancellation dominates, because a run
+    # that stopped early tells you nothing about what it would have screened.
+    if cancelled:
+        marker = "cancelled"
+    elif not_screened:
+        marker = "not_screened"
+    else:
+        marker = "done"
     stages[stage] = marker
 
     # A bundle carries two stage maps, `pipeline.stages` and
@@ -568,15 +582,29 @@ def _write_llm_stage_bundle(
         pipeline_state["stages"] = ps_stages
         manifest["pipeline_state"] = pipeline_state
 
-    history.append({
+    entry: Dict[str, Any] = {
         "stage": stage,
         "ran_at": _iso_now(),
         "counts": dict(counts or {}),
         "survivors_rows": len(survivors),
         "out_rows_full": len(full_rows),
-        "cancelled": False,
+        "cancelled": bool(cancelled),
         "not_screened": bool(not_screened),
-    })
+    }
+    # Wave 8, the run-level failure report. Without it, a wholly failed run
+    # and a wholly uncertain run are identical in every field this entry
+    # records: same counts, same survivor count, not_screened False,
+    # cancelled False. `counts` cannot carry it — that is the *outcome*
+    # histogram, and a call-failure is not an outcome; it is also asserted by
+    # exact dict equality in tests/test_archived_bundle_manifest.py, which is
+    # the right constraint for a histogram to have.
+    #
+    # Omitted entirely when the caller has none, rather than written as
+    # zeroes: a stage that did not measure must not claim it measured
+    # nothing. EH/IH go through a different writer and never supply one.
+    if llm_report:
+        entry["llm"] = dict(llm_report)
+    history.append(entry)
     pipeline["stages"] = stages
     pipeline["history"] = history
     manifest["pipeline"] = pipeline

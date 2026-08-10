@@ -148,7 +148,10 @@ class TestELILReportCancellation:
     def test_complete_run_is_not_flagged(self, getter, stage):
         mod = getter()
         parse, report, run = self._setup(mod, stage)
-        *_, cancelled = run(
+        # Wave 8: the engine tuple gained a run report. A star-unpack
+        # would bind it to `cancelled` and fail confusingly, so the two
+        # trailing names are spelled out.
+        *_, cancelled, _report = run(
             parse, report, model="gpt-4o-mini", trunc_chars=1500,
             batch_size=5, use_cache=False, cache_in={},
             cancel_event=threading.Event(),
@@ -160,7 +163,8 @@ class TestELILReportCancellation:
     def test_cancelled_run_is_flagged(self, getter, stage):
         mod = getter()
         parse, report, run = self._setup(mod, stage)
-        full_rows, _surv, _counts, _imp, _ev, _cache, cancelled = run(
+        (full_rows, _surv, _counts, _imp, _ev, _cache, cancelled,
+         _report) = run(
             parse, report, model="gpt-4o-mini", trunc_chars=1500,
             batch_size=5, use_cache=False, cache_in={},
             cancel_event=_TripEvent(after=0),

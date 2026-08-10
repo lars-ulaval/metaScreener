@@ -368,7 +368,8 @@ def _run_el(mod, monkeypatch, script, *, cache_in, batch_size=3):
     client = _ScriptedClient(script)
     monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
     monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
-    full_rows, survivors, counts, _imp, _ev, cache_out, cancelled = \
+    (full_rows, survivors, counts, _imp, _ev, cache_out, cancelled,
+     _report) = \
         mod.run_el_screen(
             _el_parse(mod), mod.CriteriaLoadReport(
                 criteria=[_el_criterion(mod)], warnings=[]),

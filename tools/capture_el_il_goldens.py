@@ -194,7 +194,8 @@ def _capture_el(el, el_input_header: List[str],
     print(f"[EL]   loaded {len(el_crits.criteria)} EL criteria")
 
     print("[EL] Running run_el_screen (live API calls)...")
-    full_rows, _surv, counts, _impacts, _evals, cache_out, _cancelled = el.run_el_screen(
+    (full_rows, _surv, counts, _impacts, _evals, cache_out,
+     _cancelled, _report) = el.run_el_screen(
         parse, el_crits,
         model=MODEL,
         trunc_chars=TRUNC_CHARS,
@@ -264,7 +265,8 @@ def _capture_il(il, il_input_header: List[str],
     print(f"[IL]   loaded {len(il_crits.criteria)} IL criteria")
 
     print("[IL] Running run_il_screen (live API calls)...")
-    full_rows, _surv, counts, _impacts, _evals, cache_out, _cancelled = il.run_il_screen(
+    (full_rows, _surv, counts, _impacts, _evals, cache_out,
+     _cancelled, _report) = il.run_il_screen(
         parse, il_crits,
         model=MODEL,
         trunc_chars=TRUNC_CHARS,

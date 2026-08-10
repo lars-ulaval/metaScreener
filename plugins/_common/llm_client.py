@@ -409,6 +409,40 @@ def _normalize_decision(raw: Any) -> Optional[str]:
     return s if s in set(DECISION_VOCABULARY) else None
 
 
+def new_llm_call_stats() -> Dict[str, int]:
+    """A fresh tally of the call-level facts that leave no record behind.
+
+    The counterpart to :func:`summarize_llm_evidence`, and the reason the
+    two exist separately. A batch that is refused as oversize, halved, and
+    then answered ends with every record carrying a good verdict — the
+    failure is *invisible* in the evidence map, so "how many calls raised"
+    cannot be derived from the records and has to be counted where it
+    happens. Everything that *can* be derived, is.
+
+    ``calls_made``
+        invocations of ``_call_once``. **Not** the number of HTTP requests:
+        the SDK defaults to ``max_retries=2`` beneath this layer, so the
+        wire count can be up to three times this (F-25).
+    ``calls_failed``
+        invocations that raised, whether or not the batch was later
+        salvaged.
+    ``batches_failed``
+        batches that ended in the terminal arm with no verdict.
+
+    Passed in by the caller and mutated, rather than returned:
+    ``run_m1_llm_for_criterion``'s return type is pinned as a plain mapping
+    by fourteen existing tests — one of which asserts ``out == {}`` — and a
+    tuple return would break all of them for a secondary channel. It also
+    lets one dict accumulate across every criterion of a stage.
+    """
+    return {"calls_made": 0, "calls_failed": 0, "batches_failed": 0}
+
+
+def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
+    if stats is not None:
+        stats[key] = int(stats.get(key, 0)) + 1
+
+
 def summarize_llm_evidence(
         evidence: Optional[Dict[Tuple[str, str], Dict[str, Any]]]
 ) -> Dict[str, int]:
@@ -518,6 +552,7 @@ def run_m1_llm_for_criterion(
     crit_total: Optional[int] = None,
     block_tag: str = "exclude",
     temperature: float = 0.0,
+    stats: Optional[Dict[str, int]] = None,
 ) -> Dict[Tuple[str, str], Dict[str, Any]]:
     """
     Returns (a_id, criterion_id) -> llm_decision_dict (used/decision/confidence/field/quote/span/valid_quote).
@@ -565,6 +600,10 @@ def run_m1_llm_for_criterion(
 
     def _call_once(batch: List[Dict[str, Any]], cur_trunc: int):
         msgs = build_messages(criterion, batch, cur_trunc)
+        # Counted here rather than at the call site so that every attempt is
+        # counted once, including the ones a later salvage makes invisible in
+        # the evidence map. See new_llm_call_stats.
+        _bump(stats, "calls_made")
         return client.chat.completions.create(
             model=model,
             messages=msgs,
@@ -778,6 +817,7 @@ def run_m1_llm_for_criterion(
                     # needs them. Type first, HTTP status second, message
                     # only as a labelled last resort.
                     err_class, err_how = _classify_llm_error(e)
+                    _bump(stats, "calls_failed")
 
                     # Only these two have a remedy here. `bad_request`,
                     # `auth`, `not_found` and `transport` are terminal for
@@ -828,6 +868,7 @@ def run_m1_llm_for_criterion(
                         continue
 
                     # final failure for this batch: mark all items in THIS cur_batch as uncertain
+                    _bump(stats, "batches_failed")
                     if log:
                         log(f"{log_prefix} batch {bi+1}/{len(batches)} failed "
                             f"[{err_class}, by {err_how}]: {e}\n")

@@ -500,6 +500,13 @@ class ILView(ttk.Frame):
 
         self.full_rows: List[Dict[str, Any]] = []
         self.cancelled: bool = False   # F-02: last run stopped mid-corpus
+        # Wave 8: what the last run learned, and what it failed to learn.
+        # Derived by the engine from the evidence its decisions were made
+        # from; empty until a run completes. A wholly failed run and a
+        # wholly uncertain run are identical in every other field this
+        # view holds, which is what made "IL done." the only thing the
+        # interface could say for either.
+        self.llm_report: Dict[str, int] = {}
         self.not_screened: bool = False  # F-34: last run had no criteria
         self.survivors: List[Dict[str, str]] = []
         self.counts: Dict[str, int] = {}
@@ -725,6 +732,7 @@ class ILView(ttk.Frame):
         self.full_rows = []
         self.cancelled = False
         self.not_screened = False
+        self.llm_report = {}
         self.survivors = []
         self.counts = {}
         self.crit_impacts = {}
@@ -1080,7 +1088,9 @@ class ILView(ttk.Frame):
 
         def work():
             try:
-                full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled = run_il_screen(
+                (full_rows, survivors, counts, crit_impacts,
+                 row_eval_lists, cache_out, cancelled,
+                 run_report) = run_il_screen(
                     self.bundle.parse,
                     self.bundle.criteria,
                     model=model,
@@ -1094,6 +1104,8 @@ class ILView(ttk.Frame):
                     progress_cb=progress_cb,
                     progress_evt=progress_evt,
                 )
+
+                self.llm_report = run_report
 
                 if cancelled:
                     # F-02: the engine reports that it stopped mid-corpus.
@@ -1330,6 +1342,8 @@ class ILView(ttk.Frame):
                 skipped=self.bundle.parse.skipped,
                 counts=self.counts,
                 not_screened=self.not_screened,
+                cancelled=self.cancelled,
+                llm_report=self.llm_report,
                 cache_text=(_dump_cache_to_jsonl(self.cache_map)
                             if self.var_use_cache.get() else None),
                 extra_members={

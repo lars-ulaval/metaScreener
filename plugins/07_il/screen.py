@@ -59,6 +59,8 @@ from plugins._common.llm_client import (
     _make_item_for_llm,
     _row_target_text_hash,
     _is_cacheable_evidence,
+    new_llm_call_stats,
+    summarize_llm_evidence,
     _load_cache_from_jsonl,
     _dump_cache_to_jsonl,
     _render_prompt_for_key,
@@ -449,7 +451,30 @@ def run_il_screen(
     List[Dict[str, List[str]]], # row_eval_lists (aligned with full_rows)
     Dict[str, Dict[str, Any]],  # cache_out
     bool,                       # cancelled (F-02)
+    Dict[str, int],             # run report (wave 8)
 ]:
+    """...
+
+    The eighth element is the **run report**: what the stage learned, and
+    what it failed to learn. Before it, a wholly failed run and a wholly
+    uncertain run were indistinguishable to every caller — identical
+    ``counts``, identical survivors, ``cancelled: False``, ``not_screened:
+    False`` — so the UI could only say "IL done." for both and the manifest
+    could only record the same history entry for both.
+
+    Its record-level keys are **derived** by
+    ``plugins/_common/llm_client.py::summarize_llm_evidence`` from
+    ``llm_results``, the same evidence map the row loop below makes its
+    decisions from, so the report cannot disagree with the output it
+    describes. Its call-level keys are counted at the call, because a call
+    that raised and was then salvaged leaves no record. See
+    ``new_llm_call_stats`` for why the split is drawn there.
+
+    A dict rather than more tuple positions: later waves add provenance
+    (F-88, F-135) to the same history entry, and a key is cheaper to add
+    than a position — and safer, since a positional append is exactly what
+    silently rebinds an existing unpack.
+    """
     rows = parse.rows
     crits = [c for c in criteria_report.criteria if c.enabled]
     counts = {k: 0 for k in OUTCOMES}
@@ -461,6 +486,16 @@ def run_il_screen(
 
     cache_out: Dict[str, Dict[str, Any]] = dict(cache_in or {})
     cancelled = False
+
+    # Wave 8. One tally threaded through every criterion's calls; the
+    # record-level half of the report is derived from llm_results at the end
+    # rather than accumulated here.
+    call_stats: Dict[str, int] = new_llm_call_stats()
+
+    def _run_report(evidence: Dict[Tuple[str, str], Dict[str, Any]]) -> Dict[str, int]:
+        report = dict(summarize_llm_evidence(evidence))
+        report.update(call_stats)
+        return report
 
     if not crits:
         for r in rows:
@@ -489,7 +524,7 @@ def run_il_screen(
         counts[NOT_SCREENED] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
-        return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled
+        return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled, _run_report({})
 
     # Build items for LLM (same base shape as legacy), but robust to header casing
     header_map: Dict[str, str] = {h.lower(): h for h in (parse.header or [])}
@@ -622,6 +657,7 @@ def run_il_screen(
                 crit_total=len(crits),
                 block_tag="exclude",
                 temperature=temperature,
+                stats=call_stats,
             )
             # merge + write to cache
             for (a_id, cid), ev in res.items():
@@ -759,7 +795,7 @@ def run_il_screen(
     if progress_cb:
         progress_cb(1.0)
 
-    return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled
+    return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled, _run_report(llm_results)
 
 def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str], uncertain: List[str]) -> str:
     if outcome == "OUT":
