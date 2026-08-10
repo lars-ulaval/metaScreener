@@ -324,13 +324,14 @@ register's older deferred HOs were not chased.
 | | Passed | Skipped |
 |---|---:|---:|
 | Step 0 | 794 | 5 |
-| Session A close | **858** | 7 |
+| Session A close | **869** | 7 |
 
-**Delta +64 passed, +2 skipped, all new; no test deleted, two suites translated:**
+**Delta +75 passed, +2 skipped, all new; no test deleted, two suites translated:**
 
 - +22 `tests/test_settings_store.py` (2 of them skipped on Windows — POSIX
   permissions and symlink privileges)
-- +22 `tests/test_provider_readiness.py`
+- +33 `tests/test_provider_readiness.py` (22 for the predicate, 11 more pinning
+  the five regressions of §10)
 - +18 `tests/test_provider_detect.py`
 - +4 across `tests/test_{el,il}_regression.py`
 - `tests/test_llm_readiness.py` and `tests/test_stage_state.py` translated to the
@@ -350,8 +351,11 @@ predicate that understands providers, and detection that tells three failures ap
 The one user-visible change is documentation: `docs/installation.md`'s smoke test
 can now be followed.
 
-**Everything still requires an OpenAI key**, because nothing yet reads the store at
-launch. That is session B.
+**Everything still requires an OpenAI key.** Not, as an earlier draft of this
+section claimed, "because nothing yet reads the store at launch" — that was false
+the moment the readiness call sites began reading it, and the review pass caught
+it (§10.1). It is true because the shipped provider is `UNCHOSEN` until something
+writes a real choice, which is session B's job.
 
 ### 9.5 Bookkeeping slip, recorded
 
@@ -380,6 +384,95 @@ wave-10 figures unchanged.
 
 ---
 
-## 10. Sessions B and C
+## 10. The review pass
+
+Refute-first, three lenses — the settings writer, the predicate change, detection.
+**19 findings raised; four real and fixed in `7317675`; one further regression I
+caught myself before the reviewers reported (`a17d3b8`).** Five real defects in a
+session of five commits, all of them introduced by this session, which is the
+pattern waves 9 and 10 both showed and the reason the pass is mandatory.
+
+### 10.1 An unconfigured install was silently "local", and still billed
+
+The worst of the wave so far, and worse than the one I caught.
+
+`defaults()` shipped `provider="local"`, reasoning that D1 preselects local. **D1
+preselects it *in the popup*; it is not the effective configuration before the
+popup exists.** Because `key_required("local")` is `False`, a fresh install waived
+the key gate at every layer — while nothing read `settings["endpoint"]`, so the
+request still went to `resolve_openai_base_url()`. Verified by execution, not
+argument:
+
+```
+store provider    : local
+store endpoint    : http://localhost:11434/v1
+resolved endpoint : https://api.openai.com/v1
+credential sent   : 'local'
+engine gate open  : True
+```
+
+So a run the store called *local* went to the paid vendor with the literal string
+`"local"` as the credential — or, since the launch modal cannot be dismissed
+without a key, **with the user's real key, billing their account for a run
+labelled local.** Before this session that user was correctly blocked at `NO_KEY`.
+
+Fixed in two halves: the provider is `UNCHOSEN` until something writes a choice,
+and `resolve_openai_base_url()` now actually reads the stored endpoint — store
+first, ahead of the environment, because a stale `OPENAI_BASE_URL` beating a GUI
+choice would make the control the user just operated do nothing, which is F-91's
+family of defect. An unconfigured install reduces to exactly the previous
+expression, which is what keeps the golden replays valid.
+
+**This also falsified §9.4 of this brief**, which asserted the opposite. Corrected
+rather than quietly amended: a wrap-up that misdescribes the code is the same
+class of failure as the code.
+
+### 10.2 A corrupt settings file deleted both screening tabs
+
+`load_settings` raises on an unparseable file, and the EL/IL readiness call runs
+inside `_build_ui` — where `main.py::resolve_plugin_entrypoint` swallows every
+exception into a `print()`. A JSON typo therefore removed the EL and IL tabs with
+no message at all, and in the windowed onefile build stdout goes nowhere. Readiness
+now degrades to unconfigured, which blocks the run for a stated reason rather than
+deleting the stage.
+
+### 10.3 The container was validated and its entries were not
+
+`load_settings` checked that `stages` was a dict and not that its entries were, so
+a structurally wrong file passed the documented gate and crashed later with an
+unrelated exception type instead of `SettingsUnreadableError`. A non-string
+`provider` raised `AttributeError` inside `key_required` on the same construction
+path as §10.2.
+
+### 10.4 The harmoniser's client ignored everything this wave built
+
+`_call_openai_json` still constructed a bare `OpenAI()` — no key, no base URL. Once
+`_llm_available` admitted a keyless local provider, the predicate said yes for
+exactly the configuration that constructor cannot build for: the button went live
+and the call failed into an `except` that falls through to the removed 0.x API. It
+also meant the harmoniser ignored the endpoint EL and IL honour. One client builder
+now serves all three.
+
+### 10.5 The regression I caught before the pass reported (`a17d3b8`)
+
+Making `llm_readiness` provider-aware without moving the engine's own gate left the
+two disagreeing: readiness said ready for a local provider with no key, and
+`run_m1_llm_for_criterion` returned `{}` for every criterion. Run button live, every
+record unscreened, status line "done" — **F-93's harm shape by another route.**
+Pinned by an invariant over three providers × three key states rather than by
+testing each side separately.
+
+### 10.6 What the pass got wrong
+
+Fifteen of the nineteen did not survive. They are not enumerated here; the pattern
+worth recording is that the three lenses each over-reported on hypotheticals about
+`urlopen` behaviour and socket reuse that the code already handles or that no
+supported configuration reaches. The four that landed were all found by *running*
+the code rather than reading it — which is the lesson: for a defect about what a
+configuration actually does, execution beats inspection.
+
+---
+
+## 11. Sessions B and C
 
 *Pending.*
