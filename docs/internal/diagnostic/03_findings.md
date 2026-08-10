@@ -4,7 +4,7 @@
 
 > **This register is live and has been amended by every wave since.** The line above
 > describes the analysis that produced rows F-01..F-55 on 2026-08-08, not the state of
-> the register today. **51 of the 138 rows are closed, and each closed row names the
+> the register today. **51 of the 139 rows are closed, and each closed row names the
 > commit that closed it** — wave 6b established that evidence from the repository, and
 > wave 7 closed the last open Critical. A row's
 > status is the marker in its **Effort** cell; see *"How this register is counted, and
@@ -165,10 +165,11 @@ Effort: **XS** ≤ 30 min · **S** ≤ half a day · **M** 1–3 days · **L** >
 | **F-139** | **High** | correctness / data loss | **`_save_env_key` replaces the entire `.env` with a single line when the read fails.** `lines = []` is the failure value for the read, and the write that follows is unconditional — so a `.env` that exists but cannot be read is not preserved, it is overwritten. | `metascreener/main.py::_save_env_key` — `except Exception: lines = []` followed by an unguarded `env_path.write_text("\n".join(lines) + "\n")`. **Reproduced:** a `.env` holding `OPENAI_BASE_URL`, `SCREENA_EL_MODEL` and `OPENAI_API_KEY` became `OPENAI_API_KEY=sk-new` alone when the read raised. Triggers are a lock, a permission error, or any content `read_text(encoding="utf-8")` cannot decode — the last reachable from `metascreener/main.py::_load_env_file`, which swallows the identical decode error, so the user first sees a `.env` that silently loads as empty and then loses it entirely on the next Save. | Silent loss of the user's **only** persisted configuration (F-116: no settings file, no registry use, no config parser exists anywhere), and `OPENAI_BASE_URL` — the variable the whole documented local-provider workflow depends on — is in the blast radius. The `except` that makes the read non-fatal is precisely what makes the write destructive; the two were written as one defensive gesture. **High rather than Critical** on F-104's reasoning: what is lost is retypeable configuration, not scientific records. **Blocks waves 9–12 as a prerequisite rather than a companion** — every one of them makes `.env` carry more, so the value of the file rises while nothing guards it. | Do not write when the read failed: distinguish "absent" from "unreadable" and refuse the second, surfacing it rather than swallowing it. The same `except Exception: pass` around the write also makes a failed persist indistinguishable from a successful one, which is the concrete mechanism behind F-116's complaint. Cross-ref F-116 (`.env` is the only persistence lever), F-91 (`OPENAI_BASE_URL` has no GUI surface, so this file is the only place it can live), F-127, F-129. | XS |
 | **F-140** | **Low** | correctness | **The key dialog validates one string and stores another.** `_on_save` sanitizes the entry once and hands the result to `validate_api_key`, which sanitizes it *again* internally; `sanitize_api_key` is not idempotent, because it strips whitespace before quotes and never re-strips. The accept/reject decision is therefore taken on a string the application then does not use. | `metascreener/api_key_dialog.py::ApiKeyDialog._on_save` versus `::validate_api_key`, both calling `::sanitize_api_key`. **Measured:** entry `'" x "'` is validated as `'x'` and stored as `' x '`; `self.value` then reaches `os.environ["OPENAI_API_KEY"]` and, with "Remember" ticked, `.env` — so the key sent to the endpoint carries whitespace the validator never saw. | Narrow, but on the axis this project keeps being bitten on: the value checked is not the value used. A padded key is refused by the endpoint with a 401, which today surfaces as a terminal batch failure and a full corpus of manufactured non-answers (F-93), pointing the user at everything except the space. **The reverse route does not exist, and establishing that is half this row's value:** no accepted value can be whitespace-only, because `sanitize` of all-whitespace is empty — which is why F-111's "can only ever render `✓`" claim is *correct*, and this row is the record that it was checked rather than assumed. | Sanitize once, at the boundary, and validate and store the same string. Cross-ref F-117 (two divergent key predicates — this is the third), F-111 (the claim this row verifies), F-08 (closed — the fix that made the dialog permissive in the first place). | XS |
 | **F-141** | **High** | documentation / process | **Wave 7's three closures never reached `CHANGELOG.md`, and one of them is the register's last Critical.** F-86, F-87 and F-104 are annotated in their rows and written up in the wave brief, and appear in no user-facing document at all. | `CHANGELOG.md` `[Unreleased]` — searching it for `F-86`, `F-87` or `F-104` returns nothing, while the same section carries a hand-written **"If you produced results with an earlier version, read this first"** enumeration whose entire purpose is this class of disclosure, ordered by how likely each defect was to change which records were included or excluded. Neither `docs/internal/FIX_WAVE_7_CACHE.md` nor `FIX_WAVE_6_REGISTER.md` mentions the changelog, so the omission is a lapsed convention rather than a decision: `d3ff0c4` (waves 0–2) and `6bd952a` (wave 4a) are the commits that established it. | F-86 could **remove a record from a systematic review on evidence belonging to a different record**, and reproduce that removal offline for ever from the poisoned cache. A user who ran metaScreener before `3f37f17` has no way to learn this: the register and the wave briefs are internal documents under `docs/internal/`, and the changelog is the only place the project speaks to a past user about results they have already produced. **This is the exact inverse of the bookkeeping failure recorded in § "How this register is counted", item 3:** waves 0–2 closed their findings in the changelog and never wrote them back to the rows, and wave 6b spent a whole pass repairing that; wave 7 wrote the rows and never wrote the changelog. The two halves have now failed in both directions, which is what makes this a process row and not just three missing bullets. **High**, on the register's own bar — it blocks a past user from re-checking their own screening output, which is peer review in the sense that bar means. Not Critical: the defects themselves are fixed, and what is missing is the disclosure. | Add all three to `[Unreleased]`: F-86 belongs in the "read this first" list with an explicit re-check condition, F-87 and F-104 in `### Fixed`. Then make the changelog entry part of a wave's close-out checklist, next to the register annotation, so the convention stops depending on whether a brief happens to name it. **Deliberately opened rather than fixed in wave 8:** the wording of a disclosure about fabricated exclusions in already-published reviews is the coordinator's call, not a mechanical edit, and this wave's brief does not scope `CHANGELOG.md`. Cross-ref F-131 (the same hand-maintained-bookkeeping shape, one document over), F-86, F-87, F-104 (all closed), F-30, F-123. | S |
+| **F-142** | **High** | correctness / provenance | **A cache entry poisoned before `3f37f17` is still served after it, under a legitimate key, and nothing can tell it apart from a clean one.** F-86's fix prevents new substitution; it does not touch entries already written, and it left `::_cache_key` untouched — so a fabricated verdict cached before the fix matches on every later run. The cache value records nothing about the code that produced it. | **Verified in wave 8 part 2.** `git show 3f37f17 -- plugins/_common/llm_client.py` contains **zero** occurrences of `_cache_key`, so the key is unchanged across the fix. `plugins/_common/llm_client.py::_dump_cache_to_jsonl` writes `{"key": k, "val": v}` per line with no version, engine, commit or timestamp field, and the 170 values in `tests/golden/el_cache_v3.1.0.json` carry exactly seven keys — `decision`, `confidence`, `field`, `quote`, `span`, `valid_quote`, `used`. The `_invocation` envelope (`batch_size`, `model`, `trunc_chars`) exists **only in the golden capture format, not in the shipped `.jsonl`**, and even it records no code version — F-96's "a field inside a test fixture" again. That `cache_in` is deliberately not sanitised is recorded in F-87's fix cell and in `::_is_cacheable_evidence`'s docstring: dropping a user's accumulated cache would be its own data loss and would move the goldens. | **F-86's consequence survives F-86's fix, for every bundle that predates it.** A run over such a bundle replays the fabricated exclusion at **0 API calls**, and the log reports a normal `cache_hits=N` — the same signature as a correct, cheap re-run. Neither the user nor the application can partition caches into affected and clean, so the only safe remedy is to distrust every pre-fix cache; the only way to apply it is to untick "Use cache", which until `bb9671b` *deleted* the cache instead (F-104). **Filed High rather than Critical, and the case for Critical is available and should be read:** the consequence is a fabricated exclusion in a systematic review, which is exactly what made F-86 Critical, and the path is live at HEAD. Held at High because the code is correct, the affected population is fixed and shrinking rather than growing, and a zero-cost remedy exists once known — it is *undiscoverable*, not unavailable. What would settle the severity is evidence that a real bundle contains a poisoned entry, which is precisely what wave 7's Q2 could not decide for `A452`. | Stamp an engine or cache-schema version into the value at write time and treat an entry without one as untrusted; then either refuse to serve untrusted entries or offer to drop them, with the count on the log line that already reports cache hits (F-33). **Sequencing note, and it matters:** F-89's fix is an *incidental* remedy — hashing the endpoint changes every key, stranding every pre-fix entry including the poisoned ones — so if F-89 lands first this row reduces to the audit question alone, and doing them the other way round wastes the work. **Scheduled for wave 9.** Cross-ref F-86 (closed — the defect whose residue this is), F-88 (**which model**, not **which code**; a bundle can satisfy either without the other, at both of F-88's tiers), F-89 (the incidental remedy), F-135 (which *call*, and the reason Q2 was undecidable), F-87, F-104, F-33, F-103. | S (scheduled) |
 
 ### Totals
 
-*A **derived snapshot**, computed from the table above at wave 8, part 1 (`d82470e`). It is
+*A **derived snapshot**, computed from the table above at wave 8, part 2. It is
 not a separate record: the status of a row is the marker in its **Effort** cell and nothing
 else, so these figures can be regenerated and must be regenerated whenever rows are added or
 closed. See "How this register is counted" below for the derivation and the command.*
@@ -176,28 +177,29 @@ closed. See "How this register is counted" below for the derivation and the comm
 | Severity | Total | Closed | **Open** | — of which unscheduled | scheduled | backlog | parked |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | **Critical** | 4 | 4 | **0** | 0 | 0 | 0 | 0 |
-| **High** | 38 | 20 | **18** | 18 | 0 | 0 | 0 |
+| **High** | 39 | 20 | **19** | 18 | 1 | 0 | 0 |
 | **Medium** | 62 | 15 | **47** | 43 | 2 | 2 | 0 |
 | **Low** | 34 | 12 | **22** | 17 | 0 | 3 | 2 |
-| **Total** | **138** | **51** | **87** | 78 | 2 | 5 | 2 |
+| **Total** | **139** | **51** | **88** | 78 | 3 | 5 | 2 |
 
 **There are no open Criticals.** F-86, the last of the four, was closed in wave 7
 (`3f37f17`); F-01, F-02 and F-03 were closed in wave 2 and read as open until wave 6b
 annotated them.
 
 **Count by category** (by the first-named category where a row carries a compound label),
-same derivation, all statuses: correctness 58 · hygiene 21 · documentation 20 · testing 14 ·
+same derivation, all statuses: correctness 59 · hygiene 21 · documentation 20 · testing 14 ·
 architecture 7 · packaging 5 · GUI-first 2 · duplication 2 · process 2 ·
 scientific integrity 2 · provenance 2 · reproducibility 1 · robustness 1 ·
-scientific validity 1 — **138**.
+scientific validity 1 — **139**.
 
 *Provenance of the rows: F-01..F-55 and F-59..F-66 from the original diagnostic; F-67..F-82
 from `05_report_production.md` in wave 4; F-83..F-85 in wave 5; F-86..F-130 from
 `06_llm_integration.md` §B9 in wave 6, where four further candidates were merged into F-12,
 F-22, F-25, F-63 and F-64 rather than added; F-131..F-132 in wave 6b; F-133 in wave 7;
-F-134..F-141 in wave 8. Of the wave-8 eight, two were commissioned by the wave brief
-(F-134, F-135) and six were found while working it (F-136..F-141) — the brief's standing
-instruction is to open a row and move on rather than widen the wave.*
+F-134..F-142 in wave 8. Of the wave-8 nine, three were commissioned by the wave brief
+(F-134, F-135 in part 1; F-142 in part 2) and six were found while working it
+(F-136..F-141) — the brief's standing instruction is to open a row and move on rather than
+widen the wave.*
 
 *Wave 6 introduced six category labels the earlier diagnostics had no occasion to use —
 provenance, reproducibility, scientific integrity, scientific validity, GUI-first and process.
@@ -213,7 +215,7 @@ the LLM diagnostic found defects on axes the first five diagnostics never examin
 
 **1. Count rows, not the maximum ID.** The two are not equal and never will be: the
 register contains a permanent gap at **F-56, F-57, F-58**. At wave-8 part 1 there are
-**138 rows** running F-01..F-141. A count taken from the highest ID overstates by three.
+**139 rows** running F-01..F-142. A count taken from the highest ID overstates by three.
 
 The gap is not an accident and must not be backfilled. All three IDs were assigned to
 real findings and consumed **outside this register**, in commits whose messages open with
@@ -241,7 +243,7 @@ closed:
 | Marker | Meaning |
 |---|---|
 | `(done)` | Closed. The fix cell names the commit(s). |
-| `(scheduled)` | A named future wave owns it: **F-79** (wave 4b) and **F-135** (wave 9). |
+| `(scheduled)` | A named future wave owns it: **F-79** (wave 4b), **F-135** and **F-142** (wave 9). |
 | `(backlog)` | Deliberately not scheduled: **F-77, F-78, F-80, F-81, F-82**. |
 | `(parked)` | Logged, but something must happen before it can be fixed: **F-84, F-85**. |
 | *no marker* | Open and unscheduled. |
@@ -263,7 +265,7 @@ The "**Fixed in `<sha>`:**" convention began in wave 3 and was applied consisten
 from wave 4; waves 0–2 recorded their closures in `CHANGELOG.md` and never wrote them back.
 **Wave 6b annotated every row for which closing evidence could be established from the
 repository**, so the Effort marker is now the single authority and this table is history
-rather than a lookup. Of the 138 rows, **51 are closed** — the three most recent are
+rather than a lookup. Of the 139 rows, **51 are closed** — the three most recent are
 F-90, F-94 and F-134, closed in wave 8 part 1 and annotated in the same wave. **F-93 is
 the first row to carry a *partial* closure**: its engine and artefact half is fixed in
 `d82470e` and its GUI half is not, so it keeps an empty Effort marker and says which half
