@@ -105,27 +105,30 @@ class ProviderDialog(tk.Toplevel):
                                     justify="left", foreground="#555")
         self.lbl_status.grid(row=4, column=0, columnspan=3, sticky="w", **pad)
 
-        ttk.Label(frm, text="Endpoint").grid(row=5, column=0, sticky="w", **pad)
+        ttk.Label(frm, text="Endpoint").grid(row=6, column=0, sticky="w", **pad)
         self.ent_endpoint = ttk.Entry(frm, textvariable=self.var_endpoint,
                                       width=46)
-        self.ent_endpoint.grid(row=5, column=1, columnspan=2, sticky="we", **pad)
+        self.ent_endpoint.grid(row=6, column=1, columnspan=2, sticky="we", **pad)
 
-        ttk.Label(frm, text="API key").grid(row=6, column=0, sticky="w", **pad)
+        ttk.Label(frm, text="API key").grid(row=7, column=0, sticky="w", **pad)
         self.ent_key = ttk.Entry(frm, textvariable=self.var_key, width=46,
                                  show="•")
-        self.ent_key.grid(row=6, column=1, columnspan=2, sticky="we", **pad)
+        self.ent_key.grid(row=7, column=1, columnspan=2, sticky="we", **pad)
 
-        ttk.Label(frm, text="Model").grid(row=7, column=0, sticky="w", **pad)
+        ttk.Label(frm, text="Model").grid(row=8, column=0, sticky="w", **pad)
         self.ent_model = ttk.Entry(frm, textvariable=self.var_model, width=46)
-        self.ent_model.grid(row=7, column=1, columnspan=2, sticky="we", **pad)
+        self.ent_model.grid(row=8, column=1, columnspan=2, sticky="we", **pad)
 
+        # Its own row. `lbl_status` above spans columns 0-2 of row 4, so a
+        # button placed in column 2 of that row occupies the same grid
+        # cell and the two overlap.
         self.btn_pull = ttk.Button(frm, text="Download a model…",
                                    command=self._offer_pull)
-        self.btn_pull.grid(row=4, column=2, sticky="e", **pad)
+        self.btn_pull.grid(row=5, column=0, columnspan=3, sticky="w", **pad)
         self.btn_pull.grid_remove()
 
         actions = ttk.Frame(frm)
-        actions.grid(row=8, column=0, columnspan=3, sticky="e", **pad)
+        actions.grid(row=9, column=0, columnspan=3, sticky="e", **pad)
         ttk.Button(actions, text="Not now", command=self._dismiss
                    ).pack(side="left", padx=4)
         self.btn_ok = ttk.Button(actions, text="Use this provider",
@@ -137,7 +140,7 @@ class ProviderDialog(tk.Toplevel):
             text="You can change this later, and the deterministic stages "
                  "(03–05) work without any model.",
             wraplength=520, justify="left", foreground="#555",
-        ).grid(row=9, column=0, columnspan=3, sticky="w", **pad)
+        ).grid(row=10, column=0, columnspan=3, sticky="w", **pad)
 
     # -- behaviour ---------------------------------------------------------
 

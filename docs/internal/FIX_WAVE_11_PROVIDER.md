@@ -473,6 +473,197 @@ configuration actually does, execution beats inspection.
 
 ---
 
-## 11. Sessions B and C
+## 11. Session B - the startup flow
+
+### 11.1 The startup flow, before and after
+
+**Before** - `MetaScreenerApp.__init__`, in order: Tk root; title and
+geometry; `project_root` from `__file__`; `.env` path; `_load_env_file`;
+then
+
+```python
+331    if not self._prompt_api_key_always():
+332        self.after(0, self.destroy)
+333        return
+```
+
+with the notebook at 336, plugins at 340 and both bindings at 342-343 -
+**all after the return.** `_prompt_api_key_always` returned `False` on
+`not dlg.value`, so an empty string and a cancel were one path, and there
+was no continue-without-a-key branch anywhere.
+
+So dismissing a *key* dialog destroyed the whole application, including
+stages 03, 04 and 05, which need no model of any kind and are the
+majority of the funnel. It also left `self.nb`, `self._plugins` and both
+bindings unassigned - `_on_close` iterates `self._plugins` and would have
+raised, unreachable only because the protocol it hangs off was never
+bound.
+
+**After** - the notebook, the plugins and both bindings are built
+**unconditionally**, and the provider conversation is deferred to the
+event loop with `self.after(0, self._offer_provider_choice)`. It is now
+something that happens *to* a working application rather than a gate in
+front of one. Dismissing it writes nothing, so the store stays
+`UNCONFIGURED` and the LLM stages report `NOT_CONFIGURED` - a stated
+reason, not a missing window.
+
+Pinned by AST rather than by instantiation, because the properties are
+properties of **order** and `MetaScreenerApp` cannot be built under the
+conftest. One gap in that test found while writing it:
+`self.after(0, self.destroy)` passes `destroy` as a *reference*, so a
+call-only check walked straight past the statement the test exists to
+forbid; it now matches attribute mentions.
+
+### 11.2 F-144 - the location, not the write
+
+Closed. The key persists to the settings store. The distinction the row
+exists for is *where*, not *how*: F-139 made the `.env` write atomic,
+permission-preserving and symlink-safe, and it still reported `ok=True`
+while writing into `sys._MEIPASS`, which PyInstaller deletes on exit. A
+fix that improved the write again would have closed nothing.
+
+`_save_env_key` is no longer reached. It is **kept**, because it carries
+F-139's regression tests, with a docstring warning that every check it
+performs passes even when the target directory is doomed.
+
+### 11.3 D1, as corrected
+
+The coordinator's restatement is now code. `NOT_CONFIGURED` is checked
+**first**, ahead of the key and model checks - precisely because those can
+be satisfied and make an unconfigured path look complete. The store ships
+`UNCHOSEN`; local becomes effective only when chosen or remembered.
+
+### 11.4 Ready means reachable
+
+Four new members, added on the extension contract's own terms.
+`llm_readiness` performs no probe - it runs inside Tk callbacks - it is
+*told*. Being told nothing is `NOT_CHECKED` rather than silent optimism,
+and the direction is asserted: an uncached probe **blocks**.
+
+Detection's three messages are carried through verbatim rather than
+flattened into one "unavailable", because not-installed, stopped, and
+reachable-but-empty are three problems with three fixes.
+
+### 11.5 D3 - why the ceremony is not polish
+
+`_run_clicked` starts a **billable** operation with no estimate, no
+request count and no confirmation, and the only cost statement in the
+documentation is wrong by two to three orders of magnitude (F-125).
+Adding a multi-gigabyte download with less ceremony than that deserves
+would repeat the mistake in a form the user cannot undo.
+
+So: **refusable** (size stated before a byte moves, offer declinable),
+**interruptible** (cancel checked between chunks *and* before the request
+is made, so a cancel that arrives first costs nothing), **honest** (the
+figure says "about", because it comes from a config file, and the
+server's own total supersedes it).
+
+**The model name is not in a Python constant.** It lives in
+`plugins/_common/recommended_models.json`, which `docs/installation.md`
+now points at, with a user override in the settings directory. Asserted
+by AST - no model-name-shaped literal in the module - and a missing config
+offers **nothing** rather than falling back to something stale, which is
+the only answer consistent with the rule.
+
+Reading that file in the frozen build is safe: reading from
+`sys._MEIPASS` works and the spec bundles `plugins/` as data. It is
+*writing* there that loses data silently. That asymmetry is worth stating
+because it is the whole of F-144.
+
+### 11.6 The _readiness near-miss, recorded as a LIMIT
+
+Extending readiness without plumbing the probe would have left
+`_readiness()` passing `None`, so **every stage would have reported
+NOT_CHECKED and the Run button would have been dead for every user**.
+
+It was caught by reasoning, immediately, and shipped in the same commit.
+**That is not a repeatable safety net and must not be recorded as one.**
+906 tests were green at that moment. This is **F-14's gap doing real
+damage**: the goldens protect the pipeline, the suite protects the engine,
+and *nothing protects the View*.
+
+What a headless View smoke test would have needed to catch it - recorded
+so the eventual F-14 wave inherits the requirement rather than
+rediscovering it:
+
+1. **Instantiate a View at all.** The conftest replaces tkinter with
+   `MagicMock`, so `ttk.Frame` is a mock and `ELView` cannot be
+   constructed. A real headless Tk (Xvfb, or `tk.Tk()` on a CI image with
+   a display) would be needed, or a widget layer thin enough to fake
+   faithfully.
+2. **Drive `_readiness()` and read `ControlStates.run`.** The assertion is
+   one line - *with a bundle, a model and a configured provider, the Run
+   button is enabled* - and no test in the suite can express it today.
+3. **Cover the default path**, not a constructed one. The defect appeared
+   with `probe=None`, which is the state every launch starts in, so a
+   fixture that pre-seeds a probe would have passed while the application
+   was broken.
+4. **Assert on the widget, not on the function.** `llm_readiness` was
+   correct throughout; the defect was in what the View passed it. A test
+   of the pure function - which is what this wave added - cannot see it.
+
+The same gap covers the label overflow in 11.7, which shipped past a test
+whose explicit subject is that label's width.
+
+### 11.7 Two defects found by execution, before the reviewers reported
+
+*Three of the four new labels overflowed the widget.* 18, 18 and 20
+characters against a 16-character constraint that
+`test_the_label_fits_the_widget` calls "the one property here that is
+genuinely about rendering, so it is pinned rather than eyeballed". It
+passed because it loops over the three configuration cases that existed
+when it was written. Both halves fixed: the labels are shorter, and the
+test now iterates every state **and asserts that it did**
+(`seen == set(READINESS_CODES)`), so the next state added fails there
+until its label is measured.
+
+*A grid-cell collision in the provider dialog.* `lbl_status` spans columns
+0-2 of row 4 and the pull button was placed in column 2 of the same row -
+the same cell. Re-laid onto its own row.
+
+*Verified rather than assumed:* the probe cache is a module global, and
+`main.py`'s `from plugins._common import provider_detect` and `ELView`'s
+`from plugins._common.provider_detect import last_known` resolve to the
+same module object. Had they not, the app would have deposited a probe the
+views never saw - the dead Run button again, by a different route.
+
+### 11.8 Human observations
+
+Three, and only three. The dialog cannot be rendered here, so this is what
+genuinely cannot be settled from source. They are not padded.
+
+**HO-11B-1 - does the provider dialog appear before the main window is
+drawn?** `__init__` ends with `self.after(0, self._offer_provider_choice)`
+and the dialog calls `grab_set()`. On a slow first paint the modal may
+appear over an empty or unpainted root, which would look like the old
+behaviour it replaces.
+*Repro:* launch from a cold start on a machine with no `settings.json`.
+Watch the first 500 ms.
+*Report:* whether the main window is visibly painted before the dialog
+appears, and whether the dialog is centred on it or on the screen.
+
+**HO-11B-2 - is the disabled API-key field visibly disabled?**
+`_on_provider_changed` calls `ent_key.state(["disabled"])` when *local* is
+selected, because a local server needs no key. Whether ttk renders that as
+convincingly greyed depends on the active theme, and a field that looks
+editable but ignores typing is worse than one that is absent.
+*Repro:* open the dialog, select *On this computer*, try to type in
+**API key**.
+*Report:* whether it is obviously inert, and whether the same holds for
+**Endpoint** when *OpenAI* is selected.
+
+**HO-11B-3 - does the pull progress window behave when the download is
+long?** The bar is `determinate` over 1000 steps driven from the server's
+`completed`/`total`. Ollama emits several phases (manifest, then layers),
+each with its own totals, so the fraction can reset to near zero
+mid-download.
+*Repro:* choose a local provider with no models pulled, accept the offer,
+watch a full multi-gigabyte pull.
+*Report:* whether the bar visibly restarts, and whether the status text is
+intelligible while it does.
+
+---
+
+## 12. Session C
 
 *Pending.*
