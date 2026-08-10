@@ -355,14 +355,18 @@ class TestTheHarmoniserHasAThirdKeyPredicateToday:
 # ---------------------------------------------------------------------------
 
 class TestNothingReceivesTheProviderChangedHookToday:
-    """**Characterisation. Inverted by the discovery commit.**
+    """**FLIPPED by the widget commit.**
 
-    ``main.py`` calls ``notify_plugin(plugin, "on_provider_changed")``
-    after every probe lands. ``notify_plugin`` never raises and returns
-    ``False`` when nothing implements the name, so the call is a silent
-    no-op: the stage tabs never learn that the provider changed, and
-    their Run button and readiness label keep reporting the previous
-    answer until something else happens to refresh them.
+    Was: ``main.py`` calls ``notify_plugin(plugin, "on_provider_changed")``
+    after every probe lands, ``notify_plugin`` returns quietly when
+    nothing implements the name, and no plugin did — so the call was a
+    silent no-op and the tabs kept reporting the previous answer until
+    something else happened to refresh them.
+
+    Now: the hook is received on the **plugin**, which is what ``main.py``
+    notifies, and relayed to the View. The distinction matters — a method
+    on the View alone would have left the call reaching nothing, which is
+    how the gap arose in the first place.
     """
 
     def test_the_app_notifies_the_hook(self):
@@ -370,19 +374,66 @@ class TestNothingReceivesTheProviderChangedHookToday:
             encoding="utf-8")
         assert '"on_provider_changed"' in src
 
-    @pytest.mark.parametrize("plugin_dir", ["03_harmoniser", "06_el", "07_il"])
-    def test_no_plugin_implements_it(self, plugin_dir):
-        found = []
-        for name in ("plugin.py", "ui.py"):
-            path = PROJECT_ROOT / "plugins" / plugin_dir / name
-            if not path.exists():
-                continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            found += [n.name for n in ast.walk(tree)
-                      if isinstance(n, ast.FunctionDef)
-                      and n.name == "on_provider_changed"]
-        assert found == [], (
-            f"characterisation: {plugin_dir} does not receive the hook"
+    @pytest.mark.parametrize("plugin_dir", ["06_el", "07_il"])
+    def test_the_plugin_wrapper_receives_it(self, plugin_dir):
+        """On ``plugin.py``, because ``self._plugins`` holds the wrapper
+        and ``notify_plugin`` uses ``getattr`` on that object."""
+        tree = ast.parse((PROJECT_ROOT / "plugins" / plugin_dir /
+                          "plugin.py").read_text(encoding="utf-8"))
+        assert any(isinstance(n, ast.FunctionDef)
+                   and n.name == "on_provider_changed"
+                   for n in ast.walk(tree)), plugin_dir
+
+    @pytest.mark.parametrize("plugin_dir", ["06_el", "07_il"])
+    def test_the_view_implements_what_the_wrapper_relays_to(self, plugin_dir):
+        tree = ast.parse((PROJECT_ROOT / "plugins" / plugin_dir /
+                          "ui.py").read_text(encoding="utf-8"))
+        assert any(isinstance(n, ast.FunctionDef)
+                   and n.name == "on_provider_changed"
+                   for n in ast.walk(tree)), plugin_dir
+
+    def test_notify_plugin_actually_reaches_it(self):
+        """``notify_plugin`` swallows everything and reports only a
+        boolean, so *that it ran* is the only observable. Driven against
+        the real function rather than a copy of it.
+
+        ``main.py`` uses a relative import and ``conftest`` replaces the
+        ``metascreener`` package with a bare stub, so the package needs a
+        ``__path__`` for the duration — restored afterwards, because a
+        stub mutated for one test is a fixture leaking into the rest of
+        the suite.
+        """
+        import importlib.util as _iu
+
+        pkg = sys.modules["metascreener"]
+        had_path = hasattr(pkg, "__path__")
+        pkg.__path__ = [str(PROJECT_ROOT / "metascreener")]
+        try:
+            spec = _iu.spec_from_file_location(
+                "metascreener.main",
+                str(PROJECT_ROOT / "metascreener" / "main.py"))
+            main = _iu.module_from_spec(spec)
+            sys.modules["metascreener.main"] = main
+            spec.loader.exec_module(main)
+        finally:
+            if not had_path:
+                del pkg.__path__
+
+        seen = []
+
+        class _Wrapper:
+            def on_provider_changed(self):
+                seen.append(True)
+
+        assert main.notify_plugin(_Wrapper(), "on_provider_changed") is True
+        assert seen == [True]
+
+        class _Silent:
+            pass
+
+        assert main.notify_plugin(_Silent(), "on_provider_changed") is False, (
+            "the False return is what made the gap invisible; it is the "
+            "signal, so it must keep meaning 'nothing received this'"
         )
 
 

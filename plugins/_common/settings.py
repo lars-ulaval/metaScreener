@@ -292,8 +292,7 @@ class StageOverrideRefused(ValueError):
     """A key that must not vary per stage was offered as an override."""
 
 
-def set_stage_override(stage: str, *, model: Optional[str] = None,
-                       **extra: Any) -> Dict[str, Any]:
+def set_stage_override(stage: str, **updates: Any) -> Dict[str, Any]:
     """Set or clear one stage's override of an app-level value.
 
     An empty or whitespace-only value **clears** the override rather than
@@ -304,9 +303,13 @@ def set_stage_override(stage: str, *, model: Optional[str] = None,
 
     Only :data:`STAGE_OVERRIDABLE` may be overridden; anything else
     raises. See that constant for why ``provider`` is not among them.
+
+    ``model`` used to be a named parameter for which ``None`` meant *not
+    supplied*, while ``None`` in ``**extra`` meant nothing at all. Two
+    readings of one value in one signature is the shape this project
+    keeps finding, so it is now uniform: **``None`` clears, everywhere.**
     """
-    offered = set(extra) | ({"model"} if model is not None else set())
-    refused = sorted(offered - set(STAGE_OVERRIDABLE))
+    refused = sorted(set(updates) - set(STAGE_OVERRIDABLE))
     if refused:
         raise StageOverrideRefused(
             f"{', '.join(refused)} cannot vary per stage; only "
@@ -317,12 +320,13 @@ def set_stage_override(stage: str, *, model: Optional[str] = None,
     stages = dict(current.get("stages") or {})
     entry = dict(stages.get(stage) or {})
 
-    updates = dict(extra)
-    if model is not None:
-        updates["model"] = model
-
     for key, value in updates.items():
-        if isinstance(value, str) and not value.strip():
+        if value is None or (isinstance(value, str) and not value.strip()):
+            # ``None`` clears too, so a caller can retract a numeric
+            # override the same way it retracts a text one. Without it the
+            # only way to un-set ``batch_size`` would be to rewrite the
+            # whole entry, and a retraction that is harder than a set is a
+            # retraction that does not happen.
             entry.pop(key, None)
         else:
             entry[key] = value.strip() if isinstance(value, str) else value
@@ -500,6 +504,77 @@ def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
         batch_size=batch,
         endpoint_source=endpoint_source,
     )
+
+
+def stage_overrides_for(settings: Mapping[str, Any], stage: str,
+                        **fields: Any) -> Dict[str, Any]:
+    """What to store so that ``stage`` resolves to the given field values.
+
+    The rule that makes this more than a dict copy: **a field equal to
+    what the stage would resolve to *without* an override stores
+    nothing.** It is compared against a resolution with this stage's
+    entry removed, not against the raw application key, because the two
+    differ whenever a default is doing the work — an unconfigured install
+    shows the vendor endpoint in the box while the application setting is
+    empty.
+
+    Without that rule, opening a tab and pressing Run would pin a copy of
+    whatever the field happened to be showing. The application setting
+    would then stop reaching that stage, silently, and the next time the
+    user changed the provider the stage they were not looking at would
+    keep the old endpoint. That is a stale-cache defect wearing a
+    persistence feature's clothes, and this project has shipped its shape
+    before.
+
+    A cleared value is returned as ``None``/``""``, which
+    :func:`set_stage_override` reads as *drop this override*.
+    """
+    refused = sorted(set(fields) - set(STAGE_OVERRIDABLE))
+    if refused:
+        raise StageOverrideRefused(
+            f"{', '.join(refused)} cannot vary per stage; only "
+            f"{', '.join(STAGE_OVERRIDABLE)} can."
+        )
+
+    bare = dict(settings)
+    stages = dict(bare.get("stages") or {})
+    stages.pop(stage, None)
+    bare["stages"] = stages
+    without = resolve_stage(bare, stage)
+
+    baseline = {
+        "model": without.model,
+        "endpoint": without.endpoint,
+        "batch_size": without.batch_size,
+    }
+
+    out: Dict[str, Any] = {}
+    for key, value in fields.items():
+        if value is None:
+            out[key] = None
+            continue
+        wanted = value.strip() if isinstance(value, str) else value
+        if key == "batch_size":
+            try:
+                wanted = int(wanted)
+            except (TypeError, ValueError):
+                out[key] = None
+                continue
+        out[key] = None if wanted == baseline.get(key) else wanted
+    return out
+
+
+def apply_stage_fields(stage: str, **fields: Any) -> Dict[str, Any]:
+    """Persist a stage tab's fields as overrides, and return the store.
+
+    The tab's widgets and the engine must not be able to disagree about
+    where a run goes: the engine resolves from the store, so the widgets
+    have to reach the store before the run starts, not after it. Calling
+    this is what makes the control the user just operated true.
+    """
+    current = load_settings()
+    return set_stage_override(
+        stage, **stage_overrides_for(current, stage, **fields))
 
 
 def _needs_key(provider: str) -> bool:

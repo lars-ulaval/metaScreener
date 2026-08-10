@@ -57,8 +57,13 @@ from plugins._common.stage_state import (
     tk_state,
 )
 
-from plugins._common.settings import load_settings
-from plugins._common.provider_detect import last_known
+from plugins._common.settings import (
+    apply_stage_fields,
+    load_settings,
+    resolve_stage,
+)
+from plugins._common import provider_detect as _pd
+from plugins._common.provider_detect import last_known, model_choices
 from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
     from_dict_skipped,
@@ -539,14 +544,23 @@ class ILView(ttk.Frame):
         self.sort_surv: Tuple[Optional[str], bool] = (None, True)
         self.sort_crit: Tuple[Optional[str], bool] = (None, True)
 
-        # Settings
-        self.var_model = tk.StringVar(value=DEFAULT_MODEL)
+        # Settings. Wave 11 session C: seeded from this stage's effective
+        # configuration rather than from the module defaults, so a choice
+        # made once survives a launch. An unconfigured install resolves to
+        # exactly the old defaults, which is why nothing about a fresh
+        # install changes.
+        seed = self._stored_config()
+        self.var_model = tk.StringVar(value=seed.model or DEFAULT_MODEL)
+        self.var_endpoint = tk.StringVar(value=seed.endpoint)
         self.var_temp = tk.DoubleVar(value=0.0)
-        self.var_batch = tk.StringVar(value=str(DEFAULT_BATCH_SIZE))
+        self.var_batch = tk.StringVar(
+            value=str(seed.batch_size if seed.batch_size is not None
+                      else DEFAULT_BATCH_SIZE))
         self.var_trunc = tk.StringVar(value=str(DEFAULT_TRUNC_CHARS))
         self.var_use_cache = tk.BooleanVar(value=DEFAULT_USE_CACHE)
 
         self._build_ui()
+        self._refresh_discovery()
 
     def _build_ui(self):
         top = ttk.Frame(self)
@@ -586,11 +600,16 @@ class ILView(ttk.Frame):
         self.lbl_key = ttk.Label(actions, text="")
         self.lbl_key.grid(row=1, column=3, padx=4, pady=2, sticky="e")
         self._refresh_readiness_label()
-        # The indicator is only honest if it keeps up with the field it
+        # The indicator is only honest if it keeps up with the fields it
         # reports on; without this it would go stale the moment the user
-        # typed a model name.
-        self.var_model.trace_add(
-            "write", lambda *_a: self._refresh_readiness_label())
+        # typed a model name. Session C adds the endpoint for the same
+        # reason: readiness now asks where the stage points, so an
+        # endpoint edited without the label following would leave the one
+        # provider-adjacent indicator in the tab answering about the
+        # previous server.
+        for _var in (self.var_model, self.var_endpoint):
+            _var.trace_add(
+                "write", lambda *_a: self._refresh_readiness_label())
 
         top.columnconfigure(1, weight=1)
 
@@ -631,20 +650,61 @@ class ILView(ttk.Frame):
         settings = ttk.Labelframe(left, text="IL Settings")
         settings.pack(fill="x", pady=(6, 0))
 
+        # The model control is an EDITABLE combobox, and that is the
+        # point rather than a detail. llama.cpp ignores the model field
+        # entirely, so a readonly dropdown fed from discovery would
+        # rebuild the enumeration problem this project keeps removing: a
+        # user whose server will not enumerate could not name a model at
+        # all. Nothing anywhere may set this widget's state - asserted by
+        # AST in tests/test_model_discovery.py. Discovery is an aid,
+        # never a gate.
         ttk.Label(settings, text="Model").grid(row=0, column=0, sticky="w", padx=6, pady=2)
-        ttk.Entry(settings, textvariable=self.var_model, width=24).grid(row=0, column=1, sticky="ew", padx=6, pady=2)
+        self.cmb_model = ttk.Combobox(settings, textvariable=self.var_model,
+                                      width=22, values=())
+        self.cmb_model.grid(row=0, column=1, sticky="ew", padx=6, pady=2)
 
-        ttk.Label(settings, text="Temperature").grid(row=1, column=0, sticky="w", padx=6, pady=2)
-        ttk.Spinbox(settings, textvariable=self.var_temp, from_=0.0, to=2.0, increment=0.1, format="%.2f", width=10).grid(row=1, column=1, sticky="w", padx=6, pady=2)
-        ttk.Label(settings, text="(0.0 = deterministic; non-zero invalidates cache)").grid(row=2, column=1, sticky="w", padx=6, pady=(0, 4))
+        self.lbl_models = ttk.Label(settings, text="", wraplength=260,
+                                    justify="left", foreground="#555")
+        self.lbl_models.grid(row=1, column=0, columnspan=2, sticky="w",
+                             padx=6, pady=(0, 4))
 
-        ttk.Label(settings, text="Batch size").grid(row=3, column=0, sticky="w", padx=6, pady=2)
-        ttk.Entry(settings, textvariable=self.var_batch, width=10).grid(row=3, column=1, sticky="w", padx=6, pady=2)
+        # F-91's per-stage surface. What it shows is the endpoint this
+        # stage would actually use - resolved, not the raw stored key,
+        # because those differ whenever a default is doing the work and a
+        # box showing "" while the run goes to the vendor is the whole of
+        # F-91.
+        ttk.Label(settings, text="Endpoint").grid(row=2, column=0, sticky="w", padx=6, pady=2)
+        self.ent_endpoint = ttk.Entry(settings, textvariable=self.var_endpoint,
+                                      width=24)
+        self.ent_endpoint.grid(row=2, column=1, sticky="ew", padx=6, pady=2)
 
-        ttk.Label(settings, text="Trunc chars").grid(row=4, column=0, sticky="w", padx=6, pady=2)
-        ttk.Entry(settings, textvariable=self.var_trunc, width=10).grid(row=4, column=1, sticky="w", padx=6, pady=2)
+        self.lbl_endpoint_src = ttk.Label(settings, text="", wraplength=260,
+                                          justify="left", foreground="#555")
+        self.lbl_endpoint_src.grid(row=3, column=0, columnspan=2, sticky="w",
+                                   padx=6, pady=(0, 4))
 
-        ttk.Checkbutton(settings, text="Use cache (bundle cache/IL_cache.jsonl)", variable=self.var_use_cache).grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=2)
+        for widget in (self.ent_endpoint, self.cmb_model):
+            widget.bind("<Return>", lambda _e: self._stage_fields_edited())
+            widget.bind("<FocusOut>", lambda _e: self._stage_fields_edited())
+        self.cmb_model.bind("<<ComboboxSelected>>",
+                            lambda _e: self._stage_fields_edited())
+
+        ttk.Label(settings, text="Temperature").grid(row=4, column=0, sticky="w", padx=6, pady=2)
+        ttk.Spinbox(settings, textvariable=self.var_temp, from_=0.0, to=2.0, increment=0.1, format="%.2f", width=10).grid(row=4, column=1, sticky="w", padx=6, pady=2)
+        ttk.Label(settings, text="(0.0 = deterministic; non-zero invalidates cache)").grid(row=5, column=1, sticky="w", padx=6, pady=(0, 4))
+
+        ttk.Label(settings, text="Batch size").grid(row=6, column=0, sticky="w", padx=6, pady=2)
+        self.ent_batch = ttk.Entry(settings, textvariable=self.var_batch,
+                                   width=10)
+        self.ent_batch.grid(row=6, column=1, sticky="w", padx=6, pady=2)
+        self.ent_batch.bind("<Return>", lambda _e: self._stage_fields_edited())
+        self.ent_batch.bind("<FocusOut>",
+                            lambda _e: self._stage_fields_edited())
+
+        ttk.Label(settings, text="Trunc chars").grid(row=7, column=0, sticky="w", padx=6, pady=2)
+        ttk.Entry(settings, textvariable=self.var_trunc, width=10).grid(row=7, column=1, sticky="w", padx=6, pady=2)
+
+        ttk.Checkbutton(settings, text="Use cache (bundle cache/IL_cache.jsonl)", variable=self.var_use_cache).grid(row=8, column=0, columnspan=2, sticky="w", padx=6, pady=2)
 
         settings.columnconfigure(1, weight=1)
 
@@ -680,6 +740,100 @@ class ILView(ttk.Frame):
 
     # -------- helpers --------
 
+    STAGE = "IL"
+
+    def _stored_config(self):
+        """This stage's effective configuration, from the store.
+
+        Guarded for the same reason ``_readiness`` is: ``load_settings``
+        raises on a settings file that exists and cannot be parsed, this
+        runs during construction, and ``main.py::resolve_plugin_entrypoint``
+        swallows every exception into a ``print()`` -- so an unguarded read
+        makes the tab silently absent. Degrading to defaults blocks the
+        run for a stated reason instead of deleting the stage.
+        """
+        try:
+            cfg = load_settings()
+        except Exception:
+            cfg = {}
+        return resolve_stage(cfg, self.STAGE,
+                             env_endpoint=os.environ.get("OPENAI_BASE_URL", ""),
+                             env_api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+    def _stage_fields_edited(self) -> None:
+        """Persist what the tab now says, so the engine cannot disagree.
+
+        The engine resolves from the store. If the widgets held values the
+        store had never seen, a run would go somewhere other than what the
+        tab shows -- which is the defect family this whole wave is about,
+        arriving through the controls added to fix it. So the write
+        happens when the field is left, and again before a run starts.
+
+        A field equal to what the stage would resolve to *without* an
+        override stores nothing; see ``settings::stage_overrides_for``.
+        """
+        try:
+            apply_stage_fields(
+                self.STAGE,
+                model=self.var_model.get(),
+                endpoint=self.var_endpoint.get(),
+                batch_size=self.var_batch.get(),
+            )
+        except Exception as e:
+            # Never fatal: a store that cannot be written must not stop
+            # the user working. The values still apply to this session
+            # through the widgets the run reads.
+            self._log(f"[IL] settings not saved: {e}\n")
+        self._refresh_readiness_label()
+        self._refresh_endpoint_source()
+        self._set_controls_running(False)
+
+    def _refresh_endpoint_source(self) -> None:
+        """Say which source the endpoint came from.
+
+        F-119's lesson: ``endpoint=https://api.openai.com/v1`` alone does
+        not distinguish *I chose the public API* from *my configuration
+        was not read*.
+        """
+        self.lbl_endpoint_src.configure(
+            text=f"Source: {self._stored_config().endpoint_source}")
+
+    def _refresh_discovery(self) -> None:
+        """Fill the model combobox from the last detection.
+
+        Never probes: this runs inside Tk callbacks, and detection is a
+        network call. It reads the answer the application deposited, the
+        same way ``_readiness`` does -- so the two cannot describe
+        different servers.
+        """
+        choices = model_choices(last_known())
+        try:
+            self.cmb_model.configure(values=list(choices.values))
+        except Exception:
+            pass
+        self.lbl_models.configure(text=choices.note)
+        self._refresh_endpoint_source()
+
+    def on_provider_changed(self) -> None:
+        """The application settled or re-probed a provider.
+
+        ``main.py`` has notified this hook since session B and no plugin
+        implemented it, so the call was a silent no-op and the tabs kept
+        reporting the previous answer until something else happened to
+        refresh them. Re-seeding here is what makes a provider change
+        visible in the stage the user is not looking at.
+        """
+        seed = self._stored_config()
+        if seed.endpoint:
+            self.var_endpoint.set(seed.endpoint)
+        if seed.model:
+            self.var_model.set(seed.model)
+        if seed.batch_size is not None:
+            self.var_batch.set(str(seed.batch_size))
+        self._refresh_discovery()
+        self._refresh_readiness_label()
+        self._set_controls_running(False)
+
     def _readiness(self) -> Readiness:
         """F-111. One place decides whether this stage may run, and
         everything that asks — the indicator, the Run button, the Run
@@ -698,20 +852,26 @@ class ILView(ttk.Frame):
         # message to go in a windowed onefile build. Readiness degrades
         # to "unconfigured" instead, which blocks the run for a stated
         # reason rather than deleting the stage.
-        try:
-            cfg = load_settings()
-        except Exception:
-            cfg = {}
+        cfg = self._stored_config()
         # Wave 11 session B. `probe` is the last detection the app
         # deposited, never a call made here: this runs inside Tk
         # callbacks, and detection is a network operation. `None` means
         # "not checked yet", which readiness reports as its own state
         # rather than guessing either way.
-        return llm_readiness(stage="IL",
+        #
+        # Session C passes the ENDPOINT this stage would use - the live
+        # widget value, not the stored one, so the indicator answers for
+        # what the user is looking at. `key_required_for` then decides the
+        # key question on the resolved pair, which is what stops a stage
+        # pointed at the paid vendor from being waved through because its
+        # provider field says local.
+        return llm_readiness(stage=self.STAGE,
                              has_bundle=bool(self.bundle_zip_path),
-                             provider=cfg.get("provider", ""),
-                             api_key=cfg.get("api_key", ""),
+                             provider=cfg.provider,
+                             api_key=cfg.api_key,
                              model=self.var_model.get(),
+                             endpoint=self.var_endpoint.get().strip()
+                             or cfg.endpoint,
                              probe=last_known())
 
     def _refresh_readiness_label(self):
@@ -1141,6 +1301,14 @@ class ILView(ttk.Frame):
         # the user did not type costs real money and produces results
         # attributable to the wrong model. F-119's wording for the missing
         # key now lives in stage_state::llm_readiness with the other cases.
+        # Session C: the tab's fields reach the store BEFORE the readiness
+        # check and before the worker starts. The engine resolves the
+        # endpoint from the store, so a value living only in a widget
+        # would send the run somewhere other than what this tab shows -
+        # and the readiness check would be answering about a different
+        # configuration from the one that ran.
+        self._stage_fields_edited()
+
         ready = self._readiness()
         if not ready.can_run:
             messagebox.showerror(f"IL cannot start", ready.detail)

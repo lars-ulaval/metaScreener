@@ -285,27 +285,63 @@ class TestDiscoveryIsAnAidNeverAGate:
         src = inspect.getsource(ss.llm_readiness)
         assert "model_choices" not in src
 
-    def test_the_model_control_is_never_switched_off_by_the_views(self):
-        """Asserted against the Views' source: nothing may configure the
-        model combobox's state, in any branch, for any reason. A control
-        the user can still type into is the whole of 'never a gate'."""
-        for rel in ("plugins/06_el/ui.py", "plugins/07_il/ui.py"):
-            path = PROJECT_ROOT.joinpath(*rel.split("/"))
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            offenders = []
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                fn = node.func
-                if not isinstance(fn, ast.Attribute):
-                    continue
-                if fn.attr not in ("configure", "config", "state"):
-                    continue
-                target = fn.value
-                if isinstance(target, ast.Attribute) and \
-                        "model" in target.attr:
-                    offenders.append(f"{rel}:{node.lineno} {target.attr}")
-            assert offenders == [], offenders
+    @pytest.mark.parametrize("rel", ["plugins/06_el/ui.py",
+                                     "plugins/07_il/ui.py"])
+    def test_the_model_control_is_never_switched_off_by_the_views(self, rel):
+        """Asserted against the Views' source: **nothing may set the
+        model control's state**, in any branch, for any reason. A control
+        the user can still type into is the whole of "never a gate", and
+        the branch that would disable it is exactly the one a discovery
+        failure would reach.
+
+        The check is narrow on purpose. An earlier version flagged every
+        call on a model-named widget and caught ``configure(values=…)`` —
+        the line that *fills* the dropdown, which is the feature. A guard
+        that fires on the thing it is meant to permit gets deleted, not
+        obeyed, so it names ``state`` specifically: a ``.state([…])``
+        call, or a ``state=`` keyword to ``configure``/``config``.
+        """
+        path = PROJECT_ROOT.joinpath(*rel.split("/"))
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        offenders = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            if not isinstance(fn, ast.Attribute):
+                continue
+            target = fn.value
+            if not (isinstance(target, ast.Attribute)
+                    and "model" in target.attr.lower()):
+                continue
+            if fn.attr == "state":
+                offenders.append(f"{rel}:{node.lineno} .state()")
+            elif fn.attr in ("configure", "config") and any(
+                    kw.arg == "state" for kw in node.keywords):
+                offenders.append(f"{rel}:{node.lineno} configure(state=)")
+        assert offenders == [], offenders
+
+    @pytest.mark.parametrize("rel", ["plugins/06_el/ui.py",
+                                     "plugins/07_il/ui.py"])
+    def test_the_model_control_is_a_combobox_and_is_not_readonly(self, rel):
+        """The one property that is genuinely about the widget rather
+        than about the data, so it is pinned rather than eyeballed. A
+        ``state="readonly"`` combobox cannot be typed into, which would
+        make discovery a gate by construction."""
+        src = PROJECT_ROOT.joinpath(*rel.split("/")).read_text(
+            encoding="utf-8")
+        tree = ast.parse(src)
+        combos = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.Call)
+                  and isinstance(n.func, ast.Attribute)
+                  and n.func.attr == "Combobox"]
+        assert combos, f"{rel} has no model combobox"
+        for node in combos:
+            for kw in node.keywords:
+                assert kw.arg != "state", (
+                    f"{rel}:{node.lineno} the model combobox declares a "
+                    f"state; readonly would rebuild the enumeration problem"
+                )
 
 
 class TestListModelsKeepsItsOwnContract:

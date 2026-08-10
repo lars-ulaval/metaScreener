@@ -110,6 +110,21 @@ class Plugin(BasePlugin):
         self.view.pack(fill="both", expand=True)
         return frame
 
+    def on_provider_changed(self):
+        """Relay the application's provider news to the View.
+
+        ``main.py`` notifies this name on the *plugin*, not on the View,
+        and ``notify_plugin`` returns quietly when nothing implements it —
+        so from session B until now the call reached nothing at all and
+        the tab kept reporting the previous answer. One line, and the
+        hook stops being decorative.
+        """
+        try:
+            if self.view:
+                self.view.on_provider_changed()
+        except Exception as e:                      # pragma: no cover - GUI
+            print(f"[PLUGIN] EL on_provider_changed failed: {e}")
+
     def on_close(self):
         try:
             if self.view:
