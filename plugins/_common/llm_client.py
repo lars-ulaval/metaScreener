@@ -45,6 +45,7 @@ import json
 import os
 import re
 import time
+from collections import Counter
 from hashlib import sha256
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -104,6 +105,16 @@ def _quote_in_text(quote: str, text: str) -> bool:
 def _has_openai_key() -> bool:
     return bool(os.environ.get("OPENAI_API_KEY", "").strip())
 
+def _sample_of(counts: "Counter", limit: int = 5) -> str:
+    """Render the commonest few keys of a tally for a log line.
+
+    Bounded on purpose: the values are model output, so an unbounded render
+    would put arbitrary text of arbitrary length into the log pane.
+    """
+    head = ", ".join(f"{k!r}×{n}" for k, n in counts.most_common(limit))
+    rest = len(counts) - min(limit, len(counts))
+    return head + (f", and {rest} other value(s)" if rest > 0 else "")
+
 def chunked(seq: Sequence[Any], n: int):
     n = max(1, int(n))
     for i in range(0, len(seq), n):
@@ -150,6 +161,111 @@ def _parse_llm_json_array(text: str) -> List[Dict[str, Any]]:
 # deliberately so the two stages' prompts can evolve independently.
 # run_m1_llm_for_criterion below now takes the per-stage builder as a
 # `build_messages` keyword argument; each plugin passes its own.
+
+
+# --------------------------- answer vocabularies ------------------------------
+
+DECISION_VOCABULARY: Tuple[str, ...] = ("meet", "not_meet", "uncertain")
+"""The only ``decision`` values the evidence gate can act on.
+
+F-90, F-108. Named rather than inline so the set has one home; the prompt
+still restates it in prose twenty lines away, which is F-108 and is not
+fixed here.
+"""
+
+FIELD_VOCABULARY: Tuple[str, ...] = ("title", "abstract", "keywords")
+
+_DECISION_SEPARATORS = re.compile(r"[\s_\-]+")
+
+
+def _normalize_decision(raw: Any) -> Optional[str]:
+    """Map a model's ``decision`` onto :data:`DECISION_VOCABULARY`, or return
+    ``None`` when it falls outside it.
+
+    F-90. This comparison used to be ``decision not in {...}`` against a
+    ``.strip()``-ed string, while ``field`` on the *next* statement got
+    ``.strip().lower()``. A model answering ``"Meet"`` therefore had every
+    decision in the run rewritten to ``"uncertain"`` — and the record kept
+    ``used: True``, a genuine quote and a high confidence, so nothing about
+    it looked wrong except the verdict.
+
+    **This goes further than the register's fix cell, which says "one
+    `.lower()`", and the departure is deliberate.** F-90's own *finding*
+    cell names ``"not meet"`` among the strings a model produces, and case
+    folding alone does not reach it. A model that varies the case varies the
+    separator for the same reason — there is no ``response_format`` on the
+    local path to hold it to either — so the separator is normalised too.
+
+    The normalisation cannot invent a verdict. Only a string that reduces
+    exactly to a vocabulary member is accepted, and no semantically
+    different answer does: ``meets``, ``does not meet``, ``notmeet`` and
+    ``yes`` are all still outside it. That is what
+    ``TestTheWideningIsExact`` exists to hold.
+
+    ``None`` is the rejection signal rather than a silent fallback to
+    ``"uncertain"``, so the caller can count and report it. Returning the
+    fallback here is what made the condition invisible.
+    """
+    s = _DECISION_SEPARATORS.sub("_", _safe_str(raw).strip().lower())
+    return s if s in set(DECISION_VOCABULARY) else None
+
+
+def summarize_llm_evidence(
+        evidence: Optional[Dict[Tuple[str, str], Dict[str, Any]]]
+) -> Dict[str, int]:
+    """Derive the record-level counts of a run from the records themselves.
+
+    This project has been bitten four times by a count maintained alongside
+    the thing it counts — most recently by the register's own severity
+    totals (F-131) — so the rule adopted in wave 8 is: **a fact about a
+    record is derived from the record; only a fact about a *call*, which
+    leaves no record behind, is stored in a counter.** Everything here is
+    the first kind. Nothing increments these; they are recomputed from the
+    evidence map the decisions were actually made from, so they cannot
+    disagree with it.
+
+    ``records`` partitions exactly into ``failed`` + ``no_answer`` +
+    ``decisions_rejected`` + ``answered``:
+
+    ``failed``
+        the call for this record raised and never produced an answer
+        (``error`` present, by key rather than truthiness — see
+        :func:`_is_cacheable_evidence`).
+    ``no_answer``
+        the record was sent and the model said nothing about it — the
+        omission back-fill.
+    ``decisions_rejected``
+        the model answered and the answer was outside
+        :data:`DECISION_VOCABULARY` (F-90).
+    ``answered``
+        a decision this pipeline could read. **This is the number that
+        distinguishes a run that worked from a run that did not**, and it is
+        the whole point of the wave: a model that answers ``"uncertain"``
+        everywhere gives ``answered == records``, while a down server, a
+        typo'd model and an empty model field all give ``answered == 0``.
+        Today those five states are one message.
+
+    ``fields_rejected`` is orthogonal to the partition — a record can carry
+    a readable decision and an unreadable ``field`` — and is counted rather
+    than acted on. That is F-136.
+    """
+    out = {"records": 0, "answered": 0, "no_answer": 0, "failed": 0,
+           "decisions_rejected": 0, "fields_rejected": 0}
+    for ev in (evidence or {}).values():
+        if not isinstance(ev, dict):
+            continue
+        out["records"] += 1
+        if "field_rejected" in ev:
+            out["fields_rejected"] += 1
+        if "error" in ev:
+            out["failed"] += 1
+        elif ev.get("used") is not True:
+            out["no_answer"] += 1
+        elif "decision_rejected" in ev:
+            out["decisions_rejected"] += 1
+        else:
+            out["answered"] += 1
+    return out
 
 
 def _field_texts_by_id(batch: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
@@ -252,6 +368,16 @@ def run_m1_llm_for_criterion(
     out: Dict[Tuple[str, str], Dict[str, Any]] = {}
     cid = criterion["id"]
 
+    # F-90. Accumulated across every batch of this criterion and reported
+    # once at the end rather than per record: a rejection is a property of
+    # the *model's format discipline*, so on an 800-record corpus a per-record
+    # line would produce 800 identical lines in a sub-tab that is not the
+    # focused one — which is the reporting failure this wave exists to fix,
+    # committed a second time. The raw strings are kept, not just the tally,
+    # because "Meet" and "maybe" call for opposite responses from the user.
+    rejected_decisions: Counter = Counter()
+    rejected_fields: Counter = Counter()
+
     # F-86: the a_id -> field-texts map is built per batch, inside the loop,
     # from the records that call actually carried. It used to be built here,
     # from the whole `items` list, which is what let a response name a record
@@ -336,9 +462,18 @@ def run_m1_llm_for_criterion(
                         if (a_id, cid) in out:
                             continue
 
-                        decision = _safe_str(obj.get("decision", "uncertain")).strip()
-                        if decision not in {"meet", "not_meet", "uncertain"}:
+                        # F-90: fold case and separator, and keep the raw
+                        # string when the answer falls outside the
+                        # vocabulary. Rewriting it to "uncertain" and saying
+                        # nothing is what made a model with poor format
+                        # discipline indistinguishable from a model that was
+                        # unsure about everything.
+                        decision_raw = _safe_str(obj.get("decision", "uncertain"))
+                        decision = _normalize_decision(decision_raw)
+                        decision_rejected = decision is None
+                        if decision_rejected:
                             decision = "uncertain"
+                            rejected_decisions[decision_raw.strip()] += 1
 
                         try:
                             confidence = float(obj.get("confidence", 0.0))
@@ -346,9 +481,18 @@ def run_m1_llm_for_criterion(
                             confidence = 0.0
                         confidence = min(1.0, max(0.0, confidence))
 
-                        field = _safe_str(obj.get("field", "")).strip().lower()
-                        if field not in {"title", "abstract", "keywords"}:
+                        field_raw = _safe_str(obj.get("field", ""))
+                        field = field_raw.strip().lower()
+                        # F-136: the fallback is recorded but NOT widened.
+                        # `field` selects which text the quote is validated
+                        # against, so accepting more values here would change
+                        # the meaning of `valid_quote` — a behaviour change no
+                        # finding asks for. Counted so the row can be settled
+                        # on measurement rather than argument.
+                        field_rejected = field not in set(FIELD_VOCABULARY)
+                        if field_rejected:
                             field = "abstract"
+                            rejected_fields[field_raw.strip()] += 1
 
                         quote = _safe_str(obj.get("quote", ""))
                         span = obj.get("span", None)
@@ -360,7 +504,7 @@ def run_m1_llm_for_criterion(
                         fld_txt_prompt = (fld_txt[:cur_trunc] if cur_trunc and len(fld_txt) > cur_trunc else fld_txt)
                         valid_quote = _quote_in_text(quote, fld_txt_prompt)
 
-                        out[(a_id, cid)] = {
+                        ev: Dict[str, Any] = {
                             "used": True,
                             "decision": decision,
                             "confidence": confidence,
@@ -369,6 +513,17 @@ def run_m1_llm_for_criterion(
                             "span": span,
                             "valid_quote": valid_quote,
                         }
+                        # Recorded by key presence, like `error`, so the
+                        # marker survives an empty raw string. These are the
+                        # only fields `summarize_llm_evidence` reads that the
+                        # record did not already carry, and neither reaches
+                        # `{el,il}_evidence_json`: the stage builds that from
+                        # a fixed list of nine keys.
+                        if decision_rejected:
+                            ev["decision_rejected"] = decision_raw
+                        if field_rejected:
+                            ev["field_rejected"] = field_raw
+                        out[(a_id, cid)] = ev
 
                     # ensure every item in THIS cur_batch has an entry
                     for it in cur_batch:
@@ -467,6 +622,23 @@ def run_m1_llm_for_criterion(
         if log:
             log(f"{log_prefix} cancelled after {bi} of {len(batches)} "
                 f"batches; keeping {len(out)} result(s) already received.\n")
+
+    # F-90: one summary line per criterion, emitted whether or not the run
+    # was cancelled — a rejection already observed is worth reporting.
+    if log and rejected_decisions:
+        log(f"{log_prefix} {cid}: {sum(rejected_decisions.values())} "
+            f"decision value(s) outside "
+            f"{{{', '.join(DECISION_VOCABULARY)}}} were rejected and "
+            f"recorded as uncertain: {_sample_of(rejected_decisions)}. "
+            f"These records carry a quote and a confidence but no usable "
+            f"verdict; the model is answering in a vocabulary this stage "
+            f"does not read.\n")
+    if log and rejected_fields:
+        log(f"{log_prefix} {cid}: {sum(rejected_fields.values())} "
+            f"field value(s) outside {{{', '.join(FIELD_VOCABULARY)}}} were "
+            f"replaced with 'abstract': {_sample_of(rejected_fields)}. The "
+            f"quote was validated against the abstract rather than the "
+            f"field the model named (F-136).\n")
 
     return out
 
@@ -580,6 +752,21 @@ def _is_cacheable_evidence(ev: Any) -> bool:
     answer is not evidence of one, and the cost of refusing to cache it is
     one more API call rather than a permanent false verdict.
 
+    ``decision_rejected`` extends the same rule in wave 8 (F-90). An answer
+    the parser could not read is not a verdict either, and caching it is
+    worse here than for the other two: the entry is served on every later
+    run at zero cost, and a cache hit never reaches the parser, so the log
+    line F-90 exists to produce would be emitted exactly once and never
+    again. The condition would go back to being invisible by the second
+    run — which is the defect, reintroduced through the cache. ``used``
+    stays True on such a record, because the model *did* answer; what it
+    did not do is answer in a vocabulary this stage reads.
+
+    ``field_rejected`` is deliberately **not** a reason to refuse. The
+    record still carries a decision the gate can act on; only the quote's
+    validation target was substituted. That is F-136, and it is counted
+    rather than acted on.
+
     This governs what a run *writes*. Entries arriving in ``cache_in`` are
     carried through untouched — a bundle captured before this fix keeps
     whatever it has, because silently deleting a user's accumulated cache
@@ -588,6 +775,8 @@ def _is_cacheable_evidence(ev: Any) -> bool:
     if not isinstance(ev, dict):
         return False
     if "error" in ev:
+        return False
+    if "decision_rejected" in ev:
         return False
     return ev.get("used") is True
 
