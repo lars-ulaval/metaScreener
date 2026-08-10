@@ -3,14 +3,27 @@
 
 import os
 from pathlib import Path
+from typing import List, NamedTuple
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 from .plugin_manager import discover
 from .api_key_dialog import ApiKeyDialog
 
 ENV_FILE_NAME = ".env"
 ENV_KEY = "OPENAI_API_KEY"
+
+
+class EnvSaveResult(NamedTuple):
+    """Whether the key reached ``.env``, and what to tell the user if not.
+
+    F-139. ``_save_env_key`` used to return ``None`` and swallow every
+    failure, so a persist that did nothing was indistinguishable from one
+    that worked — the user was silently re-prompted on the next launch
+    with no explanation. A caller cannot report what it is not told.
+    """
+    ok: bool
+    message: str
 
 def _load_env_file(env_path: Path):
     """Tiny .env reader: loads KEY=VALUE lines into os.environ (for prefill)."""
@@ -29,20 +42,84 @@ def _load_env_file(env_path: Path):
     except Exception:
         pass  # non-fatal
 
-def _save_env_key(env_path: Path, key: str):
-    """Write/replace OPENAI_API_KEY in .env."""
-    lines = []
+def _save_env_key(env_path: Path, key: str) -> EnvSaveResult:
+    """Write/replace OPENAI_API_KEY in .env, preserving everything else.
+
+    F-139. This used to open with ``lines = []``, overwrite that with the
+    file's contents inside a ``try``, and fall back to ``lines = []`` when
+    the read raised — then write unconditionally. ``Path.write_text``
+    truncates at open, so a ``.env`` that existed but could not be decoded
+    was not preserved, it was **destroyed** and replaced by
+    ``OPENAI_API_KEY=<new>`` alone. Reproduced: a file holding
+    ``OPENAI_BASE_URL``, ``SCREENA_EL_MODEL`` and ``OPENAI_API_KEY`` became
+    one line.
+
+    The ``except`` that made the read non-fatal was precisely what made the
+    write destructive; the two were written as one defensive gesture, and
+    nothing between them distinguished *the file was empty* from *the read
+    failed*. What is lost is the user's **only** persisted configuration —
+    there is no settings file, no registry use and no config parser
+    anywhere (F-116) — and ``OPENAI_BASE_URL``, which wave 9 puts into the
+    LLM cache key, is in the blast radius.
+
+    Three rules now, and they are three different failures:
+
+    **Absent is not unreadable.** A missing ``.env`` is created; a ``.env``
+    that raises on read is refused, with the file left exactly as it was.
+    The user can fix the encoding; they cannot un-destroy the file.
+
+    **The write is atomic.** Written to a sibling temporary and moved into
+    place with ``os.replace``, which is atomic on Windows and POSIX alike.
+    A truncating write that fails part-way — a full disk is the realistic
+    trigger — is F-139's own harm shape reached through a different door,
+    so guarding only the read would have left it open. The temporary is
+    removed if the move fails, because it holds the user's key and a
+    stray copy of a secret in the project root is its own defect.
+
+    **Silence is not success.** The result says which happened. Refusing
+    to write and then saying nothing is the same silence one layer up.
+
+    Deliberately *not* fixed here, because wave 11 owns ``.env`` handling
+    and this wave's remit is the data-loss defect only: the filter below
+    matches the literal prefix while ``_load_env_file`` splits on the first
+    ``=`` and strips, so ``OPENAI_API_KEY = x`` and ``export
+    OPENAI_API_KEY=x`` survive it and win on reload (first occurrence
+    wins); a UTF-8 BOM hides the line from the filter the same way; and
+    the value is written unescaped, so an interior newline splits it.
+    """
+    lines: List[str] = []
     if env_path.exists():
         try:
             lines = env_path.read_text(encoding="utf-8").splitlines()
-        except Exception:
-            lines = []
+        except Exception as e:
+            return EnvSaveResult(
+                False,
+                f"Could not read {env_path}, so it was left unchanged and "
+                f"the key was not saved: {e.__class__.__name__}: {e}\n\n"
+                f"The file exists but could not be decoded as UTF-8 or "
+                f"could not be opened. Nothing was overwritten. Fix or "
+                f"remove the file, then save again.",
+            )
+
     lines = [ln for ln in lines if not ln.strip().startswith(f"{ENV_KEY}=")]
     lines.append(f"{ENV_KEY}={key}")
+
+    tmp_path = env_path.with_name(env_path.name + ".tmp")
     try:
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    except Exception:
-        pass  # non-fatal
+        tmp_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp_path, env_path)
+    except Exception as e:
+        try:
+            tmp_path.unlink()
+        except Exception:
+            pass
+        return EnvSaveResult(
+            False,
+            f"Could not write {env_path}, so it was left unchanged and the "
+            f"key was not saved: {e.__class__.__name__}: {e}",
+        )
+
+    return EnvSaveResult(True, f"Saved {ENV_KEY} to {env_path}.")
 
 # ---------------------------------------------------------------------------
 # Plugin entry-point resolution and lifecycle dispatch
@@ -222,7 +299,20 @@ class MetaScreenerApp(tk.Tk):
 
         # Persist to .env only if they checked 'Remember'
         if dlg.remember_var.get():
-            _save_env_key(self.env_path, dlg.value)
+            # F-139: a persist that did nothing used to be indistinguishable
+            # from one that worked. The run continues either way — the key is
+            # already in os.environ for this process, so failing to persist
+            # costs a re-type next launch and nothing more — but the user is
+            # told, because the two states differ next launch and only one of
+            # them is their fault to fix.
+            #
+            # Direct messagebox rather than an `after` marshal: this runs on
+            # the main thread during __init__. F-112/F-137's marshalling
+            # applies to the worker threads, not here.
+            result = _save_env_key(self.env_path, dlg.value)
+            if not result.ok:
+                messagebox.showwarning("Could not save the API key",
+                                       result.message, parent=self)
         return True
 
     def _load_plugins(self):

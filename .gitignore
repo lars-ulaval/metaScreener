@@ -44,6 +44,10 @@ test_output_linux.txt
 .env.development
 .env.production
 .env.test
+# The sibling temporary metascreener/main.py::_save_env_key moves into place.
+# Removed on failure, but a crash between write and rename would strand a
+# file holding the user's API key in the project root (F-139).
+.env.tmp
 secrets/*
 !secrets/README.md
 
