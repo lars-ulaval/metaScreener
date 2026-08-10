@@ -26,13 +26,14 @@ import pytest
 
 from plugins._common.bundle import NOT_SCREENED, _export_confirm_reason
 from plugins._common.stage_state import (
+    parse_numeric_settings,
     OUTCOME_CANCELLED,
     OUTCOME_NOTHING_SEPARATED,
     OUTCOME_NO_ANSWERS,
     OUTCOME_NOT_SCREENED,
     OUTCOME_OK,
     control_states,
-    run_button_enabled_after_load,
+    llm_readiness,
     run_outcome,
 )
 
@@ -190,51 +191,141 @@ class TestExportGateAsItIsToday:
 # control_states — which buttons are live
 # ---------------------------------------------------------------------------
 
-class TestControlStatesAsTheyAreToday:
+def _ready(**over):
+    kw = {"stage": "EL", "has_bundle": True, "has_key": True, "model": "m"}
+    kw.update(over)
+    return llm_readiness(**kw)
+
+
+class TestControlStates:
 
     def test_while_running_only_cancel_is_live(self):
-        st = control_states(running=True, has_bundle=True, has_rows=True,
+        st = control_states(running=True, readiness=_ready(), has_rows=True,
                             has_input_errors=True)
         assert st.cancel is True
         assert (st.run, st.export, st.export_errors, st.export_bundle) == \
             (False, False, False, False)
 
     def test_after_a_run_the_exports_follow_the_rows(self):
-        st = control_states(running=False, has_bundle=True, has_rows=True,
+        st = control_states(running=False, readiness=_ready(), has_rows=True,
                             has_input_errors=False)
         assert st.export is True and st.export_bundle is True
         assert st.export_errors is False
         assert st.cancel is False
 
     def test_with_no_rows_the_exports_are_dead(self):
-        st = control_states(running=False, has_bundle=True, has_rows=False,
+        st = control_states(running=False, readiness=_ready(), has_rows=False,
                             has_input_errors=True)
         assert st.export is False and st.export_bundle is False
         assert st.export_errors is True
 
-    def test_CHARACTERISATION_run_is_live_with_no_key(self):
-        """**This is the defect.** ``_set_controls_running`` consults the
-        bundle path alone, and it runs in the ``finally`` of every run — so
-        from the first run of a session onward it overwrites whatever gate
-        the load path applied."""
-        st = control_states(running=False, has_bundle=True, has_rows=False,
+    def test_run_is_dead_with_no_key(self):
+        """F-118. Was a CHARACTERISATION assertion in `ed05fb3` reading
+        ``st.run is True``. ``_set_controls_running`` consulted the bundle
+        path alone and runs in the ``finally`` of every run, so from the
+        first run of a session onward it overwrote the gate the load path
+        had applied."""
+        st = control_states(running=False, readiness=_ready(has_key=False),
+                            has_rows=False, has_input_errors=False)
+        assert st.run is False
+
+    def test_run_is_dead_with_no_model(self):
+        st = control_states(running=False, readiness=_ready(model="   "),
+                            has_rows=False, has_input_errors=False)
+        assert st.run is False
+
+    def test_run_is_dead_with_no_bundle(self):
+        st = control_states(running=False, readiness=_ready(has_bundle=False),
+                            has_rows=False, has_input_errors=False)
+        assert st.run is False
+
+    def test_run_is_live_when_everything_is_ready(self):
+        st = control_states(running=False, readiness=_ready(), has_rows=False,
                             has_input_errors=False)
-        assert st.run is True, (
-            "CHARACTERISATION (F-118): the readiness gate is not consulted "
-            "here at all. The fix commit changes this assertion."
+        assert st.run is True
+
+    def test_there_is_now_only_one_predicate_for_the_button(self):
+        """F-118, stated as the absence of the contradiction. `ed05fb3`
+        carried ``run_button_enabled_after_load`` purely so the
+        disagreement could be asserted before it was fixed; the fix is that
+        the second predicate no longer exists."""
+        import plugins._common.stage_state as ss
+        assert not hasattr(ss, "run_button_enabled_after_load"), (
+            "the load path and the running path must not decide this button "
+            "from disjoint inputs again"
         )
 
-    def test_CHARACTERISATION_the_two_predicates_for_one_button_disagree(self):
-        """**This is the defect, stated as a contradiction.** Two functions
-        decide the same button's state from disjoint inputs, and the one
-        that ignores readiness runs last."""
-        from_controls = control_states(
-            running=False, has_bundle=True, has_rows=False,
-            has_input_errors=False).run
-        from_load = run_button_enabled_after_load(has_key=False)
-        assert from_controls is True and from_load is False, (
-            "CHARACTERISATION (F-118): _set_controls_running says the Run "
-            "button should be live and _load_bundle_inputs says it should "
-            "not, for one and the same situation — a loaded bundle with no "
-            "API key. The fix commit deletes one of them."
-        )
+
+# ---------------------------------------------------------------------------
+# F-118 — the numeric settings
+# ---------------------------------------------------------------------------
+
+class TestNumericSettings:
+    """`trunc_chars` is a free-text Entry over a StringVar, guarded only by
+    `try: int(...) except: default` — which rescues `"abc"` and accepts
+    `"-100"`.
+
+    A negative value reaches the prompt builder's
+    ``if trunc_chars and len(s) > trunc_chars`` guard, where it is truthy
+    and the comparison is unconditionally true, so `s[:trunc_chars]` runs as
+    a negative slice. **Measured on the real builder:** `-100` cuts the last
+    100 characters off the abstract AND empties the title and keywords
+    outright, because any field shorter than 100 characters slices to "".
+    Nothing logs it, and the run report scores the resulting records as
+    `answered`.
+    """
+
+    def test_a_sane_pair_passes_through(self):
+        s = parse_numeric_settings(batch_raw="50", trunc_raw="1500",
+                                   batch_default=50, trunc_default=1500)
+        assert (s.batch_size, s.trunc_chars) == (50, 1500)
+        assert s.problems == ()
+
+    @pytest.mark.parametrize("raw", ["-1", "-100", "-100000"])
+    def test_a_negative_truncation_is_refused_and_reported(self, raw):
+        s = parse_numeric_settings(batch_raw="50", trunc_raw=raw,
+                                   batch_default=50, trunc_default=1500)
+        assert s.trunc_chars == 1500
+        assert s.problems, "silently correcting it is what let it happen"
+        assert any(raw in p for p in s.problems), "say what was rejected"
+
+    def test_zero_truncation_is_legitimate_and_kept(self):
+        """0 means 'do not truncate' — the builder's guard is
+        ``if trunc_chars and ...``, so falsy is a documented value, not an
+        error. Correcting it would be a different defect."""
+        s = parse_numeric_settings(batch_raw="50", trunc_raw="0",
+                                   batch_default=50, trunc_default=1500)
+        assert s.trunc_chars == 0
+        assert s.problems == ()
+
+    @pytest.mark.parametrize("raw", ["abc", "", "   ", "1.5"])
+    def test_a_non_integer_falls_back_and_now_says_so(self, raw):
+        """The fallback already existed; the silence is what changes."""
+        s = parse_numeric_settings(batch_raw="50", trunc_raw=raw,
+                                   batch_default=50, trunc_default=1500)
+        assert s.trunc_chars == 1500
+        assert s.problems
+
+    @pytest.mark.parametrize("raw", ["0", "-5"])
+    def test_a_batch_size_below_one_is_clamped_and_reported(self, raw):
+        """The engine already clamps this twice — ``max(1, int(n))`` in
+        ``chunked`` and again at its call site — so it was never silently
+        WRONG, only silently different from what was typed. Reported for
+        that reason and not corrected anywhere else."""
+        s = parse_numeric_settings(batch_raw=raw, trunc_raw="1500",
+                                   batch_default=50, trunc_default=1500)
+        assert s.batch_size == 1
+        assert s.problems
+
+    def test_both_can_be_wrong_at_once(self):
+        s = parse_numeric_settings(batch_raw="0", trunc_raw="-100",
+                                   batch_default=50, trunc_default=1500)
+        assert (s.batch_size, s.trunc_chars) == (1, 1500)
+        assert len(s.problems) == 2
+
+    def test_the_problems_are_sentences_a_user_can_act_on(self):
+        s = parse_numeric_settings(batch_raw="50", trunc_raw="-100",
+                                   batch_default=50, trunc_default=1500)
+        text = " ".join(s.problems)
+        assert "1500" in text, "say what was used instead"
+        assert text.rstrip()[-1] in ".!"

@@ -37,7 +37,7 @@ in ``tests/test_stage_state.py`` lock in today's behaviour — defects
 included — before any of it is changed.)*
 """
 from dataclasses import dataclass
-from typing import Mapping, Optional
+from typing import Any, List, Mapping, Optional, Tuple
 
 from plugins._common.bundle import (
     CANCELLED_EXPORT_REASON,
@@ -302,21 +302,121 @@ class ControlStates:
     export_bundle: bool
 
 
-def control_states(*, running: bool, has_bundle: bool, has_rows: bool,
+def control_states(*, running: bool, readiness: "Readiness", has_rows: bool,
                    has_input_errors: bool) -> ControlStates:
-    """Reproduce ``_set_controls_running`` exactly.
+    """Decide every button's state, in one place, from the readiness the
+    rest of the stage already agrees on.
 
-    The five expressions below are the two Views' own, transcribed. Note
-    what ``run`` does *not* consult — that omission is F-118 and is fixed in
-    movement two, not here.
+    F-118. ``_set_controls_running`` used to re-enable the Run button on
+    ``self.bundle_zip_path`` **alone**, while ``_load_bundle_inputs`` set it
+    from ``_has_openai_key()`` alone. Two functions, two disjoint inputs,
+    one button — and because ``_set_controls_running(False)`` runs in the
+    ``finally`` of every run, the one that ignores readiness ran *last*. So
+    the gate the load path applied survived exactly until the first run of a
+    session finished, after which the Run button was live regardless.
+
+    Taking a ``Readiness`` rather than a bundle flag is what makes the
+    second predicate impossible to reintroduce: there is nowhere left to put
+    a different one.
     """
     return ControlStates(
-        run=(not running) and has_bundle,
+        run=(not running) and readiness.can_run,
         cancel=running,
         export=(not running) and has_rows,
         export_errors=(not running) and has_input_errors,
         export_bundle=(not running) and has_rows,
     )
+
+
+# ----------------------------
+# Numeric settings
+# ----------------------------
+
+@dataclass(frozen=True)
+class NumericSettings:
+    """The two numeric knobs, corrected, with what was wrong about them."""
+
+    batch_size: int
+    trunc_chars: int
+    problems: Tuple[str, ...] = ()
+
+
+def parse_numeric_settings(*, batch_raw: Any, trunc_raw: Any,
+                           batch_default: int,
+                           trunc_default: int) -> NumericSettings:
+    """Read the two numeric settings, correct what cannot be used, and say
+    what was corrected.
+
+    F-118. Both are free-text entries guarded only by
+    ``try: int(...) except: <default>``, which rescues ``"abc"`` and
+    cheerfully accepts ``"-100"``.
+
+    **A negative ``trunc_chars`` is the live defect, and it is worse than
+    the row states.** It reaches the prompt builder's
+    ``if trunc_chars and len(s) > trunc_chars`` guard, where it is truthy
+    and the comparison is unconditionally true, so ``s[:trunc_chars]`` runs
+    as a *negative slice*. Measured on the real builder with ``-100``: the
+    last 100 characters are cut from the abstract, **and the title and
+    keywords are emptied outright**, because any field shorter than 100
+    characters slices to ``""``. Titles and keywords are routinely under
+    100 characters, so a modest negative value blanks two of the three
+    fields for essentially every record. Nothing logs it; ``valid_quote``
+    collapses because there is no text left to validate a quote against;
+    and the wave-8 run report scores the records as ``answered``, because
+    the model did answer — about nothing.
+
+    ``0`` is left alone. The builder's guard is ``if trunc_chars and …``,
+    so falsy means "do not truncate" — a documented value, not an error.
+
+    ``batch_size`` below 1 is clamped and reported but was never silently
+    *wrong*: ``plugins/_common/llm_client.py::chunked`` does
+    ``max(1, int(n))`` and its caller does it again, so 0 degrades to
+    one-item batches. It is reported because what the user typed and what
+    ran differed, which is the same complaint one level down.
+
+    Correcting-and-reporting rather than refusing: a typo in a numeric box
+    should not throw away a configured run, and the existing behaviour
+    already substitutes a default for non-numeric input. What changes is
+    that the substitution stops being silent.
+    """
+    problems: List[str] = []
+
+    def _as_int(raw: Any) -> Optional[int]:
+        try:
+            return int(str(raw).strip())
+        except Exception:
+            return None
+
+    batch = _as_int(batch_raw)
+    if batch is None:
+        problems.append(
+            f"Batch size {str(batch_raw)!r} is not a whole number; "
+            f"using {batch_default}.")
+        batch = batch_default
+    elif batch < 1:
+        problems.append(
+            f"Batch size {batch} is below 1; using 1. The engine clamps this "
+            f"anyway, so the run would have used one-item batches whatever "
+            f"the box said.")
+        batch = 1
+
+    trunc = _as_int(trunc_raw)
+    if trunc is None:
+        problems.append(
+            f"Truncation {str(trunc_raw)!r} is not a whole number; "
+            f"using {trunc_default}.")
+        trunc = trunc_default
+    elif trunc < 0:
+        problems.append(
+            f"Truncation {trunc} is negative; using {trunc_default}. A "
+            f"negative value does not shorten a field, it removes the last "
+            f"{abs(trunc)} characters of it — and empties any field shorter "
+            f"than that, which for most records is the title and the "
+            f"keywords.")
+        trunc = trunc_default
+
+    return NumericSettings(batch_size=batch, trunc_chars=trunc,
+                           problems=tuple(problems))
 
 
 def tk_state(enabled: bool) -> str:
@@ -328,19 +428,3 @@ def tk_state(enabled: bool) -> str:
     makes the decisions testable.
     """
     return "normal" if enabled else "disabled"
-
-
-def run_button_enabled_after_load(*, has_key: bool) -> bool:
-    """The *other* predicate for the same button.
-
-    ``_load_bundle_inputs`` sets ``btn_run`` from ``_has_openai_key()``
-    alone, while ``_set_controls_running`` sets it from the bundle path
-    alone. **They disagree**, and because ``_set_controls_running(False)``
-    runs in the ``finally`` of every run, the second one wins from the first
-    run of a session onward — so the readiness gate the load path applied is
-    silently dropped. That is F-118.
-
-    This function exists only so the disagreement can be *stated* in a test
-    before it is fixed. Movement two deletes it.
-    """
-    return has_key

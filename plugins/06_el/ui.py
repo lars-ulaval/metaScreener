@@ -49,6 +49,7 @@ from plugins._common.stage_state import (
     Readiness,
     control_states,
     llm_readiness,
+    parse_numeric_settings,
     run_outcome,
     tk_state,
 )
@@ -509,7 +510,7 @@ class ELView(ttk.Frame):
         # decides nothing.
         st = control_states(
             running=running,
-            has_bundle=bool(self.bundle_zip_path),
+            readiness=self._readiness(),
             has_rows=bool(self.full_rows),
             has_input_errors=bool(self.bundle and self.bundle.parse.skipped),
         )
@@ -619,10 +620,16 @@ class ELView(ttk.Frame):
         self.surv_table.clear()
         self._refresh_counts_label()
 
-        self.btn_run.configure(state="normal" if _has_openai_key() else "disabled")
-        self.btn_export.configure(state="disabled")
-        self.btn_export_bundle.configure(state="disabled")
-        self.btn_export_err.configure(state=("normal" if self.bundle.parse.skipped else "disabled"))
+        # F-118: the load path used to set four buttons itself, and its
+        # Run predicate (`_has_openai_key()`) disagreed with the one in
+        # `_set_controls_running` (`self.bundle_zip_path`). Since the
+        # latter runs in the `finally` of every run, the gate applied
+        # here survived only until the first run of a session ended.
+        # There is one predicate now, so there is nothing to disagree.
+        # `full_rows` was cleared above, so this yields exactly what the
+        # four lines did — and it also resets IL's sixth button, which
+        # they forgot.
+        self._set_controls_running(False)
 
         self.lbl_status.configure(text="Ready.")
 
@@ -896,14 +903,23 @@ class ELView(ttk.Frame):
             temperature = float(self.var_temp.get())
         except Exception:
             temperature = 0.0
-        try:
-            batch_size = int(self.var_batch.get())
-        except Exception:
-            batch_size = DEFAULT_BATCH_SIZE
-        try:
-            trunc_chars = int(self.var_trunc.get())
-        except Exception:
-            trunc_chars = DEFAULT_TRUNC_CHARS
+        # F-118: `try: int(...) except: <default>` rescued 'abc' and
+        # accepted '-100'. A negative truncation reaches the prompt
+        # builder as a negative slice: it removes the LAST |n|
+        # characters of every field and empties any field shorter than
+        # that — in practice the title and keywords of every record.
+        numeric = parse_numeric_settings(
+            batch_raw=self.var_batch.get(),
+            trunc_raw=self.var_trunc.get(),
+            batch_default=DEFAULT_BATCH_SIZE,
+            trunc_default=DEFAULT_TRUNC_CHARS)
+        batch_size = numeric.batch_size
+        trunc_chars = numeric.trunc_chars
+        for _problem in numeric.problems:
+            self._log("[EL] setting corrected: " + _problem + "\n")
+        if numeric.problems:
+            messagebox.showwarning("EL settings corrected",
+                                   "\n\n".join(numeric.problems))
         use_cache = bool(self.var_use_cache.get())
 
         self._cancel.clear()
