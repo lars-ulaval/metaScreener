@@ -256,18 +256,42 @@ failures are the typical cause on Linux.
 Sample inputs ship with the repository at `samples/` — present in a
 source clone or download, but not in a PyPI install. If you installed
 via pip (Option A), download the samples from the repository first.
-To verify an end-to-end LLM-free pipeline:
+To verify an end-to-end pipeline **entirely offline** — no API key, no
+network, using only files that ship with the repository:
 
 1. Launch the GUI.
-2. In Plugin 03 (Criteria Parser), load `samples/ic_ec_12.txt`.
-   Click Run; review the inferred criteria.
-3. In Plugin 02 (References-of-X AI), load
-   `samples/ex_ref_2.txt`. Click Run.
-4. Pipe the Plugin 02 output through Plugins 04 (EH) and 05 (IH) —
-   these are deterministic and require no API key.
+2. In **Plugin 03 (Criteria Parser)**:
+   - **Load TXT/RTF…** → `samples/ic_ec_12.txt`, and review the inferred
+     criteria;
+   - **Load A CSV…** → `samples/20260122_1654_aggregate.csv`. Both
+     harmonise buttons need this corpus, and neither is enabled without
+     it;
+   - click **Harmonise (no-LLM)**. Take care to pick that one and not
+     **Harmonise + LLM** beside it, which calls a model and, on an OpenAI
+     key, spends money;
+   - click **Export bundle…** and save the bundle ZIP.
+3. In **Plugin 04 (EH)**, load the bundle you just exported and click
+   **Run**. Then export its bundle.
+4. In **Plugin 05 (IH)**, load Plugin 04's bundle and click **Run**.
 
-If you have an OpenAI key configured, extend the smoke test through
-Plugins 06 (EL) and 07 (IL).
+Plugins 04 and 05 are deterministic: they need no API key and no model of
+any kind.
+
+Two notes on what this route deliberately avoids.
+
+**Plugin 04's input is a bundle ZIP, and only Plugin 03 produces one.**
+There is no path from Plugin 02's output directly into Plugin 04.
+
+**Plugin 02 (References-of-X AI) is not part of this route, because it is
+network-dependent.** It resolves metadata and fetches references from
+external bibliographic services, so although it uses no LLM and costs
+nothing, it is *un-billed* rather than *offline* and will not work without
+an internet connection. Neither of its two actions is called "Run" —
+they are **Resolve Metadata** and **Fetch References**.
+
+If you have an LLM provider configured, extend the smoke test through
+Plugins 06 (EL) and 07 (IL). A local model works for these; see
+[Configuration](#configuration).
 
 ## Troubleshooting
 
