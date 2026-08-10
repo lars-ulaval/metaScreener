@@ -17,7 +17,38 @@ conditions below against what you actually did.
 They are ordered by how likely they are to have changed **which records were
 included or excluded**.
 
-**1. An inclusion criterion could be applied backwards (IL stage).**
+Where a condition matches, the remedy is the same in every case:
+**re-run the affected stages on this version and compare.** There is
+nothing to repair in place. These defects produced
+plausible artefacts rather than broken ones, so there is no corruption
+for a tool to detect and no migration to run — the only way to learn
+what a corrected run gives you is to perform one. Re-running is also
+sufficient: the response cache no longer serves anything an earlier
+version wrote, so a re-run cannot replay a verdict that any of these
+defects produced.
+
+**1. A record could be excluded on evidence belonging to a different
+record.** The two LLM stages send records to the model in batches. The
+code that accepted an answer checked the record identifier it named
+against the whole corpus rather than against the batch that call had
+actually carried, so an answer naming a record the call never saw was
+accepted anyway — and the quote was then validated against *that*
+record's own text, so it passed every check. The result is a
+well-formed, fully evidenced exclusion produced by a call that did not
+contain the record it excluded. Nothing about it looks wrong: the quote
+is genuine, the confidence is high, the evidence trail is complete. It
+was also persistent, because the fabricated verdict was written to the
+response cache — so re-running reproduced the same exclusion offline,
+for ever, at no API cost and with the interface reporting a normal cache
+hit. The trigger is a model misreporting an identifier, which is a
+characteristic weak-model failure, so the rate rises on exactly the
+local-model configurations the README invites. **Re-check if:** you ran
+EL or IL with a batch size greater than 1 — the default — and any record
+was excluded. Answers are now accepted only for the records the call
+actually carried, and the quote is validated against that same set.
+*(F-86)*
+
+**2. An inclusion criterion could be applied backwards (IL stage).**
 If a criterion's `type` cell was blank in `criteria_harmonized.csv`, the IL
 stage treated it as an *exclusion*. An inclusion criterion that a record *met* —
 which is the reason to keep the record — therefore dropped it instead. Silent,
@@ -25,7 +56,7 @@ and exactly backwards. **Re-check if:** you ran IL and any row of your criteria
 table had an empty `type`. The stage now refuses such a criterion and names the
 spreadsheet row number in its warnings panel rather than guessing. *(F-04)*
 
-**2. Your whole corpus could have been silently emptied, or lost its titles.**
+**3. Your whole corpus could have been silently emptied, or lost its titles.**
 A corpus CSV saved as cp1252 or Latin-1 — the ordinary output of Windows
 reference managers — failed to load, and the failure was swallowed: you got zero
 records rather than an error. Separately, a CSV with a byte-order mark produced
@@ -35,7 +66,7 @@ Zotero or Excel on Windows and a stage reported far fewer records than you
 expected, or excluded records for "missing" fields you know were populated.
 *(F-13, F-38)*
 
-**3. Records could vanish between stages 05 and 06.**
+**4. Records could vanish between stages 05 and 06.**
 The EH/IH parser accepted repeated `local_id` values but EL silently dropped
 them, so a corpus with a duplicated identifier lost rows at stage 06 with
 nothing recording which. Where a duplicate survived, its evidence was whichever
@@ -43,7 +74,7 @@ copy was processed last. **Re-check if:** your record counts fell between the IH
 and EL stages by an amount you did not account for. Duplicates are now recorded
 as `duplicate_local_id:<id>` in `data/input_errors.csv`. *(F-55)*
 
-**4. Editing a criterion and re-running could return the old criterion's
+**5. Editing a criterion and re-running could return the old criterion's
 answers.** The LLM response cache was keyed on a criterion's *id* but not its
 *content*. Refining a criterion's wording while keeping its id — the most common
 edit during a live review — and re-running EL or IL served every record the
@@ -56,7 +87,7 @@ text mid-review and re-ran a stage with the cache enabled. Re-running now with
 the cache on is sufficient to get correct answers, because the key covers
 everything the model sees. *(F-01)*
 
-**5. Cancelling a run could produce a bundle that looked complete.**
+**6. Cancelling a run could produce a bundle that looked complete.**
 Cancelling stopped the row loop mid-corpus and returned the records reached so
 far as though they were the whole corpus. The exported bundle was
 indistinguishable from a complete run over a smaller corpus — and it is the
@@ -65,7 +96,7 @@ was dropped from the review without trace. **Re-check if:** you cancelled a run
 and then exported, or continued to the next stage. Cancelled runs can no longer
 be exported. *(F-02)*
 
-**6. Cancelling could also replace real answers with fabricated ones.**
+**7. Cancelling could also replace real answers with fabricated ones.**
 Worse than losing work: for the batch in flight, decisions the model had already
 returned were overwritten with manufactured `uncertain` verdicts carrying an
 internal `error="Cancelled"` marker that nothing displayed. Those verdicts are
@@ -73,9 +104,49 @@ indistinguishable in the evidence trail from a genuine model non-answer.
 **Re-check if:** you cancelled an EL or IL run and kept or resumed its results —
 look for records marked uncertain around the point of cancellation. *(F-26)*
 
-**7. A stage that screened nothing reported every record as cleanly passing.**
+**8. A model that capitalised its answer had every decision rewritten
+to "uncertain".** The vocabulary check on the model's `decision` field
+was case-sensitive while the check two statements later was not, so a
+model answering `Meet` rather than `meet` — or `Not_Meet`, or `not
+meet` — had every one of its verdicts silently replaced with
+`uncertain`, and the evidence gate then refused all of them. No record
+was wrongly excluded by this: the records were flagged for human review
+rather than dropped. What was lost is the screening itself, and the
+audit trail actively misleads — each record carries `used: true`, a
+valid quote and a high confidence beside a verdict of "uncertain", and
+the run as a whole looks exactly like one in which the model was unsure
+about everything, which is the signature the degenerate-output note in
+[`docs/llm-evaluation.md`](docs/llm-evaluation.md) tells a reader to
+interpret as a lazy model. Local models are the most exposed, having the
+weakest format discipline and no `response_format` to hold them to it.
+**Re-check if:** a run flagged far more records than you expected, or
+flagged every record, and you were not using an OpenAI model. Decisions
+are now matched with case and separator folded; a value outside the
+vocabulary is rejected and counted rather than silently replaced, and a
+rejected decision is never cached. *(F-90)*
+
+**9. A network failure could become a permanent verdict.** Every entry
+of a stage's result map was written into the response cache, including
+the entries that record a failure rather than an answer: a transient
+500, a timeout, an authentication blip or a model refusal was stored
+under a key that matches on every later run. Re-running — the obvious
+remedy — is precisely the action the cache defeats, because the second
+run reads the stored failure back instead of calling the model. The
+direction of harm is safe: a failure reads as `uncertain`, so the record
+was flagged for human review rather than excluded. What it costs is
+review effort, and the truthfulness of a trail in which a server error
+is indistinguishable from a model that genuinely could not decide.
+**Re-check if:** you screened during a provider outage or a run reported
+failures, and a later re-run returned the same uncertain verdicts
+without calling the model. Failures and refusals are no longer written
+to the cache. This fixed the writing, not the reading: entries already
+present in a bundle were deliberately left untouched, because silently
+discarding a user's accumulated cache would be its own data loss. See
+item 18 for what now happens to them. *(F-87)*
+
+**10. A stage that screened nothing reported every record as cleanly passing.**
 If a stage ended up with no enabled criteria — including because its only
-criterion was rejected for the blank-`type` reason in item 1 — it assigned
+criterion was rejected for the blank-`type` reason in item 2 — it assigned
 `PASS_CLEAN` to every record and reported all of them as survivors. `PASS_CLEAN`
 is the stronger of the two survivor labels: it asserts every criterion was met,
 by a stage that evaluated none. **No record was wrongly excluded by this** — the
@@ -84,7 +155,7 @@ passed when they were never examined. **Re-check if:** any stage's report shows
 every record as `PASS_CLEAN` with no exclusions. Such records are now labelled
 `NOT_SCREENED`. *(F-34)*
 
-**8. Agreement statistics could be wrong.**
+**11. Agreement statistics could be wrong.**
 In `tools/eval_ingest.py`, rater pairs whose labels were not recognised were
 dropped from the confusion matrix but still counted in the denominator,
 deflating Cohen's and Fleiss' kappa. On a 50-pair fixture with ten unrecognised
@@ -94,7 +165,7 @@ if:** you reported human-vs-LLM agreement figures — recompute them. The tool n
 fails loudly on an unrecognised label instead of quietly miscounting. *(F-06,
 F-07)*
 
-**9. The record of what was dropped as malformed did not survive the pipeline.**
+**12. The record of what was dropped as malformed did not survive the pipeline.**
 Citations discarded for being malformed were written to `data/input_errors.csv`
 in three mutually unreadable formats, and the EL stage deleted the file outright
 on any run where EL itself dropped nothing. This does not change which records
@@ -103,7 +174,7 @@ exclusion counts** from an exported bundle. **Re-check if:** you need to report
 how many records were excluded as unparseable. That figure may be missing rather
 than wrong. *(F-03)*
 
-**10. EL/IL bundles failed their own integrity check.**
+**13. EL/IL bundles failed their own integrity check.**
 Both stages overwrite `data/current.csv` on export but never updated the
 manifest's SHA-256 digests, so a bundle that had passed through EL or IL
 recorded a hash that did not match the file it named, and nothing verified it.
@@ -111,7 +182,7 @@ No screening result is affected. But if you verified a bundle's digests and they
 matched, that check was not meaningful, and if they did not match, that was this
 defect rather than evidence of tampering. *(F-05)*
 
-**11. The record of what was dropped could be written in a form nothing can
+**14. The record of what was dropped could be written in a form nothing can
 read.** A `csv` writer used for `data/input_errors.csv` did not quote a field
 containing a lone carriage return, so a citation dropped for being malformed —
 if its own text carried a stray CR — produced a file that the standard CSV
@@ -128,7 +199,7 @@ changing it moves golden bytes — that residual cannot affect
 excluded as unparseable from a bundle exported by an earlier version and your
 corpus came from a source that mixes line endings. *(F-67, F-68)*
 
-**12. The final workbook's four stage sheets have always been empty.**
+**15. The final workbook's four stage sheets have always been empty.**
 `reports/ScreenA_Report.xlsx` carries five sheets: one per stage plus FINAL. The
 four stage sheets were built with a column header and a row builder that were
 written against different schemas, so every data cell has always come out blank.
@@ -142,7 +213,7 @@ coverage. **Re-check if:** you used the per-stage sheets of a
 the per-stage `reports/*_FULL.csv` files carry the same information and were
 always correct. *(F-69)*
 
-**13. The final workbook's FINAL sheet had no metadata for excluded records.**
+**16. The final workbook's FINAL sheet had no metadata for excluded records.**
 The FINAL sheet lists every record with its per-stage outcome, and those
 outcomes are correct. But its title, abstract and keyword columns were filled
 from the record table as it stands at the *end* of the pipeline, so every record
@@ -156,12 +227,128 @@ early-excluded records — re-ingest through the Harmoniser to get a complete
 one. **Re-check if:** you used the FINAL sheet of an earlier version to write
 up exclusions. *(F-70)*
 
+**17. Running a stage with "Use cache" unticked deleted the bundle's
+cache.** The export writer excluded the cache file from the copy loop
+whether or not it was writing a replacement, so a single run with the
+box unticked silently discarded every answer the bundle had accumulated.
+No screening result is affected, and a re-run regenerates the cache at
+the cost of calling the model again for the whole corpus. The audit
+trail is affected: the manifest's SHA-256 map kept its entry for the
+now-absent file, and the bundle's integrity check could not see the
+problem, because it verifies only members that are present — so the
+bundle asserted a digest for a file it no longer contained and reported
+itself intact. **Re-check if:** a bundle you exported has no cache
+member, or is smaller than you expected, and you ran a stage with "Use
+cache" unticked. The cache file is now skipped only when a replacement
+is actually being written. *(F-104)*
+
+**18. Caches written by earlier versions are no longer consulted, and
+that is deliberate.** Item 5 widened what the cache key covers; this
+release widens it again to include the endpoint the answer came from, so
+that a run against a local server can never be served an answer produced
+by a different provider. The consequence is that every cache entry
+written by an earlier version is now keyed under something this code no
+longer computes, and none of them will be read. Nothing is deleted: the
+old entries stay in the bundle and are carried into every bundle it
+produces, so the cache file does not shrink. What you will see is a
+re-run that reports `cache_hits=0` and calls the model for the whole
+corpus where the previous run cost nothing — correct behaviour
+presenting as a regression, which is the only reason it is on this list.
+It is also the remedy for item 1: a cache entry poisoned before that
+defect was fixed can no longer be served by any code path, so an old
+cache does not need to be distrusted. It needs only to be re-filled.
+*(F-89, F-143)*
+
+**What cannot be determined.** For item 1 there is a test that can
+clear a verdict but none that can convict one. If the quote filed
+against a record occurs nowhere in the corpus except that record's own
+text, then no substitution could have produced it — a check that runs
+offline, over a bundle, with no API key. The converse does not follow,
+because nothing in the artefacts ties a verdict to the call that
+produced it: a stored answer carries no batch, no call identifier and no
+timestamp, and its key is computed from the record the answer was filed
+*against*, so a fabricated verdict and a genuine one are written to
+indistinguishable places. Applied to the 254 cache entries this project
+ships with its published validation study, the check clears 175
+outright, and a further 9 could not have been substitutions because
+their quote had already failed validation; **70 remain undecidable** —
+short, generic keyword fragments such as "Computer science" that recur
+across a bibliographic corpus, which is precisely the population in
+which a substitution could have survived the evidence gate at all.
+Narrowed to the five verdicts that actually removed a record from that
+study, four are provably not products of this defect and one — record
+`A452` on criterion `IC-1` — is undecidable, and will remain so. The
+same check can be run against your own bundle, and the same limit
+applies to it.
+
 Not on this list, deliberately: no released version applied a criterion that had
 been switched off in the criteria table. That was investigated during this wave
 and ruled out — the disabled flag is honoured at load, before any stage
 evaluates anything.
 
 ### Fixed
+- An LLM answer is accepted only for a record the call actually carried
+  (F-86). The acceptance guard checked the returned `a_id` against a map
+  built from the whole item list before batching, so an answer naming a
+  record in a *different* batch was admitted, and the quote was then
+  validated against that record's own text — producing a well-formed,
+  fully evidenced exclusion from a call whose prompt did not contain the
+  record it excluded. See item 1 above; this is the one defect in the set
+  that can remove a record from a systematic review on evidence belonging
+  to another record. The acceptance map is now built per batch, inside
+  the loop and per attempt, and supplies both the guard and the
+  quote-validation text, so neither can reach a record the call did not
+  send; the parse-loop write is guarded the way the back-fill already
+  was, and the first answer for an id wins. Both routes were reproduced
+  before the fix, including the persistence half — a second run replayed
+  the fabricated exclusion from cache at zero API calls.
+- Failures and refusals are no longer written to the response cache
+  (F-87). The write-back merged every entry of the result map with no
+  filter on `used` or `error`, so a transient 500, a timeout, an auth
+  blip or a refusal was stored as a verdict and served on every later
+  run — making re-running, the user's natural remedy, precisely the
+  action that could not clear it. One shared predicate now gates both
+  stages' writes. Write-side only: entries already in a bundle are
+  carried through untouched, because silently discarding an accumulated
+  cache would be its own data loss (see item 18 above for what now
+  happens to them).
+- The model's `decision` value is matched with case and separator folded
+  (F-90). The whitelist was case-sensitive while the `field` check two
+  statements later was not, so a model answering `Meet` rather than
+  `meet` had every verdict rewritten to `uncertain` and refused by the
+  evidence gate — an internally contradictory record carrying `used:
+  true`, a valid quote and a high confidence beside a non-answer, with
+  no log line and no count anomaly to mark it. The widening cannot
+  invent a verdict: only a string reducing exactly to a vocabulary
+  member is accepted. Rejections are now stamped on the record and
+  summarised per criterion, and a rejected decision is never cached —
+  without which a cached rejection would emit its warning once and never
+  again.
+- Running a stage with "Use cache" unticked no longer deletes the
+  bundle's cache (F-104). The writer added the cache member to its skip
+  set unconditionally, so when no cache text was supplied the incoming
+  member was excluded from the copy loop and never re-written. The
+  general rule — skip only what is being replaced — now covers it. The
+  digest map's inability to notice an absent member it still asserts a
+  hash for is a separate, general defect and is tracked as its own row
+  rather than closed here.
+- The manifest records which engine produced each LLM run (F-88). Across
+  the codebase the key `"model"` occurred exactly once, inside the
+  hashed-and-discarded JSON of the cache key: not the manifest, not the
+  history entry, not the cache value, not any report column. A finished
+  bundle could not be attributed to a model, a provider or an endpoint
+  after the fact, which made the FAQ's advice to pin a prompt version in
+  the bundle manifest unperformable. Each LLM stage's
+  `manifest.pipeline.history[]` entry now carries a `provenance` block:
+  model, resolved endpoint, temperature, prompt version, truncation
+  limit and batch size. Recorded per run, from inside the engine — the
+  only layer that knows the resolved endpoint — and omitted rather than
+  zero-filled when a stage consulted no model. Truncation is in the set
+  deliberately: "the model answered" and "the model was shown something"
+  are different claims, and a negative truncation limit empties the
+  fields it should shorten while leaving the run report identical to a
+  healthy one. Old bundles load unchanged and gain no invented
+  provenance.
 - The documentation no longer implies that pip installs include the sample
   data (F-83). The samples were described as "bundled" while no
   distributable contains them: the `[tool.setuptools.package-data]` entry
@@ -219,10 +406,10 @@ evaluates anything.
   the F-03 fix — so the exported file disagreed with the
   `data/input_errors.csv` of the same name inside the bundle.
 - The four stage sheets of `reports/ScreenA_Report.xlsx` carry data (F-69).
-  See item 12 above; the header and the row builder now share one schema,
+  See item 15 above; the header and the row builder now share one schema,
   pinned by the workbook's first tests.
 - The FINAL sheet of `reports/ScreenA_Report.xlsx` covers the whole corpus
-  (F-70). See item 13 above; the Harmoniser writes `data/original.csv`, a
+  (F-70). See item 16 above; the Harmoniser writes `data/original.csv`, a
   pre-screening snapshot digested in the manifest, which no later stage
   touches. Bundle-shape change: one new member in every Harmoniser bundle.
 - The CR-to-LF canonicalisation of metadata at the deterministic stages is
@@ -285,6 +472,19 @@ evaluates anything.
   reported a normal `cache_hits=N`. The same omission applied one level down —
   the record text hash covered only the criterion's *target* fields, although
   the prompt ships title, abstract and keywords for every criterion.
+- The cache key now also covers the **resolved endpoint** the answer came
+  from (F-89). Without it a single bundle pooled answers from every
+  provider it had been run against: switch `OPENAI_BASE_URL` from a local
+  server to the vendor and the run was served the local model's verdicts
+  at `cache_hits=N`, with nothing recording that the two came from
+  different engines. An unset variable hashes as the resolved default
+  rather than as an empty string, so adding the line `.env.example`
+  invites you to add does not throw away a warm cache. The deliberate
+  cost is over-discrimination: `http://host/v1` and `http://host/v1/`
+  route identically and key differently, which costs a redundant re-run
+  — the safe direction, since under-discrimination is the defect itself.
+  Every cache entry written before this change is now unreachable; see
+  item 18 above.
 - A criterion whose `type` cell is blank or unrecognised is now rejected with a
   warning naming its spreadsheet row, in both EL and IL, instead of being
   defaulted to `exclude` (F-04). The default was harmless in EL, which is an
@@ -359,6 +559,20 @@ evaluates anything.
   re-key changed only labels. Any future change to the prompt template or to
   criterion content will invalidate these caches, since the key now covers
   both; that needs a real re-capture via `tools/capture_el_il_goldens.py`.
+- The input of the published validation study is frozen under
+  [`docs/data/study_input/`](docs/data/study_input/), separately from the
+  byte-identity regression fixtures it was copied from (F-98). One pair of
+  files had been serving both roles, and the two have opposite maintenance
+  rules: a fixture is *meant* to be re-captured when the behaviour it
+  guards legitimately changes, while a cited dataset must never change. So
+  every change to the screening engine silently rewrote the input of a
+  published analysis, and `docs/llm-evaluation.md` would have gone on
+  claiming byte-for-byte reproduction while producing different numbers.
+  The document now reads from the frozen copies, which are pinned by
+  digest and re-verified on every test run — as is the reproduction claim
+  itself, by re-running the published command and comparing its output
+  with the committed results. No number in the study changes; the fixtures
+  under `tests/golden/` are now free to move without touching it.
 
 ## [3.1.0] - 2026-04-29
 
