@@ -112,14 +112,85 @@ def _guarded(fn: Optional[Callable[[Any], None]]) -> Optional[Callable[[Any], No
     return _call
 
 
+OPENAI_BASE_URL_ENV = "OPENAI_BASE_URL"
+"""The environment variable that selects the endpoint.
+
+Named rather than inline because three call sites read it and one of them
+is a cache-key input (F-89); a typo in any of them would silently split or
+merge cache namespaces.
+"""
+
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+"""The endpoint used when nothing selects one.
+
+**No trailing slash, and that is load-bearing.** This string is hashed
+into the cache key, and ``https://api.openai.com/v1`` and
+``https://api.openai.com/v1/`` are different pre-images. The slash-less
+form is the one the SDK's own constructor names, the one
+``docs/installation.md`` documents, and the one §B4.5 of
+``06_llm_integration.md`` measured the migration against — so it is the
+form that keeps this repository's key set equal to the measured one.
+
+Note that ``str(client.base_url)`` is **not** this string: httpx
+normalises it to ``https://api.openai.com/v1/``. That normalised value is
+deliberately not what reaches the key. See :func:`_cache_key`.
+"""
+
+
+def resolve_openai_base_url() -> str:
+    """The endpoint this process will talk to, decided by this repository.
+
+    F-92. The local-provider capability used to work only because the
+    vendor SDK's ``OpenAI.__init__`` falls back to
+    ``os.environ.get("OPENAI_BASE_URL")``. No repository line read, wrote,
+    validated, logged or recorded that variable; ``openai`` is pinned only
+    ``>=1.40.0``; and no test asserted the resolved endpoint. So an SDK
+    major that dropped the fallback — or a well-meant refactor adding an
+    explicit ``base_url="https://api.openai.com/v1"`` — would have routed a
+    "local" run to the paid API with the whole suite green. The failure is
+    billable rather than merely wrong.
+
+    Blank is treated as absent. ``metascreener/main.py::_load_env_file``
+    already refuses to export an empty value, but the variable can also
+    come from the shell, and "set to nothing" must not become a third
+    endpoint namespace distinct from both "unset" and any real URL.
+
+    Whitespace is stripped because it is not a routing difference; leaving
+    it in would give one server two cache namespaces. Everything else is
+    returned **verbatim** — see :func:`_cache_key` for why no further
+    normalisation is applied.
+
+    This is the single place the endpoint is decided. :func:`_cache_key`'s
+    callers and :func:`_openai_client_for` both read it from here, so the
+    key and the client cannot disagree about where a run went.
+    """
+    return os.environ.get(OPENAI_BASE_URL_ENV, "").strip() or DEFAULT_OPENAI_BASE_URL
+
+
 def _openai_client_for():
     """Construct the OpenAI client.
 
     Extracted so cancellation and batching can be tested without a live
     key or network. Nothing else about the call path changed.
+
+    F-92: ``base_url=`` is passed **explicitly**, from
+    :func:`resolve_openai_base_url`. Passing it is the point — not merely
+    arriving at the same answer the SDK's fallback would have produced.
+    Once it is passed, the SDK's environment fallback is unreachable for
+    this project, so the declared floor's behaviour stops being
+    load-bearing and the unresolved question of whether ``openai==1.40.0``
+    has that fallback stops mattering.
+
+    Kept zero-argument on purpose: twelve test doubles across the suite
+    monkeypatch this name with ``lambda: client``, and a parameter here
+    would break all of them to no benefit — the endpoint is process state,
+    and this function's job is to read it.
     """
     from openai import OpenAI  # type: ignore
-    return OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    return OpenAI(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        base_url=resolve_openai_base_url(),
+    )
 
 
 def _safe_str(x: Any) -> str:

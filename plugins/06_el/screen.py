@@ -62,6 +62,8 @@ from plugins._common.llm_client import (
     _load_cache_from_jsonl,
     _dump_cache_to_jsonl,
     _render_prompt_for_key,
+    resolve_openai_base_url,
+    OPENAI_BASE_URL_ENV,
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
 from plugins._common.bundle import NOT_SCREENED, _verify_sha256_map
@@ -593,6 +595,25 @@ def run_el_screen(
         lid = _safe_str(it.get("a_id", "")).strip()
         if lid:
             id_to_item[lid] = it
+
+    # F-92. Resolved once per run, here, because two consumers must not
+    # disagree about it: the log line below and — from F-89 — every cache key
+    # computed in the loop. `_openai_client_for` reads the same function when
+    # it builds the client, so the endpoint a key was computed for is the
+    # endpoint the call actually went to.
+    endpoint = resolve_openai_base_url()
+    if log_cb:
+        # F-119's lesson: say what the code observed. Whether the variable
+        # was set is the actionable half — a user following the README's
+        # Ollama recipe needs to see at a glance that their `.env` took
+        # effect, and "endpoint=https://api.openai.com/v1" alone does not
+        # distinguish "I chose the public API" from "my .env was not read".
+        _endpoint_src = (
+            f"set via {OPENAI_BASE_URL_ENV}"
+            if os.environ.get(OPENAI_BASE_URL_ENV, "").strip()
+            else f"{OPENAI_BASE_URL_ENV} not set; using the default"
+        )
+        log_cb(f"[EL] endpoint={endpoint} ({_endpoint_src})\n")
 
     # Run criterion by criterion (legacy-style)
     llm_results: Dict[Tuple[str,str], Dict[str, Any]] = {}
