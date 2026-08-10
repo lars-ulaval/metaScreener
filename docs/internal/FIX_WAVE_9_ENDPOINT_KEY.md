@@ -1,8 +1,9 @@
 # Fix wave 9 — the endpoint enters the cache key
 
 Branch `fix/wave-9-endpoint-key`, from `main` @ `f40af5f` (tagged
-`post-wave-8`). Four commits, four findings closed: **F-92**, **F-139**,
-**F-89** (High) and the **F-142** audit question.
+`post-wave-8`). Six commits, four findings closed — **F-92**, **F-139**,
+**F-89** (all High) and the **F-142** audit question — and one opened,
+**F-143**.
 
 The first wave since wave 2 to move a committed golden, run under wave 2's
 discipline — with the one obligation wave 2 skipped discharged here.
@@ -87,7 +88,26 @@ wave left both **byte-identical** (§5). So the wave passed through F-98's
 blast radius without touching it. The advice remains correct for the next
 wave that moves a decision file — which a re-capture would.
 
-**3. The prompt's framing of the one-way door is right but incomplete, and
+**3. Two of the prompt's ground rules cannot both hold, and the conflict is
+inherent to a re-key.** *"One commit per finding. Suite green after each"*
+and *"The re-key is its own commit, separate from the `_cache_key` change"*
+are incompatible:
+
+* code first, goldens second → the suite is red at the code commit, because
+  every fixture key is invalidated;
+* goldens first, code second → the suite is red at the golden commit,
+  because the goldens are keyed for a formula that does not yet exist;
+* both in one commit → green throughout, but that is the one arrangement
+  the prompt explicitly forbids.
+
+I took the first, which is what wave 2 did, and reported the red state in
+`c5e2100`'s own message rather than letting a reader discover it. Wave 2's
+code commit `34fa37a` says *"278 passed, 4 skipped, 2 failed (the two
+goldens above)"* — the precedent includes being explicit about it. The
+separation is worth the intermediate red, because it is what lets the proof
+be reviewed apart from the behaviour change. §8 records both figures.
+
+**4. The prompt's framing of the one-way door is right but incomplete, and
 the gap matters.** It names two candidates: hashing an ABSENT `base_url`
 as `""`, and hashing "the SDK's RESOLVED default". §B4.5 measured exactly
 those two and found them disjoint. But the diagnostic never records what
@@ -313,13 +333,21 @@ them.
   rename fails, and `.gitignore` now covers `.env.tmp` so that a crash
   between write and rename cannot strand the user's API key in a file
   that `git status` would offer to commit.
-* **One residue, recorded rather than silently changed:** the temporary
-  inherits default permissions (`0o666 & ~umask` on POSIX), so on a
-  permissive umask the secret is briefly group/world-readable. The
-  pre-existing code created `.env` itself with exactly the same
-  permissions, so this is not a regression, and tightening it is a
-  behaviour change no finding asks for. It belongs with wave 11's `.env`
-  work.
+* **Permissions must be carried over, and the first version of this fix got
+  that wrong.** I originally recorded that the temporary's default mode was
+  "not a regression, because the pre-existing code created `.env` with the
+  same permissions". **That was incorrect**, and the review pass in §9
+  caught it: the old code *truncated an existing inode*, so a user's
+  `chmod 600 .env` survived every save. Creating a fresh temporary and
+  renaming it in carries the **temporary's** mode — `0o666 & ~umask`,
+  usually `0644` — so protecting a file that holds an API key would have
+  made it world-readable on the next launch. The mode is now copied from
+  the target before the rename. A brand-new `.env` still gets the default
+  mode, exactly as before; `0600` would be better and is wave 11's call,
+  since it is a behaviour change no finding asks for.
+* **Symlinks must be followed**, and the first version did not — see §9.
+* **The temporary name must be unique per call**, and the first version
+  used a constant — see §9.
 
 **Deliberately not fixed**, and named in the docstring so wave 11 inherits
 them rather than rediscovering them: the save filter matches the literal
@@ -539,12 +567,31 @@ the version-marker-plus-warning its fix cell proposed, because it needs no
 user action and cannot be misconfigured. The remedy it asked for was a way
 to *distrust* such entries; they can no longer be trusted by anything.
 
-**(b) The documentation note is owed.** Users hold bundles whose caches are
-now inert. Nothing warns them, and the observable symptom is a re-run that
-costs a full corpus of API calls where the previous run cost nothing. That
-is correct behaviour presenting as a regression, which is exactly the kind
-of thing a CHANGELOG entry exists for. **Not written here** — the prompt
-says report the residue, not implement it.
+**(b) The documentation note is owed, and it is the one loose end of this
+wave.** Users hold bundles whose caches are now inert. Nothing warns them,
+and the observable symptom is a re-run that costs a full corpus of API
+calls where the previous run cost nothing — correct behaviour presenting as
+a regression, which is exactly what `CHANGELOG.md`'s *"If you produced
+results with an earlier version, read this first"* section exists for.
+
+**Not written here, deliberately.** The wave prompt enumerates this exact
+option — *"(b) a documentation note telling users their old caches are
+inert"* — and instructs that the residue be reported rather than
+implemented. So it is reported.
+
+Two things the maintainer should weigh when deciding, because they cut
+against each other:
+
+* **Wave 2's precedent included it.** `c8d2fb3` touched `CHANGELOG.md` as
+  part of the re-key, and F-01's register row records that *"the trade-off
+  this row asked to be made explicitly is recorded in `CHANGELOG.md`"*. By
+  that standard this wave's CHANGELOG entry is part of the re-key, not part
+  of F-142.
+* **Waves 7 and 8 did not touch `CHANGELOG.md` at all** (`3f37f17`,
+  `866c988`, `e188a07`), so the convention is no longer uniform, and a note
+  written now would sit in a section whose neighbours describe defects that
+  changed *verdicts* — where this one changes only *cost*. It may deserve
+  different wording rather than a bullet in that list.
 
 **(c) One new finding, small.** A pre-F-89 entry is *inert but immortal*.
 `cache_out` starts as `dict(cache_in)`, unreachable entries are never
@@ -596,12 +643,13 @@ Applied to `docs/internal/diagnostic/03_findings.md`.
 | Suite at `37dd61c` (F-139) | 717 passed, 4 skipped |
 | Suite at `c5e2100` (F-89 code) | **2 failed**, 726 passed, 4 skipped |
 | Suite at `b01ec25` (re-key) | **745 passed, 4 skipped, 0 failed** |
+| Suite at `c4c30dc` (review fixes) | **750 passed, 5 skipped, 0 failed** |
 | `python tools/audit_imports.py plugins` | all `clean`, exit **0** |
 | `python tools/audit_decorators.py plugins` | all `clean`, exit **0** |
 | `python tools/check_encoding.py` | 167 paths, no BOM or mojibake, exit **0** |
 | `python tools/rekey_cache_goldens.py --verify` | exit **0** |
 
-**+50 tests, net.** 695 → 745.
+**+56 tests, net.** 695 → 750 passed (the fifth skip is the POSIX-only permission test, skipped on Windows).
 
 ### The two failures at `c5e2100`, and why they were correct
 
@@ -618,7 +666,60 @@ behaviour change are reviewable independently.
 
 ---
 
-## 9. Commits
+## 9. Independent verification and the review pass
+
+The wave's load-bearing claims were re-derived by five independent
+reviewers, each instructed to **refute** rather than confirm, and none
+permitted to trust `tools/rekey_cache_goldens.py` or
+`tests/test_golden_rekey.py`.
+
+**Confirmed, with evidence stronger than the claim required:**
+
+* **The re-key is a pure relabelling.** Taking the pre-wave file and
+  substituting keys purely by value-matching reproduces the HEAD blob
+  **byte-for-byte**. Anti-masking checks all passed: no duplicate JSON
+  keys, identical number-token multiset (rules out `0.9`→`0.90`), identical
+  non-key string-literal multiset (rules out unicode-escape or NFC/NFD
+  rewrites). One useful correction to my own reasoning: **equal byte length
+  proves nothing** — a deliberately shuffled mutant also came out at
+  exactly 76992/30504, because fixed-width hex keys make length invariant
+  under any permutation. What *does* prove it is the reviewer's two
+  falsification experiments: dropping the old cache under HEAD's code fails
+  both byte-identity tests, and shuffling values among the *new* keys
+  (168/170 and 83/84 relocated) also fails both — so the tests discriminate
+  key→value assignment, not merely the multiset.
+* **F-142's answer.** No counterexample found. 10,000 adversarial
+  pre-image pairs — including `","endpoint":"z` injected into
+  `prompt_version`, `model` and `prompt` — produced **0** collisions; JSON
+  escaping defeats the injection, and `sort_keys=True` means old pre-images
+  always begin `{"model":` while new ones begin `{"endpoint":`.
+* **Golden movement.** Two files changed, seven identical, verified against
+  git blob OIDs as well as SHA-256. Stronger than I claimed: `git log --all`
+  shows the four decision goldens have been touched by exactly **one**
+  commit ever — `4fbe8fd`, the original capture — so they have never moved,
+  across either re-key.
+* **Every suite figure**, re-run per commit in a temporary worktree:
+  695 / 708 / 717 / (2 failed, 726) / 745, all exact.
+
+**Refuted — the review found seven issues, four of them real regressions or
+gaps I introduced.** Fixed in `c4c30dc`:
+
+| # | Defect | Status |
+|---|---|---|
+| 1 | Atomic write **widened `.env` permissions** on POSIX: the old truncating write preserved a `chmod 600`, the rename did not | **fixed** — mode copied from the target before the rename |
+| 2 | A **symlinked `.env` was replaced by a regular file**, its target left stale, and the call reported `ok=True` | **fixed** — `os.path.realpath` before deriving the temporary. Reproduced on this machine before the fix |
+| 3 | Constant `.env.tmp` let **two instances corrupt each other**, one reporting success having written the other's key | **fixed** — pid + random suffix |
+| 4 | `tools/capture_el_il_goldens.py` **did not pin `OPENAI_BASE_URL`** although the replays now do — a re-capture on a machine set up for Ollama would key the goldens to `localhost` and fail byte-identity with nothing to explain why | **fixed** — `::_pin_endpoint` overrides and warns |
+| 5 | The refusal message said "save again", but the only entry point runs once in `__init__` | **fixed** — says "restart" |
+| 6 | Atomic write now needs **write permission on the directory**, which truncation did not | **inherent to any atomic write**, not fixed. The failure is now reported rather than silent, and the message names the real path |
+| 7 | The endpoint reaches the key and the log **but no exported artefact** | **out of scope** — manifest provenance is explicitly excluded from this wave and is F-88's |
+
+Issue 1 also corrected a **wrong claim in this brief**: I had recorded the
+permission behaviour as "not a regression". It was one. §4 now says so.
+
+---
+
+## 10. Commits
 
 | Hash | Subject |
 |---|---|
@@ -626,5 +727,7 @@ behaviour change are reviewable independently.
 | `37dd61c` | `fix(F-139): do not replace .env with one line when the read fails` |
 | `c5e2100` | `fix(F-89): put the resolved endpoint in the cache key` |
 | `b01ec25` | `test(F-89): re-key the EL/IL cache goldens, and commit the proof` |
+| `773b983` | `docs: record wave 9, close F-89/F-92/F-139/F-142, open F-143` |
+| `c4c30dc` | `fix(F-139, F-89): repair four defects found reviewing this wave` |
 
 Not merged, not tagged, not pushed.
