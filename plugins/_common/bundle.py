@@ -587,10 +587,21 @@ def _write_llm_stage_bundle(
     manifest = _refresh_sha256_map(manifest, written)
     manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
 
+    # A member is skipped by the copy loop only when this export is writing a
+    # replacement for it — which is precisely what being in `written` means.
+    #
+    # F-104: `cache_rel` used to be added here unconditionally, but it only
+    # enters `written` when `cache_text is not None`, i.e. when the user
+    # ticked "Use cache". Untick the box and the incoming cache member was
+    # excluded from the copy loop with nothing written in its place, so one
+    # export silently deleted an accumulated cache that cost real money. The
+    # manifest kept its digest for the vanished member — `_refresh_sha256_map`
+    # only touches members it wrote — and `_verify_sha256_map` iterates the
+    # members that are present, so it could not see the absence and reported
+    # the bundle intact.
     skip_exact = {root + rel for rel in written}
     skip_exact.add(root + "manifest.json")
     skip_exact.add(root + "data/input_errors.csv")
-    skip_exact.add(root + cache_rel)
 
     with zipfile.ZipFile(out_zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf_out:
         for name in members:
