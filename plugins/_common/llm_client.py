@@ -554,6 +554,44 @@ def _cache_key(*, prompt_version: str, model: str, rendered_prompt: str,
     )
     return _sha_text(base)
 
+def _is_cacheable_evidence(ev: Any) -> bool:
+    """True when an evidence dict records an answer the model actually gave.
+
+    F-87. EL's and IL's write-back merged *every* entry of the result map
+    into the persistent cache with no filter at all, so a transient 500, a
+    timeout, an auth blip, an oversize failure, a cancelled batch or a plain
+    omission was stored under a key that matches on every later run. The read
+    side's ``ev.setdefault("used", True)`` then served it back as though it
+    were an answer. The direction of harm is safe — ``uncertain`` flags
+    rather than excludes — but the remedy for a network blip is to re-run,
+    and re-running is exactly what a negative cache entry defeats. The raw
+    SDK exception text rode along into the exported bundle as well.
+
+    Two rules, both on the write side only:
+
+    ``error`` is judged by *presence*, not truthiness. It is set from
+    ``str(e)``, and an exception raised with no message stringifies to the
+    empty string; the key is the marker of a terminal failure, whatever it
+    holds.
+
+    ``used`` must be explicitly true. The read side defaults a missing
+    ``used`` to True, for cache files written before the field existed, and
+    that asymmetry is deliberate: an entry that does not record a model
+    answer is not evidence of one, and the cost of refusing to cache it is
+    one more API call rather than a permanent false verdict.
+
+    This governs what a run *writes*. Entries arriving in ``cache_in`` are
+    carried through untouched — a bundle captured before this fix keeps
+    whatever it has, because silently deleting a user's accumulated cache
+    would be its own kind of data loss (and would move the goldens).
+    """
+    if not isinstance(ev, dict):
+        return False
+    if "error" in ev:
+        return False
+    return ev.get("used") is True
+
+
 def _load_cache_from_jsonl(text: str) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
     for ln in (text or "").splitlines():

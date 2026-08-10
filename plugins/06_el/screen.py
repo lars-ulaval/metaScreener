@@ -56,6 +56,7 @@ from plugins._common.llm_client import (
     run_m1_llm_for_criterion,
     _make_item_for_llm,
     _row_target_text_hash,
+    _is_cacheable_evidence,
     _load_cache_from_jsonl,
     _dump_cache_to_jsonl,
     _render_prompt_for_key,
@@ -502,6 +503,46 @@ def run_el_screen(
         "keywords": getv(r, "keywords"),
     } for r in rows]
 
+    # F-87, the duplicate-id companion. Two rows carrying the same local_id
+    # go into the prompt as two different records under one a_id, so whatever
+    # the model answers cannot be attributed to either of them: the maps here
+    # are built by assignment, the last row under an id wins, and a quote
+    # drawn from that row then validates and excludes every row sharing the
+    # id — including ones whose own text does not contain it. Measured at
+    # OUT = 2/3.
+    #
+    # Both _load_bundle and plugins/_common/parser (since F-55) already drop
+    # duplicates, and both keep doing so. But they are upstream, so the
+    # safety property was carried by the caller: anything constructing a
+    # ParseReport directly walked straight past it. The guard belongs to the
+    # gate as well, so it is here too.
+    #
+    # Ambiguous ids are withheld from the LLM entirely rather than asked
+    # about and then discarded — the answer would be unusable and billed.
+    # With no verdict to look up, the row loop's evidence gate degrades them
+    # to UNCERTAIN, which flags the rows for a human instead of acting on
+    # them. Nothing is dropped from the output.
+    seen_ids: Set[str] = set()
+    ambiguous_ids: Set[str] = set()
+    for it in items:
+        lid = _safe_str(it.get("a_id", "")).strip()
+        if not lid:
+            continue
+        if lid in seen_ids:
+            ambiguous_ids.add(lid)
+        seen_ids.add(lid)
+    if ambiguous_ids:
+        if log_cb:
+            log_cb(
+                f"[EL] {len(ambiguous_ids)} duplicated local_id(s) "
+                f"({', '.join(sorted(ambiguous_ids))}) carry more than one "
+                f"record each. A verdict cannot be attributed to a single "
+                f"record, so these rows are not screened by the LLM and are "
+                f"reported as uncertain. Fix the duplicate ids upstream.\n"
+            )
+        items = [it for it in items
+                 if _safe_str(it.get("a_id", "")).strip() not in ambiguous_ids]
+
     # a_id -> the item as the prompt builder will see it. This is what the
     # cache key is derived from (F-01), and it doubles as the "is this a_id
     # one of ours?" guard when merging LLM results back in.
@@ -590,7 +631,12 @@ def run_el_screen(
                 # so crit_pack is the pack the prompt was rendered from.
                 k = _cache_key(model=model, criterion=crit_pack, item=it,
                                trunc_chars=trunc_chars, temperature=temperature)
-                if use_cache:
+                # F-87: a non-answer is not a verdict. Without this gate a
+                # transient 500, a timeout, an auth blip or a plain omission
+                # was cached under a key that matches on every later run, so
+                # the user's remedy — re-run — was the one action the cache
+                # defeated. See _is_cacheable_evidence.
+                if use_cache and _is_cacheable_evidence(ev):
                     cache_out[k] = dict(ev)
 
         elif c.operator != "llm":
