@@ -866,7 +866,14 @@ class PrismaAIV3View(ttk.Frame):
                 self.after(0, lambda: self.set_step("Formatting", "done"))
             except Exception as e:
                 logger.log(f"ERROR: {e}")
-                messagebox.showerror("Extraction error", str(e))
+                # F-112: this ran on the worker thread while the nine
+                # self.after(0, …) calls above it did not. Tk is not thread-
+                # safe, so it can hang the whole hub rather than this tab.
+                # The `m=str(e)` binding is required, not stylistic: PEP 3110
+                # deletes `e` at the end of the except block, and this
+                # callback runs later, on the main loop.
+                self.after(0, lambda m=str(e): messagebox.showerror(
+                    "Extraction error", m))
             finally:
                 logger.close()
 

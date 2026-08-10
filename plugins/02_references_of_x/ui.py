@@ -756,7 +756,13 @@ class ReferencesOfXView(ttk.Frame):
             except Exception as e:
                 logger.log(f"ERROR: {e}")
                 logger.log("TRACE:\n" + traceback.format_exc())
-                messagebox.showerror("Resolve error", str(e))
+                # F-137: same defect as F-112, and worse here — this worker
+                # runs while a wait_window-grabbed modal holds the Tk grab,
+                # so an off-thread dialog competes with a grabbed Toplevel.
+                # `m=str(e)` is required: PEP 3110 deletes `e` at the end of
+                # the except block and this callback runs later.
+                self.root.after(0, lambda m=str(e): messagebox.showerror(
+                    "Resolve error", m))
             finally:
                 logger.close()
                 self.root.after(0, lambda: modal.mark_finished(cancelled=self.cancel_token.cancelled))
@@ -865,7 +871,9 @@ class ReferencesOfXView(ttk.Frame):
             except Exception as e:
                 logger.log(f"ERROR: {e}")
                 logger.log("TRACE:\n" + traceback.format_exc())
-                messagebox.showerror("Fetch error", str(e))
+                # F-137, the second site. See on_resolve_metadata above.
+                self.root.after(0, lambda m=str(e): messagebox.showerror(
+                    "Fetch error", m))
             finally:
                 logger.close()
                 self.root.after(0, lambda: modal.mark_finished(cancelled=self.cancel_token.cancelled))
