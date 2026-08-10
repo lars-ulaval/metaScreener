@@ -873,7 +873,18 @@ class ELView(ttk.Frame):
         if not self.bundle or self._worker:
             return
         if not _has_openai_key():
-            messagebox.showerror("Missing OPENAI_API_KEY", "EL uses the OpenAI API. Set OPENAI_API_KEY in your environment (.env).")
+            # F-119: this said "EL uses the OpenAI API" to a user running
+            # Gemma on Ollama, and it is one of the strings they read while
+            # diagnosing a failed run — so it pointed away from the cause.
+            # The endpoint is whatever OPENAI_BASE_URL names; what is
+            # actually required is that the variable be set at all.
+            messagebox.showerror(
+                "No API key",
+                "EL sends each record to an OpenAI-compatible endpoint, and "
+                "the client requires OPENAI_API_KEY to be set even when the "
+                "endpoint ignores its value.\n\n"
+                "Set it in your environment or in .env. For a local server "
+                "that does not check it, any non-empty placeholder will do.")
             return
 
         # parse settings

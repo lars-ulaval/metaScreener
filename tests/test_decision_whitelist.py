@@ -281,3 +281,59 @@ class TestARejectedDecisionIsNotCached:
                     "field": "title", "quote": "q", "span": None,
                     "valid_quote": True}
         assert lc._is_cacheable_evidence(accepted) is True
+
+
+# ---------------------------------------------------------------------------
+# F-119 — the skip line must report the value it observed
+# ---------------------------------------------------------------------------
+
+class TestTheSkipLineNamesTheActualModel:
+    """``"model=None; skipping."`` asserted a value the code never looked
+    at, and its reachable trigger was a *whitespace-only* field — so a user
+    who trusted the line went looking for a null where there was a space."""
+
+    @pytest.mark.parametrize("model,shown", [(None, "None"), ("", "''")])
+    def test_the_line_shows_what_was_actually_set(self, llm, monkeypatch,
+                                                  model, shown):
+        lines = []
+        out = lc.run_m1_llm_for_criterion(
+            {"id": CID, "type": "exclude", "operator": "llm",
+             "target": "title", "what": ["x"], "how": "llm", "label": "x",
+             "threshold": 0.6},
+            [{"a_id": "A000", "title": "T", "abstract": "", "keywords": ""}],
+            stage="EL", build_messages=_build_messages, model=model,
+            trunc_chars=1500, batch_size=1, log=lines.append,
+        )
+        assert out == {}
+        text = "".join(lines)
+        assert shown in text, f"expected {shown!r} in {text!r}"
+        assert "model=None; skipping." not in text
+
+    @pytest.mark.parametrize("model", ["   ", "\t"])
+    def test_a_whitespace_model_is_NOT_caught_here_which_is_why_f93_exists(
+            self, llm, monkeypatch, model):
+        """The engine's guard is ``if not model:``, and a whitespace-only
+        string is **truthy** — so it is not the engine that refuses one. The
+        UI had already stripped it to ``""`` before this point, which is how
+        the value reached the guard at all, and why the old line's `None`
+        was wrong about what it had seen.
+
+        Refusing whitespace belongs in the UI, where the user can be told
+        about it: that is F-93's remaining half. Pinned here so the division
+        of labour is recorded rather than assumed."""
+        client = _DecisionClient("meet")
+        monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+        lines = []
+        lc.run_m1_llm_for_criterion(
+            {"id": CID, "type": "exclude", "operator": "llm",
+             "target": "title", "what": ["x"], "how": "llm", "label": "x",
+             "threshold": 0.6},
+            [{"a_id": "A000", "title": "T", "abstract": "", "keywords": ""}],
+            stage="EL", build_messages=_build_messages, model=model,
+            trunc_chars=1500, batch_size=1, log=lines.append,
+        )
+        assert client.calls == 1, (
+            "a whitespace-only model reaches the wire: the engine cannot "
+            "tell it from a real one"
+        )
+        assert "no model set" not in "".join(lines)

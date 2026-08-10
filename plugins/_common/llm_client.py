@@ -580,7 +580,12 @@ def run_m1_llm_for_criterion(
 
     log_prefix = f"[{stage}-LLM]"
     if not model:
-        if log: log(f"{log_prefix} model=None; skipping.\n")
+        # F-119: this line said `model=None` whatever the value actually was,
+        # and its reachable trigger was a whitespace-only field — so a user
+        # who trusted it went looking for a null where there was a space.
+        # `!r` is what makes None, "" and "  " distinguishable at a glance.
+        if log: log(f"{log_prefix} no model set (model={model!r}); "
+                    f"skipping this criterion.\n")
         return {}
     if not _has_openai_key():
         if log: log(f"{log_prefix} OPENAI_API_KEY not visible in environment; skipping.\n")
