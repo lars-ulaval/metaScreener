@@ -35,6 +35,45 @@ captured by each criterion's `operator` field in the harmonized
 criteria CSV; this evaluation includes exactly the rows where
 `operator = llm` and the stage is IL or EL.
 
+## Model under evaluation
+
+Every LLM decision adjudicated below was produced by **`gpt-4o-mini`**,
+in a single capture committed at `4fbe8fd` (2026-05-02), with a
+4000-character field truncation limit and a batch size of 5.
+
+That attribution needs a caveat, and it is why this section exists: the
+model is not recorded by the product. It is a constant asserted by the
+capture harness — `MODEL` in
+[`tools/capture_el_il_goldens.py`](../tools/capture_el_il_goldens.py),
+written into the `_invocation` envelope of the two cache fixtures — so
+it is a statement about how the capture was configured, not a value
+recovered from the run. Three further properties of that run were not
+recorded at all, and are given here as inference rather than
+observation:
+
+| | Value | Basis |
+|---|---|---|
+| Model | `gpt-4o-mini` | asserted by the capture harness |
+| Truncation limit | 4000 characters | asserted by the capture harness |
+| Batch size | 5 | asserted by the capture harness |
+| Endpoint | the OpenAI default | *inferred* — none was recorded, and the capture set none |
+| Temperature | 0.0 | *inferred* — the capture set none, so the run took the code default |
+| Prompt version | *not applicable* | no such field existed at the capture commit |
+
+The frozen study input carries the same statement in
+[`study_input.meta.txt`](data/study_input/study_input.meta.txt).
+
+None of this is true of a run made with the current version. A bundle
+exported today records the model, the resolved endpoint, the
+temperature, the prompt version, the truncation limit and the batch size
+in its manifest, once per stage run, so a later evaluation will not have
+to reconstruct its provenance from a test fixture. This study predates
+that and cannot benefit from it retroactively.
+
+**The figures below therefore describe one model.** They are not a
+property of metaScreener and should not be read as one — see *Single
+model* under [Limitations](#limitations).
+
 ## Design
 
 **Multi-annotator with stratified overlap.** Three raters (the paper's
@@ -170,6 +209,10 @@ EL/EC-3 + 84 IL/IC-1). Total human decisions collected: **344**
 (3 raters x 15 overlap records per stage + disjoint records). Total
 disagreements: **88**.
 
+Every figure in this section describes `gpt-4o-mini` on the HMD-VR
+demonstration corpus; see [Model under
+evaluation](#model-under-evaluation).
+
 ### EL / EC-2 (exclusion)
 
 > *The paper's primary focus is spatial navigation in a virtual maze
@@ -298,6 +341,19 @@ The findings reported above are bounded by several conditions:
 - **Single corpus.** The HMD-VR demonstration is the only corpus on
   which agreement has been measured. Extending kappa across multiple
   corpora and criterion sets is future work.
+- **Single model.** Every decision was produced by one model,
+  `gpt-4o-mini`, in one capture — see [Model under
+  evaluation](#model-under-evaluation). The agreement figures are a
+  property of that model on this corpus, not a property of
+  metaScreener. A different model may agree with human raters more or
+  less, and may fail in ways this corpus cannot show; the gap is widest
+  for the smaller local models the tool supports and the README
+  invites, whose characteristic weaknesses — format discipline,
+  identifier fidelity, confidence calibration — are precisely the ones
+  these metrics do not probe. Nothing here transfers automatically to
+  whatever model the tool ships as its default. If that default
+  changes, these figures continue to describe `gpt-4o-mini` and not the
+  model that ships.
 - **Abstracts only.** Raters worked from the same evidence the LLM
   saw. This is methodologically appropriate for fair comparison and
   for the title-and-abstract PRISMA stage, but it does not validate
@@ -333,9 +389,65 @@ The findings reported above are bounded by several conditions:
   variance as something to inspect rather than assume, particularly
   when a stage excludes nothing.
 
+  Two further failure modes are **not** instances of this one, and
+  watching for this one will not catch them. A **JSON-shape failure** —
+  a response that does not parse, or that omits the expected fields —
+  also produces zero variance, so it presents with the same outward
+  signature as a model that has stopped discriminating while having an
+  unrelated cause and an unrelated remedy. The advice in the preceding
+  paragraph misfires on it specifically: a reviewer inspecting decision
+  and confidence variance would diagnose a lazy model rather than a
+  broken response contract. **Identifier drift** — a model that
+  misreports which record it is answering about — is invisible on both
+  sides, an unrecognised identifier being dropped and a missing one
+  back-filled, in each case with no counter and no log line; it is also
+  the trigger condition for the substitution defect described in the
+  next bullet. Neither mode occurred in the run reported above, and the
+  frequency of neither has been measured. Both are more likely on
+  smaller models than on the one this study used.
+
   This is one observed run, on one corpus, with one model. It is
   reported because it happened, not as an estimate of how often
   degenerate output occurs; that has not been measured.
+- **A defect in the screening code could, in principle, have fabricated
+  an exclusion — and this study's own evidence has been audited for
+  it.** Until it was fixed, the LLM stages could accept an answer
+  naming a record the call had not carried, and would then validate the
+  quote against *that* record's own text, so the result passed every
+  check (item 1 of the release notes in
+  [`CHANGELOG.md`](../CHANGELOG.md)). An exclusion fabricated this way
+  is well-formed and fully evidenced, and cannot be found by
+  inspection.
+
+  The 254 cache entries behind this study were therefore checked
+  directly. The check runs in one direction only: if the quote filed
+  against a record occurs nowhere in the corpus except that record's
+  own text, no substitution could have produced it. It clears **175**
+  entries outright, and a further **9** could not have been
+  substitutions because their quote had already failed validation.
+  **70 remain undecidable** — short, generic keyword fragments such as
+  "Computer science" that recur across a bibliographic corpus, which is
+  exactly the population in which a substitution could have survived
+  the evidence gate at all.
+
+  Narrowed to what changes the funnel: this study contains five
+  verdicts that actually removed a record. **Four are provably not
+  products of the defect. One — record `A452` on `IC-1`, quoting
+  "Computer science" — is undecidable.**
+
+  Both halves of that should be read carefully. The undecidable entries
+  are not evidence that anything went wrong: no entry anywhere exhibits
+  the positive signature of a substitution, and every quote in the
+  study can be supplied by the record it is filed against. Nor are they
+  evidence that nothing did. The residue is structural rather than a
+  matter of effort — nothing in the artefacts ties a verdict to the
+  call that produced it, so no further analysis of the committed files
+  can resolve it, and the one thing that would, a per-response record
+  of which call answered for which record, did not exist when this
+  study was captured and does not exist now. The provenance a bundle
+  records from this version onward is per *run* — which engine
+  produced a stage's decisions — not per response, so it does not
+  close this gap either.
 
 ## Reproducibility of the demonstration funnel
 

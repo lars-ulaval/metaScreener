@@ -193,8 +193,9 @@ analysed in
 
 Cohen's kappa measures human-vs-LLM agreement; Fleiss' kappa
 measures inter-human agreement on the overlap subset. On the
-demonstration corpus, the inclusion-criterion kappas land in the
-"fair" Landis-Koch band (Cohen 0.28, Fleiss 0.26 on IL/IC-1).
+demonstration corpus, and with `gpt-4o-mini` — the one model the
+study measured — the inclusion-criterion kappas land in the "fair"
+Landis-Koch band (Cohen 0.28, Fleiss 0.26 on IL/IC-1).
 The exclusion-criterion kappas hover near zero, but this is not a
 weakness of the LLM — it is the "kappa paradox" caused by skewed
 marginal distributions. Both LLM and humans agree on the exclusion
@@ -202,6 +203,11 @@ criteria at 83-87% observed rate; the kappa metric simply can't see
 that agreement when one decision category dominates. Full
 discussion in
 [The kappa paradox on the exclusion criteria](llm-evaluation.md#the-kappa-paradox-on-the-exclusion-criteria).
+
+These figures are a property of that model on that corpus, not of
+metaScreener. If you run a different model — a local one especially —
+they tell you very little about what you will get; see
+[Single model](llm-evaluation.md#limitations).
 
 ### Can I run my own human validation on my own corpus?
 
