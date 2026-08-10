@@ -207,15 +207,26 @@ class TestTheKeylessGateIgnoresTheEndpointToday:
 # ---------------------------------------------------------------------------
 
 class TestDiscoveryFlattensTodayException:
-    """**Characterisation. Inverted by the discovery commit.**
+    """**FLIPPED by the discovery commit — and the characterisation's own
+    framing was corrected in the process, which is worth recording.**
 
-    ``list_models`` collapses *did not answer* and *answered with nothing*
-    into one empty tuple. D4/D5 exist because those two call for opposite
-    actions from the user.
+    The characterisation said this class would be *inverted*: that
+    ``list_models``' flattening was the defect and would be removed. On
+    working it, that reading was wrong. ``list_models`` answers *what
+    names are there* for a caller whose remedy is identical in every
+    failure, and its contract is correct **for that caller**. The defect
+    was that the tabs had no other path, so the flattening happened where
+    it mattered.
+
+    So the fix gives the tabs a path that does not flatten —
+    ``detect`` plus ``model_choices`` — and leaves the helper alone. The
+    assertion that inverts is therefore *"the tab path carries the states
+    through"*, not *"list_models stopped flattening"*. Changing the
+    helper would have been a change made to satisfy a characterisation
+    rather than a user.
     """
 
-    def test_an_unreachable_endpoint_and_an_empty_server_are_indistinguishable(
-            self, dead_endpoint):
+    def test_list_models_still_flattens_by_design(self, dead_endpoint):
         from helpers_fake_server import serve_models
 
         url, stop = serve_models([])
@@ -224,25 +235,28 @@ class TestDiscoveryFlattensTodayException:
         finally:
             stop()
         never_answered = D.list_models(dead_endpoint, timeout=0.25)
-        assert answered_empty == never_answered == (), (
-            "characterisation: discovery cannot tell 'pull a model' from "
-            "'start a server'"
-        )
+        assert answered_empty == never_answered == ()
 
-    def test_the_detector_itself_can_already_tell_them_apart(
+    def test_the_tab_path_carries_the_three_states_through(
             self, dead_endpoint):
-        """The information exists; only ``list_models`` throws it away.
-        That is what makes this a flattening rather than a gap."""
+        """What actually inverted: three problems, three notes."""
         from helpers_fake_server import serve_models
 
         url, stop = serve_models([])
         try:
-            assert D.detect(url, which=lambda _n: "/bin/ollama").state \
-                == D.NO_MODELS
+            no_models = D.model_choices(
+                D.detect(url, which=lambda _n: "/bin/ollama"))
         finally:
             stop()
-        assert D.detect(dead_endpoint, which=lambda _n: "/bin/ollama",
-                        timeout=0.25).state == D.NOT_RUNNING
+        not_running = D.model_choices(D.detect(
+            dead_endpoint, which=lambda _n: "/bin/ollama", timeout=0.25))
+        not_installed = D.model_choices(D.detect(
+            dead_endpoint, which=lambda _n: None, timeout=0.25))
+
+        assert {no_models.state, not_running.state, not_installed.state} == \
+            {D.NO_MODELS, D.NOT_RUNNING, D.NOT_INSTALLED}
+        assert len({no_models.note, not_running.note,
+                    not_installed.note}) == 3
 
 
 # ---------------------------------------------------------------------------

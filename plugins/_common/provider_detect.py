@@ -50,6 +50,16 @@ raising, because the model control is an *editable* combobox: llama.cpp
 ignores the model field entirely, so a readonly dropdown fed from this
 would rebuild the enumeration problem the project keeps removing. A user
 whose server will not list models must still be able to type one.
+
+**Which path a caller takes matters (wave 11 session C).**
+``list_models`` answers *what names are there* and flattens every failure
+into ``()``, which is right for a caller whose remedy is identical in all
+of them. A **stage tab** is not that caller: it must say *install
+Ollama*, *start it with ``ollama serve``* and *pull a model* differently,
+because those are three different actions. So the tabs use ``detect``
+plus :func:`model_choices`, which carries the state and the message
+through; the flattening helper is left alone rather than changed to suit
+a caller it was not written for.
 """
 from __future__ import annotations
 
@@ -199,6 +209,88 @@ def list_models(endpoint: str,
     Discovery is an aid, never a gate.
     """
     return _fetch_models(endpoint, timeout) or ()
+
+
+#: What a stage tab shows before any detection has run. Not a detection
+#: state — ``last_known()`` returning ``None`` is the absence of one, and
+#: "we have not looked" is a different claim from any of the four.
+NOT_CHECKED = "not_checked"
+
+
+@dataclass(frozen=True)
+class ModelChoices:
+    """What the model control offers, and what the line under it says.
+
+    ``values``
+        the names to drop down. **Never a constraint** — the control is
+        an editable combobox, so this is a list of suggestions, and an
+        empty one is a control with no suggestions rather than a control
+        that cannot be used.
+    ``note``
+        one line, carried through from detection **verbatim** where
+        detection had something to say. D4/D5 turn on three distinct and
+        actionable messages; flattening them into one "unavailable" is
+        the wasted afternoon those decisions exist to prevent, and
+        discovery is the second place that flattening could happen.
+    ``state``
+        which detection state produced this, or ``NOT_CHECKED``. Carried
+        so the caller can style or log it without re-deriving the
+        classification — two derivations of one fact is F-69's shape.
+    """
+
+    values: Tuple[str, ...]
+    note: str
+    state: str
+
+
+def model_choices(detection: Optional["Detection"]) -> ModelChoices:
+    """Turn a detection into what the model control should show.
+
+    **Discovery is an aid, never a gate.** Every branch here returns a
+    usable control: the user can always type a name and always press Run,
+    and whether the run may start is ``llm_readiness``'s question, not
+    this one. Nothing in this function or its callers disables a widget,
+    and nothing here returns a value that could be read as "you may not
+    proceed".
+
+    The three failures the brief names, and what each shows:
+
+    * **the call fails** (refused, non-200, non-JSON, an unexpected
+      shape): no suggestions, and detection's own message — *install
+      Ollama* or *start it with ``ollama serve``*, whichever applies,
+      because those are different problems;
+    * **the call times out**: identical to the above by construction —
+      ``_fetch_models`` returns ``None`` for a timeout exactly as it does
+      for a refusal, and the remedy the user needs is the same one;
+    * **the call returns nothing**: no suggestions, and *the server is
+      running but has no models pulled yet*, which is a **third**
+      message, because pulling a model and starting a server are
+      different actions.
+
+    And before any of them, ``None`` — not yet checked — which says so
+    rather than showing an empty list as though the server had answered.
+    """
+    if detection is None:
+        return ModelChoices(
+            (), "Checking what this server offers…", NOT_CHECKED)
+
+    models = tuple(getattr(detection, "models", ()) or ())
+    state = getattr(detection, "state", "") or ""
+    detail = (getattr(detection, "detail", "") or "").strip()
+
+    if state == READY and models:
+        return ModelChoices(
+            models,
+            f"{len(models)} model(s) offered by this server. "
+            f"You can also type a name that is not listed.",
+            READY)
+
+    # Everything else: no suggestions, detection's own words, and a
+    # control that still works. The fallback line is only reached if a
+    # detection arrives with no detail, which the detector never does.
+    return ModelChoices(
+        (), detail or "This server did not offer a list of models. "
+                      "Type the name you want to use.", state)
 
 
 def detect(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
