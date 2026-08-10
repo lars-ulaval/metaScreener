@@ -152,6 +152,41 @@ def _parse_llm_json_array(text: str) -> List[Dict[str, Any]]:
 # `build_messages` keyword argument; each plugin passes its own.
 
 
+def _field_texts_by_id(batch: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
+    """Map ``a_id`` -> that record's field texts, for the records in ONE batch.
+
+    F-86. This map used to be built once from the whole ``items`` list,
+    before batching, and served two purposes at once: deciding whether a
+    returned ``a_id`` was acceptable, and supplying the text to validate its
+    quote against.
+
+    Built over the whole corpus, the first use answers the wrong question —
+    "is this one of the records in the run?" rather than "is this one of the
+    records in the prompt this response is answering?" — and the second use
+    then hands back the *named* record's real text, so the quote validates,
+    ``valid_quote`` comes back True, and the evidence gate accepts a verdict
+    produced by a call whose prompt did not contain that record. Nothing is
+    malformed at any point: the response parses and the quote is genuine.
+
+    Building it per batch makes the invariant structural rather than
+    remembered — there is no text in here for a record that was not sent, so
+    a foreign ``a_id`` cannot be accepted and cannot be validated. It also
+    means the defect does not depend on ``batch_size``: the old map was
+    built independently of batching, so single-record calls were no safer.
+    """
+    texts: Dict[str, Dict[str, str]] = {}
+    for it in batch:
+        a_id = _safe_str(it.get("a_id", "")).strip()
+        if not a_id:
+            continue
+        texts[a_id] = {
+            "title": _safe_str(it.get("title", "")),
+            "abstract": _safe_str(it.get("abstract", "")),
+            "keywords": _safe_str(it.get("keywords", "")),
+        }
+    return texts
+
+
 def run_m1_llm_for_criterion(
     criterion: Dict[str, Any],
     items: List[Dict[str, Any]],
@@ -216,18 +251,12 @@ def run_m1_llm_for_criterion(
 
     out: Dict[Tuple[str, str], Dict[str, Any]] = {}
     cid = criterion["id"]
-    
-    # Build a_id -> field texts map (used for quote validation + ignoring unknown a_id)
-    idx_map: Dict[str, Dict[str, str]] = {}
-    for it in items:
-        a_id = _safe_str(it.get("a_id", "")).strip()
-        if not a_id:
-            continue
-        idx_map[a_id] = {
-            "title": _safe_str(it.get("title", "")),
-            "abstract": _safe_str(it.get("abstract", "")),
-            "keywords": _safe_str(it.get("keywords", "")),
-        }
+
+    # F-86: the a_id -> field-texts map is built per batch, inside the loop,
+    # from the records that call actually carried. It used to be built here,
+    # from the whole `items` list, which is what let a response name a record
+    # from another batch and have the quote validate against that record's
+    # own text. See _field_texts_by_id.
 
     # initial batches
     batches: List[List[Dict[str, Any]]] = [list(b) for b in chunked(items, max(1, int(batch_size)))]
@@ -285,10 +314,26 @@ def run_m1_llm_for_criterion(
                     txt = (resp.choices[0].message.content or "[]")
                     arr = _parse_llm_json_array(txt)
 
+                    # F-86: scoped to `cur_batch`, and recomputed per attempt
+                    # because the adaptive-split path rewrites cur_batch. Both
+                    # the acceptance guard and the quote-validation text below
+                    # read from here, so neither can reach a record this call
+                    # did not send.
+                    batch_texts = _field_texts_by_id(cur_batch)
+
                     # parse response objects
                     for obj in arr:
                         a_id = _safe_str(obj.get("a_id", "")).strip()
-                        if not a_id or a_id not in idx_map:
+                        if not a_id or a_id not in batch_texts:
+                            continue
+
+                        # F-86: guarded the way the back-fill below has always
+                        # been guarded. An id already carrying a verdict keeps
+                        # it: a second object for the same id — whether from a
+                        # model contradicting itself inside one response, or
+                        # from a later batch naming an earlier batch's record —
+                        # must not silently destroy an answer already received.
+                        if (a_id, cid) in out:
                             continue
 
                         decision = _safe_str(obj.get("decision", "uncertain")).strip()
@@ -310,7 +355,7 @@ def run_m1_llm_for_criterion(
                         if not (isinstance(span, list) and len(span) == 2 and all(isinstance(x, int) for x in span)):
                             span = None
 
-                        fld_txt = (idx_map.get(a_id) or {}).get(field) or ""
+                        fld_txt = (batch_texts.get(a_id) or {}).get(field) or ""
                         # Validate against the SAME truncated text that was sent to the model for this call
                         fld_txt_prompt = (fld_txt[:cur_trunc] if cur_trunc and len(fld_txt) > cur_trunc else fld_txt)
                         valid_quote = _quote_in_text(quote, fld_txt_prompt)
