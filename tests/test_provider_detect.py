@@ -27,21 +27,25 @@ The fake server
 The wave brief points at "the stdlib ``http.server`` idiom in
 ``tests/test_cancellation.py``". **There is no such idiom** — that file
 contains no ``http.server`` usage, and neither does any other file under
-``tests/``. It is established here instead. It binds ``127.0.0.1`` on
+``tests/``. It was established here instead. It binds ``127.0.0.1`` on
 port 0, so the OS allocates a free ephemeral port and nothing leaves the
 loopback interface: no external network, and no fixed port to collide
 with a developer's real Ollama on 11434.
+
+**Session C moved the body to ``tests/helpers_fake_server.py``** and left
+the names below bound to it. Session C's discovery and combobox tests
+need the same server, and a second copy would be a second definition of
+what a real server answers — which is exactly the drift those tests exist
+to prevent. Nothing about the behaviour changed.
 """
 import importlib.util
 import json
-import socket
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
 from conftest import PROJECT_ROOT
+from helpers_fake_server import dead_url, models_body, serve
 
 
 def _load():
@@ -61,69 +65,17 @@ D = _load()
 
 
 # ---------------------------------------------------------------------------
-# The fake server
+# The fake server — body in tests/helpers_fake_server.py, one copy only
 # ---------------------------------------------------------------------------
 
-def _serve(handler_body, *, status=200, content_type="application/json",
-           delay=0.0):
-    """Run a one-route server on an ephemeral loopback port.
-
-    Returns ``(base_url, stop)``. ``base_url`` ends in ``/v1`` so it is
-    shaped exactly like the endpoints the application stores.
-    """
-    class _H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if delay:
-                import time
-                time.sleep(delay)
-            body = handler_body(self.path)
-            if body is None:
-                self.send_response(404)
-                self.end_headers()
-                return
-            raw = body.encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-
-        def log_message(self, *a):
-            pass                      # keep pytest output clean
-
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), _H)
-    # poll_interval defaults to 0.5s and `shutdown()` waits for it, which
-    # is half a second of dead time per test in a suite that runs on every
-    # commit. The loop is doing nothing else.
-    t = threading.Thread(target=lambda: srv.serve_forever(poll_interval=0.01),
-                         daemon=True)
-    t.start()
-    host, port = srv.server_address[:2]
-
-    def stop():
-        srv.shutdown()
-        srv.server_close()
-        t.join(timeout=5)
-
-    return f"http://{host}:{port}/v1", stop
-
-
-def _models_body(ids):
-    def _body(path):
-        if not path.endswith("/models"):
-            return None
-        return json.dumps({"data": [{"id": i} for i in ids]})
-    return _body
+_serve = serve
+_models_body = models_body
 
 
 @pytest.fixture
 def dead_endpoint():
     """A port nothing is listening on — bound, read, then released."""
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return f"http://127.0.0.1:{port}/v1"
+    return dead_url()
 
 
 INSTALLED = lambda _name: "/usr/local/bin/ollama"
