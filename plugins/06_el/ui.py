@@ -872,23 +872,26 @@ class ELView(ttk.Frame):
     def _run_clicked(self):
         if not self.bundle or self._worker:
             return
-        if not _has_openai_key():
-            # F-119: this said "EL uses the OpenAI API" to a user running
-            # Gemma on Ollama, and it is one of the strings they read while
-            # diagnosing a failed run — so it pointed away from the cause.
-            # The endpoint is whatever OPENAI_BASE_URL names; what is
-            # actually required is that the variable be set at all.
-            messagebox.showerror(
-                "No API key",
-                "EL sends each record to an OpenAI-compatible endpoint, and "
-                "the client requires OPENAI_API_KEY to be set even when the "
-                "endpoint ignores its value.\n\n"
-                "Set it in your environment or in .env. For a local server "
-                "that does not check it, any non-empty placeholder will do.")
+        # F-93/F-111: one readiness check, and it is the same one the
+        # indicator and the Run button consult. The model field is part of
+        # it. `(self.var_model.get() or DEFAULT_MODEL).strip()` put the
+        # strip OUTSIDE the `or`, so a whitespace-only field was truthy,
+        # survived the fallback, and reached the engine as "" — which the
+        # engine skips silently, leaving a full corpus of unscreened records
+        # under a status line reading "done".
+        #
+        # It refuses rather than substituting DEFAULT_MODEL. A blanked field
+        # is a mistake, and quietly screening a whole corpus against a model
+        # the user did not type costs real money and produces results
+        # attributable to the wrong model. F-119's wording for the missing
+        # key now lives in stage_state::llm_readiness with the other cases.
+        ready = self._readiness()
+        if not ready.can_run:
+            messagebox.showerror(f"EL cannot start", ready.detail)
             return
 
         # parse settings
-        model = (self.var_model.get() or DEFAULT_MODEL).strip()
+        model = ready.model
         try:
             temperature = float(self.var_temp.get())
         except Exception:
@@ -983,6 +986,11 @@ class ELView(ttk.Frame):
                     total_rows=len(full_rows))
                 self.after(0, lambda t=self.outcome.label:
                            self.lbl_status.configure(text=t))
+                # F-93: the status line is one line in a bar the user
+                # may not be looking at; the counts belong in the trail
+                # too, next to the per-batch failures that explain them.
+                self.after(0, lambda t=self.outcome.label:
+                           self._log("\n[EL] " + t + "\n"))
 
             except Exception as e:
                 self.after(0, lambda m=str(e): messagebox.showerror("EL run failed", m))
@@ -1013,10 +1021,20 @@ class ELView(ttk.Frame):
             return
         # F-34: a stage that screened nothing may still be exported,
         # but not without the user saying so out loud.
-        confirm = _export_confirm_reason(not_screened=self.not_screened,
-                                         stage="EL")
-        if confirm and not messagebox.askyesno("Nothing was screened", confirm):
-            return
+        # F-93 extends F-34's gate rather than adding a second one:
+        # `not_screened` covers a stage with no criteria, and the
+        # outcome covers a stage that had criteria and still learned
+        # nothing. One gate, two diagnoses.
+        confirm = _export_confirm_reason(
+            not_screened=self.not_screened,
+            stage="EL",
+            outcome_reason=(self.outcome.ack_reason if self.outcome
+                            else None))
+        if confirm:
+            title = ("Nothing was screened" if self.not_screened
+                     else "Check this before exporting")
+            if not messagebox.askyesno(title, confirm):
+                return
 
         default_name = f"{_now_stamp()}_EL_reports.xlsx"
         p = filedialog.asksaveasfilename(
@@ -1077,10 +1095,20 @@ class ELView(ttk.Frame):
             return
         # F-34: a stage that screened nothing may still be exported,
         # but not without the user saying so out loud.
-        confirm = _export_confirm_reason(not_screened=self.not_screened,
-                                         stage="EL")
-        if confirm and not messagebox.askyesno("Nothing was screened", confirm):
-            return
+        # F-93 extends F-34's gate rather than adding a second one:
+        # `not_screened` covers a stage with no criteria, and the
+        # outcome covers a stage that had criteria and still learned
+        # nothing. One gate, two diagnoses.
+        confirm = _export_confirm_reason(
+            not_screened=self.not_screened,
+            stage="EL",
+            outcome_reason=(self.outcome.ack_reason if self.outcome
+                            else None))
+        if confirm:
+            title = ("Nothing was screened" if self.not_screened
+                     else "Check this before exporting")
+            if not messagebox.askyesno(title, confirm):
+                return
 
         default_name = f"{_now_stamp()}_post_EL_bundle.zip"
         out_zip = filedialog.asksaveasfilename(

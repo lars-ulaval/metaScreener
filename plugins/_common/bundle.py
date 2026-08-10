@@ -160,7 +160,8 @@ def _export_block_reason(*, has_rows: bool, cancelled: bool) -> Optional[str]:
     return None
 
 
-def _export_confirm_reason(*, not_screened: bool, stage: str) -> Optional[str]:
+def _export_confirm_reason(*, not_screened: bool, stage: str,
+                           outcome_reason: Optional[str] = None) -> Optional[str]:
     """Return the question the user must answer yes to before exporting, or
     None if export may proceed without asking.
 
@@ -170,9 +171,28 @@ def _export_confirm_reason(*, not_screened: bool, stage: str) -> Optional[str]:
     legitimate thing to want, and refusing outright would leave no way to do
     it. What is not legitimate is doing it without noticing, which is what a
     read-only warning box permitted.
+
+    **F-93 extends the same machinery rather than building a second one.**
+    F-34's gate keys solely on the NOT_SCREENED count, so a stage that
+    screened *everything* and learned *nothing* — an unreachable server, a
+    misspelled model, a model never pulled, an empty model field — produced
+    zero of those and exported with no warning at all. ``outcome_reason``
+    is that stage's own diagnosis, rendered by
+    ``plugins/_common/stage_state.py::run_outcome`` from the run report the
+    engine now returns.
+
+    It is a parameter rather than an import because the dependency runs the
+    other way: ``stage_state`` imports this module. EH and IH are not LLM
+    stages, have no report to give, and pass nothing — so their twelve call
+    sites keep exactly the behaviour they had.
+
+    The F-34 question is checked **first** and wins when both apply. A stage
+    with no criteria never called anything, so its report is empty and would
+    otherwise read as "no answers"; "you have no criteria for this stage" is
+    the diagnosis that tells the user what to do.
     """
     if not not_screened:
-        return None
+        return outcome_reason or None
     return (
         f"{stage} had no enabled criteria, so no record was screened at this "
         f"stage.\n\n"

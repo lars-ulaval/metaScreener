@@ -146,17 +146,44 @@ class TestExportGateAsItIsToday:
         assert _export_confirm_reason(not_screened=False, stage=stage) is None
 
     @pytest.mark.parametrize("stage", STAGES)
-    def test_CHARACTERISATION_a_wholly_failed_run_exports_without_a_word(
-            self, stage):
-        """**This is the defect.** F-34 built the acknowledgement machinery
-        for a stage that screened nothing; it keys solely on the
-        NOT_SCREENED count, and a stage that screened everything and learned
-        nothing produces zero of those."""
-        assert _export_confirm_reason(not_screened=False, stage=stage) is None, (
-            "CHARACTERISATION (F-93): a run that produced a full corpus of "
-            "manufactured non-answers exports with no warning at all. The "
-            "fix commit changes this assertion."
-        )
+    def test_a_wholly_failed_run_now_needs_acknowledgement(self, stage):
+        """F-93. Was a CHARACTERISATION assertion in `ed05fb3` reading
+        ``is None``: F-34 built this machinery for a stage that screened
+        nothing, and it keyed solely on the NOT_SCREENED count — so a stage
+        that screened everything and learned nothing produced zero of those
+        and sailed through."""
+        out = run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                          llm_report=WHOLLY_FAILED, cancelled=False,
+                          not_screened=False, total_rows=85)
+        reason = _export_confirm_reason(not_screened=False, stage=stage,
+                                        outcome_reason=out.ack_reason)
+        assert reason is not None
+        assert "Export anyway?" in reason
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_the_f34_question_still_wins_when_both_apply(self, stage):
+        """A stage with no criteria never called anything, so its report is
+        empty and would otherwise be read as "no answers". F-34's diagnosis
+        is the correct one and is checked first."""
+        reason = _export_confirm_reason(not_screened=True, stage=stage,
+                                        outcome_reason="something else")
+        assert "criteri" in reason.lower()
+        assert reason != "something else"
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_a_good_run_still_needs_no_acknowledgement(self, stage):
+        out = run_outcome(stage=stage, counts=NORMAL, llm_report=WORKED,
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert _export_confirm_reason(not_screened=False, stage=stage,
+                                      outcome_reason=out.ack_reason) is None
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_the_eh_ih_two_argument_form_is_untouched(self, stage):
+        """Twelve call sites across four stages, and EH/IH are not LLM
+        stages and have no report to give. The new parameter defaults, so
+        their behaviour is exactly what it was."""
+        assert _export_confirm_reason(not_screened=False, stage=stage) is None
+        assert _export_confirm_reason(not_screened=True, stage=stage) is not None
 
 
 # ---------------------------------------------------------------------------
