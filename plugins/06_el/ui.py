@@ -496,8 +496,10 @@ class ELView(ttk.Frame):
         # it must NOT say is the load-bearing part: batch size is a
         # quality knob, not a safety one, and changing it does not
         # invalidate a cache.
-        self.tip_batch = Tooltip(self.ent_batch,
-                                 batch_size_tooltip(self._stored_config().provider))
+        _cfg = self._stored_config()
+        self.tip_batch = Tooltip(
+            self.ent_batch,
+            batch_size_tooltip(_cfg.provider, _cfg.endpoint))
 
         ttk.Label(settings, text="Trunc chars").grid(row=7, column=0, sticky="w", padx=6, pady=2)
         ttk.Entry(settings, textvariable=self.var_trunc, width=10).grid(row=7, column=1, sticky="w", padx=6, pady=2)
@@ -558,6 +560,15 @@ class ELView(ttk.Frame):
                              env_endpoint=os.environ.get("OPENAI_BASE_URL", ""),
                              env_api_key=os.environ.get("OPENAI_API_KEY", ""))
 
+    def _effective_endpoint(self) -> str:
+        """Where this stage would send a request right now.
+
+        The live widget value when there is one, so the indicator answers
+        for what the user is looking at rather than for what was last
+        saved; the resolved configuration otherwise.
+        """
+        return self.var_endpoint.get().strip() or self._stored_config().endpoint
+
     def _stage_fields_edited(self) -> None:
         """Persist what the tab now says, so the engine cannot disagree.
 
@@ -573,6 +584,14 @@ class ELView(ttk.Frame):
         try:
             apply_stage_fields(
                 self.STAGE,
+                # The values these widgets show when the store says
+                # nothing. Without them every seeded default looks like a
+                # deliberate edit and gets pinned as a permanent override
+                # — which defeated D6 and stopped the user's own model
+                # choice reaching any stage they had opened. Session C's
+                # review, measured.
+                fallbacks={"model": DEFAULT_MODEL,
+                           "batch_size": DEFAULT_BATCH_SIZE},
                 model=self.var_model.get(),
                 endpoint=self.var_endpoint.get(),
                 batch_size=self.var_batch.get(),
@@ -604,7 +623,12 @@ class ELView(ttk.Frame):
         same way ``_readiness`` does — so the two cannot describe
         different servers.
         """
-        choices = model_choices(last_known())
+        # Session C's review: the probe is keyed by endpoint now, and this
+        # asks for THIS stage's. It used to read one global answer, so a
+        # stage with an endpoint override was offered the models of a
+        # server it would never call — and reported "Ready to run" while
+        # its own endpoint had nothing listening.
+        choices = model_choices(last_known(self._effective_endpoint()))
         try:
             self.cmb_model.configure(values=list(choices.values))
         except Exception:
@@ -632,7 +656,8 @@ class ELView(ttk.Frame):
         # provider change that left the old wording in place would be a
         # tooltip explaining a number the box no longer shows.
         try:
-            self.tip_batch.set_text(batch_size_tooltip(seed.provider))
+            self.tip_batch.set_text(
+                batch_size_tooltip(seed.provider, seed.endpoint))
         except Exception:
             pass
         self._refresh_discovery()
@@ -675,9 +700,8 @@ class ELView(ttk.Frame):
                              provider=cfg.provider,
                              api_key=cfg.api_key,
                              model=self.var_model.get(),
-                             endpoint=self.var_endpoint.get().strip()
-                             or cfg.endpoint,
-                             probe=last_known())
+                             endpoint=self._effective_endpoint(),
+                             probe=last_known(self._effective_endpoint()))
 
     def _refresh_readiness_label(self):
         """The widget used to read `OPENAI_API_KEY ✓` and nothing else:

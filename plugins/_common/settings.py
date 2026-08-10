@@ -191,6 +191,25 @@ def defaults() -> Dict[str, Any]:
     }
 
 
+def _clean_stage_entry(entry: Mapping[str, Any]) -> Dict[str, Any]:
+    """Drop anything inside a stage entry that cannot be used.
+
+    Values of the wrong type are **dropped rather than coerced**: a
+    stage's endpoint is where money goes, and ``str(["http://…"])`` would
+    invent a plausible-looking string out of a file the user got wrong.
+    Falling back to the application setting is the answer that cannot
+    surprise anyone.
+    """
+    out: Dict[str, Any] = {}
+    for key, value in entry.items():
+        if key in ("model", "endpoint") and isinstance(value, str):
+            out[key] = value
+        elif key == "batch_size" and isinstance(value, int) \
+                and not isinstance(value, bool):
+            out[key] = value
+    return out
+
+
 def load_settings() -> Dict[str, Any]:
     """Read the settings file, filling in anything absent from defaults.
 
@@ -223,9 +242,20 @@ def load_settings() -> Dict[str, Any]:
     # `provider` is coerced, because `key_required` calls `.strip()` on
     # it and an integer there raised an AttributeError on a GUI
     # construction path. Found in this session's review.
+    #
+    # Session C's review extended this one level down. The container and
+    # its entries were validated; the values *inside* an entry were not,
+    # so a non-string `stages.EL.endpoint` escaped into `resolve_stage`
+    # and out through `.strip()` — and, because `_build_ui` runs inside
+    # `resolve_plugin_entrypoint`, which swallows every exception into a
+    # `print()`, it **silently deleted the harmoniser tab**. That is
+    # §10.2's defect exactly, one level deeper, and the same reasoning
+    # applies: a malformed file must block a run for a stated reason, not
+    # remove a stage.
     stages = merged.get("stages")
     merged["stages"] = ({
-        str(k): dict(v) for k, v in stages.items() if isinstance(v, dict)
+        str(k): _clean_stage_entry(v)
+        for k, v in stages.items() if isinstance(v, dict)
     } if isinstance(stages, dict) else {})
     if not isinstance(merged.get("provider"), str):
         merged["provider"] = UNCHOSEN
@@ -506,7 +536,7 @@ def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
     # stage's own module default answers.
     from plugins._common.stage_state import recommended_batch_size
     batch = effective(settings, stage, "batch_size",
-                      recommended_batch_size(provider))
+                      recommended_batch_size(provider, endpoint))
     try:
         batch = int(batch) if batch is not None else None
     except (TypeError, ValueError):
@@ -524,7 +554,15 @@ def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
     )
 
 
-def stage_overrides_for(settings: Mapping[str, Any], stage: str,
+#: The stages that resolve an LLM configuration. Named here so the
+#: application can probe each one's endpoint without a hard-coded list in
+#: the launch path.
+LLM_STAGES = ("EL", "IL", "harmoniser")
+
+
+def stage_overrides_for(settings: Mapping[str, Any], stage: str, *,
+                        fallbacks: Optional[Mapping[str, Any]] = None,
+                        env_endpoint: str = "",
                         **fields: Any) -> Dict[str, Any]:
     """What to store so that ``stage`` resolves to the given field values.
 
@@ -546,6 +584,33 @@ def stage_overrides_for(settings: Mapping[str, Any], stage: str,
 
     A cleared value is returned as ``None``/``""``, which
     :func:`set_stage_override` reads as *drop this override*.
+
+    **``fallbacks`` and ``env_endpoint`` are what session C's review
+    found missing, and without them the rule above is false.** The
+    baseline has to be *the value the field was seeded with*, and a stage
+    tab seeds from its own module defaults when the store says nothing:
+    ``model`` from ``DEFAULT_MODEL``, ``batch_size`` from
+    ``DEFAULT_BATCH_SIZE``. Computing the baseline without them made
+    every seeded default look like a deliberate edit, so **opening a tab
+    once and leaving any field pinned them as permanent overrides.**
+    Measured on a fresh store:
+
+        seeded widgets : model='gpt-4o-mini' batch='50'
+        stages after ONE field-exit : {"EL": {"batch_size": 50,
+                                              "model": "gpt-4o-mini"}}
+        ... user then chooses a local provider ...
+        EL resolves : batch=50  model='gpt-4o-mini'   <- D6 defeated
+        IL resolves : batch=5   model='qwen2.5:7b'    <- never opened
+
+    So D6's batch size and the user's own model choice reached only the
+    stages they had *not* looked at, and the two stages silently diverged
+    — which is what ``mixed_models`` exists to report and nothing here
+    would have reported.
+
+    ``env_endpoint`` is the same defect on the endpoint: the tab seeds
+    from a resolution that reads ``OPENAI_BASE_URL`` and the baseline did
+    not, so a user with that variable set pinned its value as a stage
+    override the moment they left the field.
     """
     refused = sorted(set(fields) - set(STAGE_OVERRIDABLE))
     if refused:
@@ -558,12 +623,14 @@ def stage_overrides_for(settings: Mapping[str, Any], stage: str,
     stages = dict(bare.get("stages") or {})
     stages.pop(stage, None)
     bare["stages"] = stages
-    without = resolve_stage(bare, stage)
+    without = resolve_stage(bare, stage, env_endpoint=env_endpoint)
 
+    fb = dict(fallbacks or {})
     baseline = {
-        "model": without.model,
+        "model": without.model or (fb.get("model") or ""),
         "endpoint": without.endpoint,
-        "batch_size": without.batch_size,
+        "batch_size": (without.batch_size if without.batch_size is not None
+                       else fb.get("batch_size")),
     }
 
     out: Dict[str, Any] = {}
@@ -582,17 +649,27 @@ def stage_overrides_for(settings: Mapping[str, Any], stage: str,
     return out
 
 
-def apply_stage_fields(stage: str, **fields: Any) -> Dict[str, Any]:
+def apply_stage_fields(stage: str, *,
+                       fallbacks: Optional[Mapping[str, Any]] = None,
+                       env_endpoint: Optional[str] = None,
+                       **fields: Any) -> Dict[str, Any]:
     """Persist a stage tab's fields as overrides, and return the store.
 
     The tab's widgets and the engine must not be able to disagree about
     where a run goes: the engine resolves from the store, so the widgets
     have to reach the store before the run starts, not after it. Calling
     this is what makes the control the user just operated true.
+
+    ``fallbacks`` are the stage's own module defaults — the values its
+    widgets show when the store says nothing. Passing them is what stops
+    an untouched tab pinning them; see :func:`stage_overrides_for`.
     """
     current = load_settings()
+    if env_endpoint is None:
+        env_endpoint = os.environ.get("OPENAI_BASE_URL", "")
     return set_stage_override(
-        stage, **stage_overrides_for(current, stage, **fields))
+        stage, **stage_overrides_for(current, stage, fallbacks=fallbacks,
+                                     env_endpoint=env_endpoint, **fields))
 
 
 def _needs_key(provider: str) -> bool:

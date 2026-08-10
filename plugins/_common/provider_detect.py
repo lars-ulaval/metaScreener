@@ -114,27 +114,86 @@ class Detection:
 # state rather than treating as either outcome. A module global rather
 # than a field on the app object because the stage views are constructed
 # by the plugin loader and do not have a reference to it.
-_LAST_PROBE: Optional["Detection"] = None
+# **Keyed by endpoint, and that is wave 11 session C's review talking.**
+#
+# It was one global. Session C then gave each stage its own endpoint, and
+# the two together produced the defect session B's whole design exists to
+# prevent: the application probed *its* endpoint, deposited the answer
+# here, and a stage pointed somewhere else read it and reported
+# ``Ready to run``. Measured, with nothing listening on EL's endpoint:
+#
+#     app endpoint probed : ... -> ready
+#     EL readiness        : ready can_run=True 'Ready to run'
+#     direct probe of EL's own endpoint: not_installed
+#
+# "Ready" must mean *this stage's server answered*, so the cache has to be
+# per server. A stage whose endpoint nobody has probed now reads ``None``
+# — ``NOT_CHECKED``, which blocks — rather than inheriting somebody
+# else's answer. Being told nothing stays its own state.
+_PROBES: "dict[str, Detection]" = {}
 
 
-def last_known() -> Optional["Detection"]:
-    """The most recent detection, or ``None`` if none has run yet."""
-    return _LAST_PROBE
+def _probe_key(endpoint: Optional[str]) -> str:
+    """One server, one entry.
+
+    Trailing slashes and case in the scheme/host are not routing
+    differences, and leaving them in would give one server two entries —
+    so the tab that probed and the tab that reads could disagree about a
+    server they both point at. Deliberately *not* the same normalisation
+    the cache key uses: that one must not normalise at all (F-89), because
+    it partitions stored answers rather than an in-memory lookup.
+    """
+    return (endpoint or "").strip().rstrip("/").lower()
 
 
-def remember(detection: Optional["Detection"]) -> None:
-    global _LAST_PROBE
-    _LAST_PROBE = detection
+def last_known(endpoint: Optional[str] = None) -> Optional["Detection"]:
+    """The most recent detection **for this endpoint**, or ``None``.
+
+    ``None`` for an endpoint nobody has probed. Callers must pass the
+    endpoint they are asking about; the no-argument form answers only
+    when exactly one server has been probed, which keeps the single-
+    provider case working without letting a multi-endpoint configuration
+    silently pick one.
+    """
+    if endpoint is None:
+        return next(iter(_PROBES.values())) if len(_PROBES) == 1 else None
+    return _PROBES.get(_probe_key(endpoint))
 
 
-def forget() -> None:
-    """Drop the cached status, so the next read reports *not yet checked*.
+def remember(detection: Optional["Detection"],
+             endpoint: Optional[str] = None) -> None:
+    """File a detection under the endpoint it describes.
+
+    ``endpoint`` wins over the one the detection carries, because the
+    caller knows which server it asked about and the answer may not —
+    ``refresh`` passes it for exactly that reason. ``None`` is a no-op
+    rather than a stored absence: *not yet checked* is the absence of an
+    entry, which is what ``forget`` produces.
+    """
+    if detection is None:
+        return
+    key = _probe_key(endpoint if endpoint is not None
+                     else getattr(detection, "endpoint", ""))
+    _PROBES[key] = detection
+
+
+def forget(endpoint: Optional[str] = None) -> None:
+    """Drop cached status, so the next read reports *not yet checked*.
 
     Called when the provider changes: the previous answer describes a
     server the user is no longer pointing at, and reporting it would be a
-    stale-cache defect of the kind this project keeps finding.
+    stale-cache defect of the kind this project keeps finding. Without an
+    endpoint it clears everything, which is what a provider change means.
     """
-    remember(None)
+    if endpoint is None:
+        _PROBES.clear()
+    else:
+        _PROBES.pop(_probe_key(endpoint), None)
+
+
+def known_endpoints() -> Tuple[str, ...]:
+    """Which servers have been probed. For tests and for diagnostics."""
+    return tuple(sorted(_PROBES))
 
 
 def refresh(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
@@ -143,7 +202,11 @@ def refresh(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
     """Detect and cache. Safe to call from a worker thread."""
     d = detect(endpoint, timeout=timeout, which=which,
                api_key=api_key, provider=provider)
-    remember(d)
+    # Filed under the endpoint we ASKED about, not the one the answer
+    # reports. They are the same in production; keeping the caller
+    # authoritative means a detector that forgot to echo the endpoint
+    # cannot silently file its answer where no stage will find it.
+    remember(d, endpoint)
     return d
 
 

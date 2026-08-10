@@ -24,14 +24,6 @@ LOCAL_PROVIDER_HINT = (
 )
 
 
-#: How many strip passes before giving up. Four covers every realistic
-#: paste — a key wrapped in quotes that were themselves wrapped when the
-#: value was copied out of a shell history or a JSON blob. The bound
-#: exists so a pathological input cannot spin here; it is not reached by
-#: anything a user can plausibly type.
-_SANITIZE_PASSES = 4
-
-
 def sanitize_api_key(s):
     """Trim whitespace/newlines and surrounding quotes, to a fixed point.
 
@@ -63,12 +55,11 @@ def sanitize_api_key(s):
     them kept — is the far commoner mistake.
     """
     out = (s or "")
-    for _ in range(_SANITIZE_PASSES):
+    while True:
         nxt = out.strip().strip('"').strip("'").strip()
         if nxt == out:
-            break
+            return out
         out = nxt
-    return out
 
 
 def looks_like_openai_key(key: str) -> bool:

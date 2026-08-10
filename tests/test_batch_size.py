@@ -292,10 +292,30 @@ class TestTheWordingIsDecidedWithoutTk:
     @pytest.mark.parametrize("rel", ["plugins/06_el/ui.py",
                                      "plugins/07_il/ui.py"])
     def test_both_views_attach_it_to_the_batch_field(self, rel):
-        src = PROJECT_ROOT.joinpath(*rel.split("/")).read_text(
-            encoding="utf-8")
-        assert "Tooltip(self.ent_batch" in src
-        assert "batch_size_tooltip(" in src
+        """By AST. The substring form broke the moment the call wrapped
+        onto three lines — a guard that fires on reformatting is a guard
+        that gets deleted, and this is the third time this session has
+        had to learn it."""
+        import ast
+        tree = ast.parse(PROJECT_ROOT.joinpath(*rel.split("/")).read_text(
+            encoding="utf-8"))
+        attached = [
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Name) and n.func.id == "Tooltip"
+            and n.args
+            and isinstance(n.args[0], ast.Attribute)
+            and n.args[0].attr == "ent_batch"
+        ]
+        assert attached, f"{rel}: no Tooltip on the batch field"
+        for node in attached:
+            assert any(
+                isinstance(a, ast.Call) and isinstance(a.func, ast.Name)
+                and a.func.id == "batch_size_tooltip"
+                for a in node.args), (
+                f"{rel}:{node.lineno}: the wording must come from "
+                f"stage_state, not be composed in the View"
+            )
 
     @pytest.mark.parametrize("rel", ["plugins/06_el/ui.py",
                                      "plugins/07_il/ui.py"])

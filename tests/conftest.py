@@ -10,6 +10,7 @@ Mocks tkinter and metascreener.plugin_api so that plugin modules can be
 imported on headless systems (CI, Docker, WSL) without an X server.
 """
 
+import os
 import sys
 import types
 from pathlib import Path
@@ -135,6 +136,30 @@ def get_refx_services():
             "02_references_of_x", "services"
         )
     return _plugin_cache["refx_services"]
+
+
+# ---------------------------------------------------------------------------
+# 4b. No test reads the developer's real settings
+# ---------------------------------------------------------------------------
+#
+# Session C's review found the golden replays exposed to
+# `%APPDATA%/metaScreener/settings.json`: the EL and IL engines resolve
+# their endpoint per stage now, the endpoint is a cache-key input (F-89),
+# and so a developer with a stage override in their own settings would
+# compute different keys and fail the golden test — or, worse, pass one
+# that should have failed. The exposure predates session C at the
+# application level; session C widened it to stages, and the right answer
+# is to close it for the whole suite rather than for the paths noticed.
+#
+# Set on the environment rather than through `monkeypatch`, because this
+# must hold for module-level code that runs at import time. A test that
+# wants its own directory still overrides it with `monkeypatch.setenv`,
+# which is function-scoped and therefore wins.
+import tempfile as _tempfile
+
+_ISOLATED_SETTINGS = _tempfile.mkdtemp(prefix="metascreener-tests-")
+os.environ["APPDATA"] = str(Path(_ISOLATED_SETTINGS) / "appdata")
+os.environ["XDG_CONFIG_HOME"] = str(Path(_ISOLATED_SETTINGS) / "xdg")
 
 
 # ---------------------------------------------------------------------------

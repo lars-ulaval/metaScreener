@@ -419,18 +419,44 @@ class MetaScreenerApp(tk.Tk):
         import threading
         from plugins._common import provider_detect as pd
         from plugins._common.llm_client import resolve_openai_base_url
+        from plugins._common.settings import LLM_STAGES
 
         pd.forget()
         endpoint = resolve_openai_base_url()
         provider = (cfg.get("provider") or "").strip()
         api_key = (cfg.get("api_key") or "").strip() or os.environ.get(ENV_KEY, "")
 
-        def _work():
+        # **Every distinct endpoint, not just the application's.**
+        #
+        # Session C's review found the one-probe design breaking the
+        # property session B built: the application probed its own
+        # endpoint, every stage read that one answer, and a stage with an
+        # endpoint override reported "Ready to run" while its own server
+        # had nothing listening. The probe cache is keyed by endpoint now,
+        # so an unprobed stage reads NOT_CHECKED and blocks — correct, but
+        # it would block forever if nothing ever probed it.
+        #
+        # Ordered with the application's endpoint first so the common
+        # single-endpoint case is answered as promptly as it was before;
+        # the extra probes only exist when a stage actually overrides.
+        targets = [endpoint]
+        for stage in LLM_STAGES:
             try:
-                found = pd.refresh(endpoint, api_key=api_key,
-                                   provider=provider)
+                stage_endpoint = resolve_openai_base_url(stage)
             except Exception:
-                found = None            # detection never raises; belt and braces
+                continue
+            if stage_endpoint and stage_endpoint not in targets:
+                targets.append(stage_endpoint)
+
+        def _work():
+            found = None
+            for i, target in enumerate(targets):
+                try:
+                    d = pd.refresh(target, api_key=api_key, provider=provider)
+                except Exception:
+                    d = None        # detection never raises; belt and braces
+                if i == 0:
+                    found = d
             self.after(0, lambda: self._provider_status_arrived(
                 cfg, found, interrupt_if_unavailable))
 

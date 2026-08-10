@@ -277,6 +277,14 @@ def is_paid_vendor(endpoint: Optional[str]) -> bool:
     from urllib.parse import urlsplit
     parsed = urlsplit(raw if "//" in raw else "//" + raw)
     host = (parsed.hostname or "").lower()
+    # **The trailing dot is the same host, and session C's review found
+    # it defeating this check.** `api.openai.com.` is the fully-qualified
+    # form: DNS resolves it to the identical server and the SDK sends the
+    # request there, but the string comparison missed it, so
+    # `key_required_for("local", "https://api.openai.com./v1")` returned
+    # False and a keyless provider reached the paid vendor. That is INV-1
+    # broken by a fourth route, and by one character.
+    host = host.rstrip(".")
     return host in PAID_VENDOR_HOSTS
 
 
@@ -636,25 +644,35 @@ LOCAL_BATCH_SIZE = 5
 LOCAL_BATCH_RANGE = (5, 10)
 
 
-def recommended_batch_size(provider: str) -> Optional[int]:
-    """The batch size to suggest for this provider, or ``None``.
+def recommended_batch_size(provider: str,
+                           endpoint: Optional[str] = None) -> Optional[int]:
+    """The batch size to suggest for this configuration, or ``None``.
 
     ``None`` means *no suggestion* — the stage's own module default
-    answers, which for EL and IL is 50. Only a provider this application
-    knows to be a small local model gets a number.
+    answers, which for EL and IL is 50. Only a configuration this
+    application knows to be a small local model gets a number.
 
-    The question is asked about the provider rather than the endpoint,
-    unlike :func:`key_required_for`, and the asymmetry is deliberate:
-    getting the key gate wrong spends money, so it takes the cautious
-    reading of an ambiguous pair, while getting the batch size wrong
-    costs a slower run. A ``custom`` endpoint may well be a large hosted
-    model, but it may equally be llama.cpp on a laptop, and 5 is the
-    reading that works for both.
+    **Asked about the resolved pair, after session C's review.** The
+    first version asked the provider name alone, on the reasoning that
+    getting the key gate wrong spends money while getting the batch size
+    wrong only costs a slower run. That reasoning was wrong about the
+    cost: the criterion and the system prompt are re-sent with **every**
+    batch, so ten times the batches is roughly ten times those tokens —
+    and against the paid vendor that is a bill, not a wait. A stage whose
+    provider says ``local`` and whose endpoint override points at
+    api.openai.com would have run at 5.
+
+    For an ambiguous *keyless* endpoint the earlier reasoning still
+    holds: a ``custom`` endpoint may be a large hosted model or
+    llama.cpp on a laptop, and 5 is the reading that works for both.
     """
-    return LOCAL_BATCH_SIZE if not key_required(provider) else None
+    if key_required_for(provider, endpoint):
+        return None
+    return LOCAL_BATCH_SIZE
 
 
-def batch_size_tooltip(provider: str) -> str:
+def batch_size_tooltip(provider: str,
+                       endpoint: Optional[str] = None) -> str:
     """Why this number is what it is — beside the number.
 
     **Three things this wording must not do**, each of which would be
@@ -680,7 +698,7 @@ def batch_size_tooltip(provider: str) -> str:
        The claim here is narrow and defensible: asking for fewer JSON
        objects per reply is easier for a small model to keep track of.
     """
-    suggested = recommended_batch_size(provider)
+    suggested = recommended_batch_size(provider, endpoint)
     lead = (
         "How many records go into one request.\n\n"
         "Each request asks the model for one JSON object per record in a "

@@ -3,15 +3,16 @@
 Branch `fix/wave-11-provider-choice`, cut from `c6b0f77` (`main`, tagged
 `post-wave-10`). **Additive: no golden moved**, verified two ways.
 
-**The wave runs as three sessions**, proposed after step 0 and agreed before any
-code was written. This document is written as the sessions land; sessions B and C
-are marked pending below.
+**The wave ran as three sessions**, proposed after step 0 and agreed before any
+code was written. This document was written as the sessions landed. F-140 moved
+from session B's column to session C's, where its per-stage neighbours were —
+the row is recorded against the session that closed it.
 
 | | Session A — foundation | Session B — startup | Session C — controls |
 |---|---|---|---|
-| Findings | F-116, F-117, F-121, **F-144** (opened) | F-91, F-140, D8, F-144 (closes) | F-92 GUI *(see §1.1)*, F-118/D9, D6 |
+| Findings | F-116, F-117, F-121, **F-144** (opened) | F-91, F-144 (closes), D1, D3, D7, D8 | **F-118**/D9, **F-140**, D6, F-91's per-stage surface |
 | GUI diff | **none** | the popup, launch order | every stage tab |
-| Status | **complete** | pending | pending |
+| Status | **complete** | **complete** | **complete** |
 
 The seam differs from the brief's guess in three places, and the reasons are the
 same one: everything the GUI stands on should exist and be tested before a widget
@@ -748,6 +749,330 @@ the class, not the instance.
 
 ---
 
-## 12. Session C
+## 12. Session C — the per-stage controls
 
-*Pending.*
+### 12.1 Gate
+
+| Check | Result |
+|---|---|
+| HEAD | `ec8f7c3`, `fix/wave-11-provider-choice` = `main` = `origin/main`, tagged `post-wave-11b` |
+| Status / sync | clean, 0/0, no gap commits |
+| Golden manifest | 9 files recorded; `rekey_cache_goldens --verify` clean, EL 170/170, IL 84/84 |
+| Suite baseline | **936 passed, 7 skipped** |
+
+### 12.2 F-118's remaining half, stated before it was worked
+
+The row has carried three halves and two were closed in `866c988`: the Run-button gate
+(`_set_controls_running` re-enabled Run on the bundle path alone, and since it runs in the
+`finally` of every run the load path's gate died after the first run of a session) and the
+numerics (a negative `trunc_chars` reached the prompt builder as a *negative slice* and
+emptied title and keywords outright). **The remaining half is the harmoniser's "LLM refine"
+checkbox — `var_llm` bound and read by nothing.**
+
+### 12.3 The routes this session opens, and how the invariants hold
+
+Five new ways to specify a provider, an endpoint or a model independently and per stage.
+Four are covered by what sessions A and B built. **One is not, and it was stated before any
+code was written.**
+
+| # | Route | INV-1 (a keyless provider never resolves to the paid vendor) |
+|---|---|---|
+| R1 | per-stage **model** override | untouched — a model is neither an endpoint nor a gate |
+| R2 | app-level **endpoint** edited from a stage tab | the value session B already guards |
+| R3 | **discovery** called from a tab | a read-only GET that decides no gate (§12.6) |
+| R4 | **D6** batch size keyed on the provider | reads the provider, writes nothing routable |
+| R5 | **per-stage endpoint override** | **not covered** |
+
+**R5.** Session B's invariant lives in `resolve_openai_base_url`, which was app-level only,
+and it is a rule about the **fallback** — it fires when nothing named an endpoint. A
+per-stage override moves the endpoint *independently* of the provider and reaches the vendor
+**explicitly**:
+
+```
+provider = "local"                      -> key_required is False, gate waived
+stages["EL"]["endpoint"] = the vendor   -> reached explicitly, nothing fell back
+```
+
+Nothing fell back, so the invariant never fires, and `placeholder_key_for` supplies the
+literal string `"local"` as the credential — or the user's real key if one is stored. **That
+is this wave's billing defect for the third time**: session A produced it with a default that
+presumed a provider, session B with a blank field that presumed an endpoint, and a per-stage
+override produces it with no presumption at all — a user typing a URL into the tab they were
+working in.
+
+**INV-1b — an effective endpoint that is the paid vendor is never keyless.** The key question
+is asked about the resolved **pair**, `stage_state::key_required_for(provider, endpoint)`, and
+where the two halves disagree the safe side wins. `key_required` is unchanged and still
+answers when no endpoint is known, so this is one predicate asking a larger question rather
+than the two predicates F-117 closed. Asserted over the cross product of provider × endpoint ×
+key rather than over the two routes that happen to be known, because patching routes is what
+left this hole open twice.
+
+The host is **parsed, not matched**: a substring check calls
+`http://api.openai.com.example.invalid/v1` the vendor, which is wrong in the direction that
+costs money, and would miss `api.openai.com/v1` typed without a scheme, which is wrong in the
+direction that spends it.
+
+**Invariant 2 holds by a scope limit, and the limit is a disagreement with the brief.**
+`settings.STAGE_OVERRIDABLE` is `model`, `endpoint`, `batch_size` — **not `provider`**.
+`llm_readiness` checks `NOT_CONFIGURED` ahead of the key and model checks precisely because
+those can each be satisfied while the path as a whole is unconfigured; a stage-level provider
+would let a stage acquire one while the application is still `UNCHOSEN`, which is a path
+reaching a run without passing that check. `set_stage_override` raises, **and** the resolver
+ignores a hand-edited one — a settings file is user-editable, so refusing at the setter alone
+would be a gate with a door beside it. Nothing is lost: a stage that must reach a different
+server says so with an endpoint override, which is what `custom` means and why one URL field
+covers LM Studio, llama.cpp and vLLM at once.
+
+### 12.4 Where the decision lives now
+
+`settings::resolve_stage(cfg, stage)` returns the whole effective configuration as one frozen
+record, and `resolve_openai_base_url` delegates to it. **`stage=""` is the application level
+and resolves to exactly what it resolved to before per-stage anything existed** — asserted
+directly, over four stage names, and it is what keeps the golden replays valid.
+
+`_openai_client_for` and `_has_openai_key` take a stage. This **reverses**
+`_openai_client_for`'s "kept zero-argument on purpose", and the reversal is recorded in its
+docstring rather than dropped. The stated reason was that a parameter would break twelve
+doubles *to no benefit*; per-stage endpoints are the benefit. The alternative — a module-level
+"current stage" — is wrong the moment EL and IL run at once, which two tabs make ordinary. The
+doubles were widened to `lambda *_a, **_k:` in the same commit.
+
+`run_m1_llm_for_criterion` needed **no new parameter**: `stage` was already threaded through
+it, documented as decorative — *"No semantic logic depends on its value."* It stopped being
+decorative.
+
+### 12.5 The combobox fixtures, and how they are checked against the producer
+
+Session B's most serious defect was a test that certified a state the system cannot produce —
+`probe=SimpleNamespace(state="ready")` for `provider="openai"`, which the real detector could
+not emit, so 926 tests were green while the OpenAI provider could not run at all. A combobox
+tested against a fabricated model list is that trap in a new place, and **there was no check
+against it, so building one was the first thing this session did.**
+
+`tests/test_model_discovery.py` **fabricates nothing.** Every `Detection` it asserts on is
+produced by running the real `detect()` against the fake server session A established, into a
+`PRODUCED` table. Three guards hold it there:
+
+1. **the table must cover `provider_detect.STATES` exactly** — a state the detector cannot
+   reach cannot be tested here, and one it *can* reach cannot be forgotten;
+2. **an AST check over the file's own source** forbidding `Detection(…)` and
+   `SimpleNamespace(…)` anywhere in it. Read as structure rather than as text, because the
+   docstring names both constructors in order to forbid them and a substring search would
+   match the rule rather than a violation — the idiom `test_provider_detect.py` already uses
+   for `subprocess`;
+3. **the pair check**, which is the one that would actually have caught session B. Its defect
+   was *not* a state outside `STATES` — `"ready"` is in `STATES`. It was the **(provider,
+   state) pair**. So the check is over the pair, against `serve_authenticated`: a server that
+   answers 401 without a `Bearer` token, i.e. one that behaves the way the vendor behaves.
+   Both directions are asserted, or the discriminating server proves nothing.
+
+The fake server moved to `tests/helpers_fake_server.py` with its body unchanged. Two fake
+servers would be two definitions of what a real server answers, which is the drift these tests
+exist to prevent.
+
+### 12.6 Discovery: what the control shows, in each of the three cases
+
+`provider_detect::model_choices(detection)` maps a detection to `values` + `note` + `state`.
+**Every branch returns a usable control**, and the brief's three cases resolve as:
+
+| Case | Suggestions | Note |
+|---|---|---|
+| the call **fails** (refused, non-200, non-JSON, unexpected shape) | none | detection's own — *install Ollama from …*, or *start it with `ollama serve`*, whichever applies |
+| the call **times out** | none | identical **by construction** — `_fetch_models` returns `None` for a timeout exactly as for a refusal, and the remedy is the same |
+| the call **returns nothing** | none | a **third** message — *the server is running but has no models pulled yet*. Pulling a model and starting a server are different actions |
+| *(before any of them)* `None` | none | *Checking what this server offers…* — said rather than shown as an empty list, because "we have not looked" is not something the server said |
+
+The three failure notes are asserted **mutually distinct** and carried through **verbatim**,
+which is the requirement session A met for the readiness messages, checked at the second place
+the flattening could happen. Also asserted: readiness does not take `model_choices` as an
+input, nothing returned could be read as a refusal, and **neither View may configure the model
+control's state** — by AST, in any branch, for any reason — nor may either Combobox declare
+one.
+
+**A characterisation whose framing was wrong, corrected rather than obeyed.** The
+characterisation commit said `list_models`' flattening would be inverted. Working it showed
+that reading was wrong: `list_models` answers *what names are there* for a caller whose remedy
+is identical in every failure, and its contract is correct **for that caller**. The defect was
+that the tabs had no other path. So the tabs got one and the helper was left alone — changing
+it would have been a change made to satisfy a characterisation rather than a user.
+
+### 12.7 The combobox is editable, and the brief's claim about that is wrong
+
+The brief says *"All three existing `ttk.Combobox` instances are `state="readonly"`, so this is
+a new pattern here."* **Two of the three are.** `plugins/03_harmoniser/ui.py:723,748` are the
+cell editors over `STAGES` and `OPERATORS` — **closed** vocabularies, where readonly is
+right, and a test now pins that this session did not make *those* editable in passing. The
+third, `plugins/01_reference_extractor/original/prisma_citations_ai_v3_1.py:755`, is live via
+that plugin's `plugin.py:36` and declares no `state` at all, i.e. it is already editable. So
+this is a new pattern for a **settings** surface, not a new pattern outright. Raised as a
+correction; the design is unchanged by it.
+
+### 12.8 The widget and the engine cannot disagree
+
+The engine resolves from the store; the tab holds Tk variables. A value living only in a
+widget would send a run somewhere other than what the tab shows — this wave's subject,
+arriving through the controls added to fix it. So `settings::apply_stage_fields` writes on
+field-exit **and before the run starts, ahead of the readiness check**, so the check answers
+about the configuration that will actually run. Asserted by AST in both Views.
+
+`stage_overrides_for` carries the rule that makes this more than a dict copy: **a field equal
+to what the stage would resolve to *without* an override stores nothing.** Without it, opening
+a tab and pressing Run pins a copy of whatever the box was showing; the application setting
+silently stops reaching that stage; and the next provider change leaves the tab the user was
+*not* looking at on the old endpoint. The comparison is against a resolution with the stage's
+entry removed, not against the raw application key, because the two differ whenever a default
+is doing the work — an unconfigured install shows the vendor endpoint in the box while the
+setting is empty.
+
+A second label names the endpoint's **source** (stage override / application setting / keyless
+default / `OPENAI_BASE_URL` / vendor default). F-119's lesson: the URL alone does not
+distinguish *I chose the public API* from *my configuration was not read*.
+
+### 12.9 A hook that reached nothing
+
+`main.py:443` has notified `on_provider_changed` since session B and **no plugin implemented
+it**, so `notify_plugin` returned `False` into the void and the tabs kept reporting the
+previous answer until something else happened to refresh them. Received on the **plugin
+wrapper** — the object `main.py` notifies — and relayed to the View. A method on the View
+alone would have left the call reaching nothing, which is how the gap arose in the first
+place. `notify_plugin`'s `False` return is now itself asserted, because that return value is
+the only signal the gap ever produced.
+
+### 12.10 D6 — the number, and what may not be said beside it
+
+`recommended_batch_size` returns **5** for a keyless provider and `None` — no suggestion, the
+stage's own default answers — for everything else.
+
+**Why the bottom of the 5–10 range.** The two costs of a smaller batch are more requests and
+more wall-clock, and against a local server both are free: no per-request charge, and the
+machine is the user's own. The benefit is a shorter list for the model to track. When one side
+of a trade-off costs nothing, taking the safer end of the stated range is not a judgement
+call. *(It is also the value the goldens were captured at, which is a coincidence rather than a
+reason — they are replayed with an explicit batch size and nothing here reaches them.)*
+
+The question is asked about the **provider**, not the endpoint, unlike `key_required_for`, and
+the asymmetry is deliberate: getting the key gate wrong spends money, so it takes the cautious
+reading of an ambiguous pair; getting the batch size wrong costs a slower run. A `custom`
+endpoint may be a large hosted model or llama.cpp on a laptop, and 5 works for both.
+
+**The wording is tested because what it must not say is the load-bearing part.** It lives in
+`stage_state` — pure, no tkinter — and the `Tooltip` widget holds no logic, which is the
+division that makes a sentence assertable at all. Three properties:
+
+* **it is a quality setting, not a correctness one**, said outright. F-86 was the correctness
+  defect here; it is **closed**, in the engine, since wave 7, and it fired at `batch_size = 1`
+  as readily as at 50 because the acceptance guard admitted any known `a_id` whatever batch it
+  came from. The tooltip names all three facts. A list of false-reassurance phrases —
+  *safer*, *prevents*, *more accurate*, *guarantee* — is asserted absent, with the one
+  sanctioned use, the **denial**, required verbatim and removed before the list is applied;
+* **F-101**: the cache key hashes a synthetic one-item prompt, so batch size is invisible to
+  it and changing this does not invalidate a cache. Said beside the box the user is about to
+  change, because *"will this throw away my cached decisions?"* is the reasonable fear that
+  otherwise stops them;
+* **nothing about how well a local model screens.** That needs a live measurement and is wave
+  12's. The claim made is narrow: a shorter list is easier to keep track of.
+
+### 12.11 D9 — the checkbox is deleted, and that reverses a decision
+
+F-118's fix cell said *"The checkbox is DECIDED and must not be re-litigated: it will be
+WIRED, not deleted."* Session C **deletes** it, on the coordinator's instruction, and the
+reversal plus its reasoning are recorded in the row so it is not re-litigated a third time.
+
+The reasoning is the fact the earlier decision itself recorded for whoever would implement it:
+the LLM/no-LLM choice is *already* expressed by two buttons a few inches away, and
+`_harmonise_llm` never consulted `var_llm`. Wiring it means deciding what the flag should mean
+when it disagrees with the button pressed, and **every answer to that is worse than not having
+the control** — a third control that can contradict two explicit ones makes the user wrong
+about what they asked for. The row calls the checkbox the worst of the three halves *because
+it reads as the cost-and-provider safety switch*, and a wired version overridable by a button
+would still read that way while still not being one.
+
+### 12.12 The harmoniser stops deciding for itself
+
+*"A user running locally must not find that one button still demands a paid key."* Four ways
+it did:
+
+* `_llm_available` never checked `NOT_CONFIGURED`, so a store with a leftover key and **no
+  provider chosen** lit the button — ahead of the check that exists because the key and model
+  tests can each be satisfied while the path as a whole is unconfigured;
+* it never consulted the probe, so an unreachable endpoint lit it too and the run failed one
+  call in;
+* `cfg.get("provider", "local")` defaulted to a **keyless** provider when the key was missing,
+  waiving the gate — session A's `defaults()` defect one module along;
+* the key indicator read `os.getenv("OPENAI_API_KEY")` **directly** — the third predicate after
+  F-117 unified two — so it said *missing* to exactly the user who needs no key, and disagreed
+  with the button next to it.
+
+All four are one defect: a third answer to a question `llm_readiness` already answers. The
+View now calls it with the same arguments EL and IL pass, and the label and the button read
+the same `Readiness` object, so they **cannot** disagree. `_llm_available` is **removed rather
+than aliased** — session A's argument when it removed `has_key=` — and what remains,
+`_sdk_importable`, answers only whether the SDK can be imported, which readiness cannot know.
+
+`has_bundle=True` is passed deliberately: this stage has no bundle, its inputs are the criteria
+text and the A vector, `_ensure_ready` owns that check, and `NO_BUNDLE` would tell a harmoniser
+user to load a ScreenA bundle ZIP — the wrong file at the wrong stage.
+
+### 12.13 F-140, and the correction that matters more than the fix
+
+Two independent guards rather than one: `sanitize_api_key` iterates to a **fixed point**, so
+sanitizing twice cannot differ from sanitizing once; and `_on_save` hands the **raw** entry to
+`validate_api_key` and stores `sanitize_api_key` of that same raw string, so the two are one
+expression over one input whether or not the function is idempotent.
+
+**The row understates it.** F-140 is written against `ApiKeyDialog`, which session B made
+**unreachable** — so that fix is prophylactic on its own. The dialog the application actually
+opens, `ProviderDialog._accept`, stored `var_key.get().strip()`: whitespace only, **no quote
+handling at all**. Measured:
+
+```
+entry '"sk-a-real-key"'  ->  old ProviderDialog stored '"sk-a-real-key"'
+                         ->  now                       'sk-a-real-key'
+```
+
+The same harm by a simpler route, on the only live path. Both dialogs share one function now;
+two definitions of what a key is would be F-117's shape applied to the value rather than to the
+predicate. `_probe` still strips rather than sanitizes, deliberately — it sends the key as a
+bearer token and never persists it.
+
+### 12.14 A regression this session introduced and caught before it shipped
+
+`231f0fc` made the store's batch size live. **Session A had shipped
+`defaults()["batch_size"] = 5` and nothing read it**, so that value immediately became the
+seed for every stage — including one running against OpenAI — in place of the module default
+of 50. Ten times the requests, silently, on the provider that bills per call. Measured before
+the change shipped rather than argued:
+
+```
+defaults()['batch_size'] = 5
+fresh install  -> resolve_stage('EL').batch_size = 5
+openai chosen  -> resolve_stage('EL').batch_size = 5     <- was 50
+```
+
+`defaults()` now says `None` — *nobody has chosen* — and the provider suggests. This is the
+same shape as session A's `provider="local"`: **a value asserted by a module that cannot see
+the inputs the decision depends on.**
+
+It was caught by reasoning while wiring D6, and **that is not a repeatable safety net and must
+not be recorded as one.** 1163 tests were green at that moment. It is F-14's gap again — the
+goldens protect the pipeline, the suite protects the engine, and nothing protects the View —
+and it is the second wave running in which the thing that caught a live defect was one person
+thinking about it rather than anything in the repository.
+
+### 12.15 The AST lesson, learned three times in one session
+
+Three tests failed against **their own explanatory comments**: the comment recording a
+deletion names the thing deleted, so a substring search matches the record rather than the
+defect. The repository already learned this once, for the `subprocess` check in
+`test_provider_detect.py`, and its docstring says so. All three now read structure rather than
+text.
+
+One of them produced a better test than the blunt version would have. *"The harmoniser must
+not read the environment"* is false as stated — `os.environ` is a legitimate **input** to
+`resolve_stage`. What is forbidden is a second place **deciding** from it, which is what the
+old key indicator did. The test now says exactly that: every read lives inside
+`_stored_config`, and each one is an argument to the resolver. A guard that fires on the thing
+it is meant to permit gets deleted rather than obeyed, and the same correction was needed for
+the model-control guard, which first flagged `configure(values=…)` — the line that *fills* the
+dropdown.

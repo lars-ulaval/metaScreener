@@ -66,6 +66,12 @@ class _UiState:
             self.rows = []
 
 
+#: What the model box shows when nothing is stored. Named rather than
+#: inlined twice: the seed and the fallback must be the SAME string, or
+#: the seeded value looks like an edit and gets pinned.
+DEFAULT_HARMONISER_MODEL = "gpt-4o-mini"
+
+
 class HarmoniserView(ttk.Frame):
     def __init__(self, master: tk.Misc):
         super().__init__(master)
@@ -160,7 +166,12 @@ class HarmoniserView(ttk.Frame):
         self.lbl_key = ttk.Label(left_top, text="")
         self.lbl_key.grid(row=0, column=3, padx=(10, 0), sticky="w")
 
-        self.lbl_models = ttk.Label(left_top, text="", foreground="#555")
+        # wraplength, because D4/D5's messages are sentences, not
+        # labels. Without it the review measured 46% of the text
+        # clipped off the pane — the same overflow shape session B
+        # shipped, in the label that carries the remedy.
+        self.lbl_models = ttk.Label(left_top, text="", foreground="#555",
+                                    wraplength=520, justify="left")
         self.lbl_models.grid(row=1, column=0, columnspan=5, sticky="w",
                              pady=(2, 0))
 
@@ -282,11 +293,18 @@ class HarmoniserView(ttk.Frame):
                              env_api_key=os.environ.get("OPENAI_API_KEY", ""))
 
     def _seed_model(self) -> str:
-        return self._stored_config().model or "gpt-4o-mini"
+        return self._stored_config().model or DEFAULT_HARMONISER_MODEL
 
     def _model_edited(self) -> None:
         try:
-            apply_stage_fields(self.STAGE, model=self.var_model.get())
+            apply_stage_fields(
+                self.STAGE,
+                # See the EL/IL views: without the fallback this pinned
+                # the hard-coded "gpt-4o-mini" as a permanent override on
+                # the first focus-out, so a model chosen later in the
+                # provider dialog never reached this stage again.
+                fallbacks={"model": DEFAULT_HARMONISER_MODEL},
+                model=self.var_model.get())
         except Exception as e:
             self._log(f"Model not saved: {e}")
         self._refresh_buttons()
@@ -315,14 +333,14 @@ class HarmoniserView(ttk.Frame):
                              api_key=cfg.api_key,
                              model=self.var_model.get(),
                              endpoint=cfg.endpoint,
-                             probe=last_known())
+                             probe=last_known(cfg.endpoint))
 
     def on_provider_changed(self) -> None:
         """Re-seed after the application settled or re-probed a provider."""
         seed = self._stored_config()
         if seed.model:
             self.var_model.set(seed.model)
-        choices = model_choices(last_known())
+        choices = model_choices(last_known(self._stored_config().endpoint))
         try:
             self.cmb_model.configure(values=list(choices.values))
         except Exception:
@@ -343,7 +361,17 @@ class HarmoniserView(ttk.Frame):
         # module's. What used to be here was a third answer to the first.
         ready = self._readiness()
         llm_ok = ready.can_run and _sdk_importable()
-        self.lbl_key.configure(text=ready.label)
+        # The Readiness object reports only the PROVIDER half here, because
+        # `_readiness` passes has_bundle=True -- this stage's inputs are the
+        # criteria text and the A vector, and `_ensure_ready` owns that check
+        # with messages that name them. So its "Ready to run" would sit beside
+        # a button disabled for want of criteria, which is a label claiming
+        # more than it can support. Found by executing the real widget, not by
+        # reading it. When the provider is settled the label says so and stops
+        # there; when it is not, the shared wording is exact and is used
+        # verbatim.
+        self.lbl_key.configure(
+            text="Provider ready" if ready.can_run else ready.label)
 
         self.btn_harmonise_llm.configure(state=("normal" if (can_h and llm_ok) else "disabled"))
         self.btn_validate.configure(state=("normal" if (bool(self.state.rows) and has_a and self._worker is None) else "disabled"))
