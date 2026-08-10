@@ -69,6 +69,49 @@ class _Cancelled(Exception):
     """
 
 
+def _guarded(fn: Optional[Callable[[Any], None]]) -> Optional[Callable[[Any], None]]:
+    """Wrap a caller-supplied reporting callback so its failure cannot change
+    the work it reports on.
+
+    F-134. ``progress()`` and ``log()`` are called from *inside* the per-batch
+    retry ``try``, and the ``sub="batch_done"`` event in particular is emitted
+    after the parse loop and the omission back-fill have both written. So an
+    exception raised while *reporting* on a batch fell into the generic
+    handler, matched no salvage class, and rewrote every record of that batch
+    as a terminal failure — destroying answers the API call had already been
+    paid for. That is F-26's shape reached through a different trigger, and
+    F-26's fix does not cover it: it guards ``_Cancelled`` specifically.
+
+    The route is not hypothetical. ``plugins/06_el/ui.py::ELView._run_clicked``
+    passes a ``progress_evt`` that marshals through ``self.after``, which
+    raises ``RuntimeError`` once the Tk root is gone — i.e. whenever the user
+    closes the window during a run.
+
+    Swallowing is the right disposal, and the alternatives are both worse:
+    letting it propagate kills the run and discards every batch already paid
+    for, and letting it reach the retry handler is the defect. A reporting
+    channel that cannot report is a lost log line; it must not also be a lost
+    verdict.
+
+    ``_Cancelled`` is re-raised rather than swallowed. No reporting callback
+    raises it today, but cancellation is control flow rather than a reporting
+    failure, and a swallow here would make the cancel button stop working the
+    moment someone wired one through a callback.
+    """
+    if fn is None:
+        return None
+
+    def _call(payload: Any) -> None:
+        try:
+            fn(payload)
+        except _Cancelled:
+            raise
+        except Exception:
+            pass
+
+    return _call
+
+
 def _openai_client_for():
     """Construct the OpenAI client.
 
@@ -493,6 +536,13 @@ def run_m1_llm_for_criterion(
     inference; the cache layer (keyed on temperature for non-zero
     values) is the primary reproducibility safeguard.
     """
+    # F-134: every `log(...)` and `progress(...)` below goes through the
+    # guard from here on. Rebinding the two names rather than editing a
+    # dozen call sites keeps the property in one place — a new reporting
+    # call added later is covered without anyone having to remember.
+    log = _guarded(log)
+    progress = _guarded(progress)
+
     log_prefix = f"[{stage}-LLM]"
     if not model:
         if log: log(f"{log_prefix} model=None; skipping.\n")
@@ -785,6 +835,17 @@ def run_m1_llm_for_criterion(
                     for it in cur_batch:
                         a_id = _safe_str(it.get("a_id", "")).strip()
                         if not a_id:
+                            continue
+                        # F-134: guarded the way the omission back-fill twelve
+                        # lines above has always been guarded. Anything that
+                        # raises after the parse loop has begun writing used to
+                        # rewrite verdicts this batch had already received —
+                        # a received `meet` replaced by a fabricated
+                        # `uncertain`. The records with no verdict still get an
+                        # entry below, so nothing is left unaccounted for; what
+                        # changes is that an answer is never destroyed by the
+                        # failure that followed it.
+                        if (a_id, cid) in out:
                             continue
                         out[(a_id, cid)] = {
                             "used": False,
