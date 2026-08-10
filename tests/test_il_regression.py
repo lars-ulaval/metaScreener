@@ -26,6 +26,23 @@ Test inputs:
 - cache:    tests/golden/il_cache_v3.1.0.json  (replayed verbatim)
 
 Capture / re-capture: ``tools/capture_el_il_goldens.py``.
+
+**This fixture is weaker than EL's, and nothing said so** (F-117). A
+reader comparing the two regression suites would reasonably assume equal
+strength and would be wrong by half:
+
+* EL exercises **two** LLM criteria, ``EC-2`` and ``EC-3``;
+* IL exercises **one**, ``IC-1``. Its other criterion, ``IC-5``, has
+  ``operator="contains"``, so it never reaches the LLM at all and is
+  marked ``UNCERTAIN`` by fiat (F-65) — which is what pushes 80 of 84
+  records to ``REVIEW``.
+
+Nothing is wrong with the code or with the golden; the asymmetry is a
+property of the demonstration corpus's criteria table. It is recorded
+here, and pinned by ``TestTheFixtureIsWeakerThanELs`` below, so that the
+next person to read a green IL replay knows what it does and does not
+cover. ``tests/test_golden_rekey.py`` records the same asymmetry from the
+other side, where it explains why IL derives 168 pairs from 84 entries.
 """
 import hashlib
 import json
@@ -176,3 +193,56 @@ class TestILPromptStability:
             f"  Re-capture via 'python tools/capture_el_il_goldens.py "
             f"--print-hashes' if intentional."
         )
+
+
+class TestTheTruncationConstantMatchesTheCapture:
+    """F-117's third item. ``PROMPT_HASH_TRUNC_CHARS`` carried the comment
+    *"Must match capture script and IL test"* and nothing checked it.
+
+    It is a hand-maintained coupling between three files, and the prompt
+    hash below is computed with it — so a re-capture at a different
+    truncation would leave the constant stale, key every lookup
+    differently, and produce a wall of misses whose cause is one number
+    in a test file. **Wave 12 re-captures these goldens**, which is
+    precisely when a silent coupling stops being theoretical.
+
+    The golden records what the capture actually used, so it is the
+    authority and the constant is derived from it rather than asserted
+    beside it.
+    """
+
+    def test_it_equals_the_invocation_the_golden_records(self):
+        invocation, _cache = _load_cache_envelope(IL_CACHE)
+        assert invocation["trunc_chars"] == PROMPT_HASH_TRUNC_CHARS, (
+            f"the goldens were captured at trunc_chars="
+            f"{invocation['trunc_chars']} but this suite hashes prompts at "
+            f"{PROMPT_HASH_TRUNC_CHARS}; every prompt-hash lookup below is "
+            f"keyed against text the capture never produced."
+        )
+
+
+class TestTheFixtureIsWeakerThanELs:
+    """F-117. The asymmetry in the module docstring, made checkable rather
+    than left in prose — a docstring drifts silently, an assertion does
+    not."""
+
+    def _criteria(self):
+        """The same parse the replay above performs, so this describes the
+        criteria the golden was actually produced from."""
+        il = get_il()
+        text = CRITERIA_GOLDEN.read_text(encoding="utf-8-sig")
+        rep = il._parse_criteria_harmonized_csv(text, "IL")
+        return [c for c in rep.criteria if c.enabled]
+
+    def test_only_one_il_criterion_reaches_the_model(self):
+        llm = [c.id for c in self._criteria() if c.operator == "llm"]
+        assert llm == ["IC-1"], (
+            "IL's byte-identity golden exercises exactly one LLM criterion. "
+            "If this grows, the fixture became stronger and the module "
+            "docstring's warning should be retired rather than repaired."
+        )
+
+    def test_the_other_criterion_is_deterministic_not_llm(self):
+        non_llm = {c.id: c.operator for c in self._criteria()
+                   if c.operator != "llm"}
+        assert non_llm == {"IC-5": "contains"}

@@ -217,3 +217,29 @@ class TestELPromptStability:
             f"  Re-capture via 'python tools/capture_el_il_goldens.py "
             f"--print-hashes' if intentional."
         )
+
+
+class TestTheTruncationConstantMatchesTheCapture:
+    """F-117's third item. ``PROMPT_HASH_TRUNC_CHARS`` carried the comment
+    *"Must match capture script and IL test"* and nothing checked it.
+
+    It is a hand-maintained coupling between three files, and the prompt
+    hash below is computed with it — so a re-capture at a different
+    truncation would leave the constant stale, key every lookup
+    differently, and produce a wall of misses whose cause is one number
+    in a test file. **Wave 12 re-captures these goldens**, which is
+    precisely when a silent coupling stops being theoretical.
+
+    The golden records what the capture actually used, so it is the
+    authority and the constant is derived from it rather than asserted
+    beside it.
+    """
+
+    def test_it_equals_the_invocation_the_golden_records(self):
+        invocation, _cache = _load_cache_envelope(EL_CACHE)
+        assert invocation["trunc_chars"] == PROMPT_HASH_TRUNC_CHARS, (
+            f"the goldens were captured at trunc_chars="
+            f"{invocation['trunc_chars']} but this suite hashes prompts at "
+            f"{PROMPT_HASH_TRUNC_CHARS}; every prompt-hash lookup below is "
+            f"keyed against text the capture never produced."
+        )
