@@ -662,6 +662,90 @@ watch a full multi-gigabyte pull.
 *Report:* whether the bar visibly restarts, and whether the status text is
 intelligible while it does.
 
+### 11.9 The review pass, and whether the instruction change helped
+
+**It helped, decisively.** The coordinator changed one instruction after
+session A: *execute, do not reason*, with every finding required to carry
+the command run and the output observed.
+
+| | Session A | Session B |
+|---|---|---|
+| Raised | 19 | 14 |
+| Survived | 4 | **2 high, both reproduced** |
+| Ratio | 21% | 14% |
+
+The ratio alone understates it. Session A's four survivors were found by
+running code *despite* an instruction that permitted reasoning; session
+B's two were found by running code *because* the instruction required it,
+and both arrived with a paste-able repro and real output. The noise that
+remained was still hypothetical, but there was less of it and it was
+easier to discard — a finding with no `how_you_ran_it` is refutable on its
+face.
+
+**Recommendation for session C: keep the instruction.** The cost is that
+reviewers spend their budget executing rather than enumerating, which
+lowers the raw count. That is the trade one wants.
+
+#### 11.9.1 The OpenAI provider could never run
+
+`llm_readiness` demands `probe.state == "ready"` for *every* provider, and
+the only supplier of that probe was an **unauthenticated** GET of
+`<endpoint>/models`. api.openai.com answers 401, `urlopen` raises,
+`_fetch_models` returns `None`, `detect` falls through to the Ollama
+binary check, and anything not-ready maps to `ENDPOINT_UNREACHABLE`.
+
+Measured: a fresh install choosing OpenAI with a valid key gets
+`can_run=False` and the message *"No local model server was detected …
+Install it from https://ollama.com/download, or switch to OpenAI"* —
+while already on OpenAI.
+
+**Worse than the state it replaced.** Before this session that user could
+run. This is the fresh-install regression shape the coordinator named,
+arriving on the provider nobody was watching.
+
+Fixed in two halves: the probe authenticates when a key is available, so
+*reachable* becomes a question the vendor can answer; and the Ollama
+discrimination is skipped for a non-local provider, because sending an
+OpenAI user to fix their Ollama installation is exactly the wasted
+afternoon D4/D5 exist to prevent, produced by the code written to
+prevent it.
+
+**Why the suite was green, which is the part worth keeping.** This wave's
+own helper hand-built `probe=SimpleNamespace(state="ready")` for
+`provider="openai"` — *a probe the real detector cannot produce for the
+vendor*. **A test that asserts a state the system cannot reach is worse
+than no test: it certifies the path it hides.** That is a new failure
+mode for this project's records, and it is not the same as insufficient
+coverage — the coverage existed and pointed at fiction.
+
+#### 11.9.2 Session A's billing defect, reachable again by a new route
+
+`_accept` stored the endpoint verbatim, and the endpoint box is enabled
+for *local*. Selecting local and clearing it stored
+`{provider: "local", endpoint: ""}`; `key_required("local")` is `False`
+so the gate opened; and a blank endpoint fell through to
+`DEFAULT_OPENAI_BASE_URL`. Measured: key gate open, endpoint
+`https://api.openai.com/v1`, credential `sk-a-real-key` — a billable run
+the store labels local. The harmoniser's `_llm_available` is key-only and
+never consults the probe, so that stage would have made the call.
+
+The same shape arrives with **no user error at all** from any settings
+file that names a provider and omits an endpoint.
+
+Closed by an **invariant** rather than by patching the route: *a keyless
+provider never resolves to the paid vendor*. Falling back to the local
+default is wrong-but-harmless; falling back to the vendor is
+wrong-and-billable. The dialog also repairs a blank endpoint at accept,
+so there are two independent guards.
+
+**This is the second time this wave has produced this defect, by two
+different routes.** Session A: a default that presumed a provider.
+Session B: a blank field that presumed an endpoint. Both times the
+mechanism was the same — `key_required` waives the gate for a keyless
+provider while something else still points at the vendor — and both times
+it was found by executing rather than reading. The invariant now closes
+the class, not the instance.
+
 ---
 
 ## 12. Session C
