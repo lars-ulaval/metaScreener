@@ -56,9 +56,17 @@ observation:
 | Model | `gpt-4o-mini` | asserted by the capture harness |
 | Truncation limit | 4000 characters | asserted by the capture harness |
 | Batch size | 5 | asserted by the capture harness |
+| Prompt version | `EL_v1_jsonlist` / `IL_v1_jsonlist` | read from the source at the capture commit, where it was already a cache-key member |
 | Endpoint | the OpenAI default | *inferred* — none was recorded, and the capture set none |
 | Temperature | 0.0 | *inferred* — the capture set none, so the run took the code default |
-| Prompt version | *not applicable* | no such field existed at the capture commit |
+
+The prompt-version stamp needs one qualification. It is a hand-maintained
+label rather than a hash of the prompt text, and both labels are still in
+use today — so the stamp establishes which prompt *version* the study
+ran, but not that today's prompt text is byte-identical to the one it
+ran. The prompt-building code has since been extracted to its own module
+and the cache key rewritten to hash the rendered prompt rather than an
+enumerated list of parameters.
 
 The frozen study input carries the same statement in
 [`study_input.meta.txt`](data/study_input/study_input.meta.txt).
@@ -316,12 +324,21 @@ The dominant disagreement pattern is the **LLM hedging to `unsure`**:
 Combined, 29 of the 52 IL disagreements are LLM-hedge cases. The
 opposite direction (LLM confident where humans are unsure) is
 rare: 4 records where the human aggregate said `unsure` and the LLM
-said `yes`. This asymmetry suggests the LLM is conservative on
+said `yes`. This asymmetry suggests **this model** is conservative on
 ambiguous abstracts and prefers `UNCERTAIN` to a wrong confident
 call. The behaviour is methodologically defensible (it propagates
 uncertainty to a human-review stage rather than auto-deciding under
 uncertainty) but worth flagging when users interpret the LLM's
 calibration.
+
+This is the conclusion in the document that transfers least well, and
+it is worth being explicit about why. It is a claim about `gpt-4o-mini`,
+not about LLM screening: hedging is the characteristic failure of a
+large, well-aligned model, and **over-confidence** rather than hedging is
+the characteristic failure of a small one. A reader running a local
+quantised model should expect this asymmetry to weaken, vanish, or
+invert — and the inverse is the harmful direction, because a confident
+wrong call is acted on where a hedge is routed to a human.
 
 ## Limitations
 
@@ -358,17 +375,35 @@ The findings reported above are bounded by several conditions:
   saw. This is methodologically appropriate for fair comparison and
   for the title-and-abstract PRISMA stage, but it does not validate
   what either humans or LLMs would conclude at the full-text stage.
-- **No temperature sweep.** Decisions are taken at the LLM's default
-  temperature for the bundle. Run-stability under repeated sampling
-  at non-zero temperature has not been measured.
+- **No temperature sweep.** Decisions were taken at temperature 0.0 —
+  the code default at the capture commit, which the capture harness did
+  not override (see [Model under
+  evaluation](#model-under-evaluation)). No bundle records or defaults a
+  temperature. Run-stability under repeated sampling at non-zero
+  temperature has not been measured.
 - **No subgroup analysis.** Agreement metrics are not broken down by
   record characteristics (year, venue, language); a longer corpus
   would justify such an analysis.
 - **Screening quality is bounded by whether the model discriminates,
   and the pipeline cannot tell when it stops.** Agreement figures
   describe runs in which the model produced varied, per-record
-  judgements. That is not guaranteed. In one archived run of the same
-  776-record corpus (2026-05-07, `gpt-4o-mini`), all 170 EL calls
+  judgements. That is a weaker guarantee than it sounds, and this
+  study's own run is the place to see why. Its IL half is genuinely
+  varied — 48 `meet` against 36 `not_meet`. Its EL half is not: 169 of
+  170 decisions are `not_meet`, and 141 of them carry confidence 0.900
+  exactly. The kappa-paradox discussion above attributes the skewed
+  marginals to the corpus, and that is right; what it does not say is
+  that the model's output is nearly as concentrated as the corpus, and
+  that from outside the artefact the two are indistinguishable. This
+  strengthens the case for reading observed agreement alongside kappa
+  rather than retracting either — but the figures reported above should
+  not be read as describing a run of highly differentiated judgements,
+  because on EL they do not.
+
+  Full collapse is a different matter, and it does happen. In one
+  archived run of the same 776-record corpus (2026-05-07,
+  `gpt-4o-mini` — the same model as this study, a different run), all
+  170 EL calls
   returned the same decision (`not_meet`), the same confidence (0.9
   exactly), and only three distinct evidence spans, one of which
   repeated identically across an entire 85-record criterion sweep. The
@@ -402,9 +437,12 @@ The findings reported above are bounded by several conditions:
   sides, an unrecognised identifier being dropped and a missing one
   back-filled, in each case with no counter and no log line; it is also
   the trigger condition for the substitution defect described in the
-  next bullet. Neither mode occurred in the run reported above, and the
-  frequency of neither has been measured. Both are more likely on
-  smaller models than on the one this study used.
+  next bullet. Neither mode occurred in the archived 2026-05-07 run
+  described above, and the frequency of neither has been measured. No
+  such claim is made for the study run: the next bullet reports 70
+  entries on which drift of the substituting kind cannot be decided
+  either way. Both modes are more likely on smaller models than on the
+  one this study used.
 
   This is one observed run, on one corpus, with one model. It is
   reported because it happened, not as an estimate of how often
@@ -423,12 +461,25 @@ The findings reported above are bounded by several conditions:
   directly. The check runs in one direction only: if the quote filed
   against a record occurs nowhere in the corpus except that record's
   own text, no substitution could have produced it. It clears **175**
-  entries outright, and a further **9** could not have been
-  substitutions because their quote had already failed validation.
-  **70 remain undecidable** — short, generic keyword fragments such as
-  "Computer science" that recur across a bibliographic corpus, which is
-  exactly the population in which a substitution could have survived
-  the evidence gate at all.
+  entries outright and leaves **70 undecidable** — short, generic
+  keyword fragments such as "Computer science" that recur across a
+  bibliographic corpus, which is exactly the population in which a
+  substitution could have survived the evidence gate at all.
+
+  The remaining **9** are the entries whose quote failed validation, and
+  they need stating carefully, because the direction is not the obvious
+  one. A failed quote is not proof that no substitution occurred — it is
+  what a substitution looks like once the gate catches it. Of the nine,
+  eight carry a quote their own record cannot supply. For seven of those
+  eight no record in the corpus supplies it either, so the model
+  fabricated the string outright rather than borrowing it. The eighth,
+  record `A345` (appearing on both `EC-2` and `IC-1`, quoting "Augmented
+  reality"), carries a quote eleven *other* records can supply and its
+  own cannot — the one entry in the study that matches the positive
+  signature of a substitution. What follows from all nine is narrower
+  and firmer than "they were not substitutions": **they failed the
+  evidence gate, so whatever produced them, none of them removed a
+  record.**
 
   Narrowed to what changes the funnel: this study contains five
   verdicts that actually removed a record. **Four are provably not
@@ -436,10 +487,10 @@ The findings reported above are bounded by several conditions:
   "Computer science" — is undecidable.**
 
   Both halves of that should be read carefully. The undecidable entries
-  are not evidence that anything went wrong: no entry anywhere exhibits
-  the positive signature of a substitution, and every quote in the
-  study can be supplied by the record it is filed against. Nor are they
-  evidence that nothing did. The residue is structural rather than a
+  are not evidence that anything went wrong: every quote that *passed*
+  the evidence gate can be supplied by the record it is filed against,
+  which is what passing the gate means, and none of them exhibits the
+  positive signature. Nor are they evidence that nothing did. The residue is structural rather than a
   matter of effort — nothing in the artefacts ties a verdict to the
   call that produced it, so no further analysis of the committed files
   can resolve it, and the one thing that would, a per-response record

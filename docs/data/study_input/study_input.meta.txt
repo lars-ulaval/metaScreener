@@ -32,6 +32,15 @@ model=gpt-4o-mini
 trunc_chars=4000
 batch_size=5
 
+# Read from the source at frozen_from_commit, where PROMPT_VERSION was
+# already a cache-key member (plugins/06_el/plugin.py, plugins/07_il/plugin.py
+# — the prompt modules were extracted later). Note that the stamp is a
+# hand-maintained label, not a hash of the prompt text, and both labels are
+# still in use: it identifies the prompt VERSION the study ran, not that
+# today's prompt text is identical to it.
+el_prompt_version=EL_v1_jsonlist
+il_prompt_version=IL_v1_jsonlist
+
 # NOT recorded by the capture harness, and therefore NOT asserted here.
 # The endpoint was inferred in wave 9 rather than read (F-128); the
 # temperature is the code default at the capture commit rather than an
@@ -40,4 +49,3 @@ batch_size=5
 # re-capture.
 endpoint=unrecorded (inferred: the OpenAI default base URL)
 temperature=unrecorded (inferred: the 0.0 code default)
-prompt_version=unrecorded (no such field existed at capture)

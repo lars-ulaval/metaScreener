@@ -30,8 +30,9 @@ defects produced.
 **1. A record could be excluded on evidence belonging to a different
 record.** The two LLM stages send records to the model in batches. The
 code that accepted an answer checked the record identifier it named
-against the whole corpus rather than against the batch that call had
-actually carried, so an answer naming a record the call never saw was
+against every record the criterion still had to ask about, rather than
+against the batch that call had actually carried, so an answer naming a
+record that call never saw was
 accepted anyway — and the quote was then validated against *that*
 record's own text, so it passed every check. The result is a
 well-formed, fully evidenced exclusion produced by a call that did not
@@ -43,8 +44,12 @@ for ever, at no API cost and with the interface reporting a normal cache
 hit. The trigger is a model misreporting an identifier, which is a
 characteristic weak-model failure, so the rate rises on exactly the
 local-model configurations the README invites. **Re-check if:** you ran
-EL or IL with a batch size greater than 1 — the default — and any record
-was excluded. Answers are now accepted only for the records the call
+EL or IL and any record was excluded. Batch size does not exempt you:
+the guard was equally defective at every size, including 1, where the
+defect was reproduced both from source and by test. A larger batch — the
+default is 50 — raises the rate rather than the reachability, because a
+model that can see its neighbours' identifiers can copy one instead of
+inventing it. Answers are now accepted only for the records the call
 actually carried, and the quote is validated against that same set.
 *(F-86)*
 
@@ -269,12 +274,15 @@ produced it: a stored answer carries no batch, no call identifier and no
 timestamp, and its key is computed from the record the answer was filed
 *against*, so a fabricated verdict and a genuine one are written to
 indistinguishable places. Applied to the 254 cache entries this project
-ships with its published validation study, the check clears 175
-outright, and a further 9 could not have been substitutions because
-their quote had already failed validation; **70 remain undecidable** —
-short, generic keyword fragments such as "Computer science" that recur
-across a bibliographic corpus, which is precisely the population in
-which a substitution could have survived the evidence gate at all.
+ships with its published validation study, the check clears **175**
+outright and leaves **70 undecidable** — short, generic keyword
+fragments such as "Computer science" that recur across a bibliographic
+corpus, which is precisely the population in which a substitution could
+have survived the evidence gate at all. The remaining **9** failed that
+gate, so whatever produced them they cannot have removed a record; one
+of them is in fact the closest thing to a positive result anywhere in
+the set, a quote its own record cannot supply that eleven other records
+can. The gate caught it, which is what the gate is for.
 Narrowed to the five verdicts that actually removed a record from that
 study, four are provably not products of this defect and one — record
 `A452` on criterion `IC-1` — is undecidable, and will remain so. The
