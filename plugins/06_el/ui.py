@@ -46,7 +46,9 @@ from plugins._common.bundle import (
 
 from plugins._common.stage_state import (
     Outcome,
+    Readiness,
     control_states,
+    llm_readiness,
     run_outcome,
     tk_state,
 )
@@ -360,7 +362,12 @@ class ELView(ttk.Frame):
         # API key indicator (EL requires OpenAI)
         self.lbl_key = ttk.Label(actions, text="")
         self.lbl_key.grid(row=1, column=2, padx=4, pady=2, sticky="e")
-        self._refresh_key_label()
+        self._refresh_readiness_label()
+        # The indicator is only honest if it keeps up with the field it
+        # reports on; without this it would go stale the moment the user
+        # typed a model name.
+        self.var_model.trace_add(
+            "write", lambda *_a: self._refresh_readiness_label())
 
         top.columnconfigure(1, weight=1)
 
@@ -450,8 +457,24 @@ class ELView(ttk.Frame):
 
     # -------- helpers --------
 
-    def _refresh_key_label(self):
-        self.lbl_key.configure(text=("OPENAI_API_KEY ✓" if _has_openai_key() else "OPENAI_API_KEY ✗"))
+    def _readiness(self) -> Readiness:
+        """F-111. One place decides whether this stage may run, and
+        everything that asks — the indicator, the Run button, the Run
+        handler — asks it. Three places deciding separately is how the
+        gate came to be dropped (F-118) and how an empty model field
+        came to start a run (F-93)."""
+        return llm_readiness(stage="EL",
+                             has_bundle=bool(self.bundle_zip_path),
+                             has_key=_has_openai_key(),
+                             model=self.var_model.get())
+
+    def _refresh_readiness_label(self):
+        """The widget used to read `OPENAI_API_KEY ✓` and nothing else:
+        the startup modal cannot be passed without a non-empty key and
+        nothing ever clears it, so the one provider-adjacent indicator
+        in the application carried zero bits (F-111). It now names
+        whichever thing is missing, and `Ready to run` when none is."""
+        self.lbl_key.configure(text=self._readiness().label)
 
     def _log(self, msg: str) -> None:
         self.txt_log.configure(state="normal")
@@ -540,7 +563,7 @@ class ELView(ttk.Frame):
         self.lbl_crit_filter.configure(text="Criterion filter: (none)")
         self.btn_clear_filter.configure(state="disabled")
 
-        self._refresh_key_label()
+        self._refresh_readiness_label()
 
         try:
             self.bundle = _load_bundle(self.bundle_zip_path)
@@ -919,7 +942,8 @@ class ELView(ttk.Frame):
                         "\n[CANCELLED] Partial results discarded; export stays "
                         "disabled until EL is re-run to completion.\n"))
                     self.outcome = run_outcome(
-                        stage="EL", counts=counts, cancelled=True,
+                        stage="EL", counts=counts,
+                        llm_report=run_report, cancelled=True,
                         not_screened=False, total_rows=len(full_rows))
                     self.after(0, lambda t=self.outcome.label:
                                self.lbl_status.configure(text=t))
@@ -942,7 +966,8 @@ class ELView(ttk.Frame):
                 # in any sense the user means by the word. The
                 # classification is stage_state::run_outcome's now.
                 self.outcome = run_outcome(
-                    stage="EL", counts=counts, cancelled=False,
+                    stage="EL", counts=counts,
+                    llm_report=run_report, cancelled=False,
                     not_screened=self.not_screened,
                     total_rows=len(full_rows))
                 self.after(0, lambda t=self.outcome.label:

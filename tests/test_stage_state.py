@@ -27,6 +27,8 @@ import pytest
 from plugins._common.bundle import NOT_SCREENED, _export_confirm_reason
 from plugins._common.stage_state import (
     OUTCOME_CANCELLED,
+    OUTCOME_NOTHING_SEPARATED,
+    OUTCOME_NO_ANSWERS,
     OUTCOME_NOT_SCREENED,
     OUTCOME_OK,
     control_states,
@@ -60,22 +62,23 @@ class TestOutcomeAsItIsToday:
 
     @pytest.mark.parametrize("stage", STAGES)
     def test_a_normal_run_says_done(self, stage):
-        out = run_outcome(stage=stage, counts=NORMAL, cancelled=False,
-                          not_screened=False, total_rows=85)
+        out = run_outcome(stage=stage, counts=NORMAL, llm_report=WORKED,
+                          cancelled=False, not_screened=False, total_rows=85)
         assert out.code == OUTCOME_OK
         assert out.label == f"{stage} done."
 
     @pytest.mark.parametrize("stage", STAGES)
     def test_a_cancelled_run_says_so(self, stage):
-        out = run_outcome(stage=stage, counts={}, cancelled=True,
-                          not_screened=False, total_rows=85)
+        out = run_outcome(stage=stage, counts={}, llm_report={},
+                          cancelled=True, not_screened=False, total_rows=85)
         assert out.code == OUTCOME_CANCELLED
         assert out.label == "Cancelled — partial run, nothing exported."
 
     @pytest.mark.parametrize("stage", STAGES)
     def test_a_no_criteria_run_says_so(self, stage):
         out = run_outcome(stage=stage, counts={NOT_SCREENED: 85},
-                          cancelled=False, not_screened=True, total_rows=85)
+                          llm_report={}, cancelled=False, not_screened=True,
+                          total_rows=85)
         assert out.code == OUTCOME_NOT_SCREENED
         assert "no " in out.label and "criteri" in out.label
         assert out.label != f"{stage} done."
@@ -85,36 +88,42 @@ class TestOutcomeAsItIsToday:
         """A run that stopped early tells you nothing about what it would
         have screened, so its own report must not be reported instead."""
         out = run_outcome(stage=stage, counts={NOT_SCREENED: 85},
-                          cancelled=True, not_screened=True, total_rows=85)
+                          llm_report=WHOLLY_FAILED, cancelled=True,
+                          not_screened=True, total_rows=85)
         assert out.code == OUTCOME_CANCELLED
 
     @pytest.mark.parametrize("stage", STAGES)
-    def test_CHARACTERISATION_a_wholly_failed_run_also_says_done(self, stage):
-        """**This is the defect.** A run in which the server was unreachable
-        and every record was written off produces a corpus of manufactured
-        non-answers, and the interface reports it exactly as it reports a
-        successful screening pass."""
-        out = run_outcome(stage=stage, counts=FLAGGED_ONLY, cancelled=False,
+    def test_a_wholly_failed_run_no_longer_says_done(self, stage):
+        """F-93/F-111. Was a CHARACTERISATION assertion in `ed05fb3`, where
+        it read ``== f"{stage} done."``. A run in which the server was
+        unreachable and every record was written off produced a corpus of
+        manufactured non-answers, and the interface reported it exactly as
+        it reported a successful screening pass."""
+        out = run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                          llm_report=WHOLLY_FAILED, cancelled=False,
                           not_screened=False, total_rows=85)
-        assert out.label == f"{stage} done.", (
-            "CHARACTERISATION (F-93/F-111): locking in today's behaviour. A "
-            "wholly failed run is reported as a completed one. The fix "
-            "commit changes this assertion."
-        )
+        assert out.code == OUTCOME_NO_ANSWERS
+        assert out.label != f"{stage} done."
+        assert "85" in out.label, "the count must be on the face of it"
 
     @pytest.mark.parametrize("stage", STAGES)
-    def test_CHARACTERISATION_failed_and_all_uncertain_are_indistinguishable(
-            self, stage):
-        """The distinction the wave exists for, stated as it stands today:
-        the two are the *same object*."""
-        broken = run_outcome(stage=stage, counts=FLAGGED_ONLY, cancelled=False,
+    def test_failed_and_all_uncertain_are_now_distinguishable(self, stage):
+        """The distinction the wave exists for. Was a CHARACTERISATION
+        assertion in `ed05fb3` reading ``broken == unsure``: the two used to
+        be the same object, because run_outcome did not take the run report.
+
+        Both corpora produce identical counts, identical survivors,
+        identical manifest markers and every record flagged. Only the report
+        separates them."""
+        broken = run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                             llm_report=WHOLLY_FAILED, cancelled=False,
                              not_screened=False, total_rows=85)
-        unsure = run_outcome(stage=stage, counts=FLAGGED_ONLY, cancelled=False,
+        unsure = run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                             llm_report=ALL_UNCERTAIN, cancelled=False,
                              not_screened=False, total_rows=85)
-        assert broken == unsure, (
-            "CHARACTERISATION (F-111): run_outcome does not yet take the run "
-            "report, so a dead server and an unsure model cannot differ."
-        )
+        assert broken != unsure
+        assert broken.code == OUTCOME_NO_ANSWERS, "never heard from"
+        assert unsure.code == OUTCOME_NOTHING_SEPARATED, "heard, unconvinced"
 
 
 # ---------------------------------------------------------------------------

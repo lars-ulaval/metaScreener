@@ -52,13 +52,22 @@ from plugins._common.bundle import (
 
 OUTCOME_CANCELLED = "cancelled"
 OUTCOME_NOT_SCREENED = "not_screened"
+OUTCOME_NO_ANSWERS = "no_answers"
+OUTCOME_NOTHING_SEPARATED = "nothing_separated"
+OUTCOME_PARTIAL_FAILURE = "partial_failure"
 OUTCOME_OK = "ok"
 
-OUTCOME_CODES = (OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_OK)
+OUTCOME_CODES = (
+    OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_NO_ANSWERS,
+    OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK,
+)
 """The closed set of states a finished run can be in.
 
-Wave 8 part 2, movement one: these three are exactly what the code
-distinguishes today. Movement two adds the ones it cannot.
+The first two and the last are what the code distinguished before wave 8;
+the middle three are the ones it could not, and they are the reason a
+server that was down, a model name with a typo, a model that was never
+pulled, an empty model field and a genuinely all-uncertain corpus all
+reported ``"EL done."``.
 """
 
 
@@ -84,18 +93,35 @@ class Outcome:
 
 
 def run_outcome(*, stage: str, counts: Mapping[str, int],
-                cancelled: bool, not_screened: bool,
-                total_rows: int) -> Outcome:
+                llm_report: Mapping[str, int], cancelled: bool,
+                not_screened: bool, total_rows: int) -> Outcome:
     """Classify a finished run.
 
-    Extracted verbatim from the two Views' ``_run_clicked::work``. The
-    ordering is theirs and is load-bearing: a cancelled run is reported as
-    cancelled whatever else is true of it, because a run that stopped early
-    tells you nothing about what it would have screened.
+    The first two branches and the last are the Views' own, transcribed in
+    movement one; the middle two are F-111. The ordering is load-bearing
+    throughout, and each step is the more specific cause winning over the
+    more general one:
 
-    ``counts`` and ``total_rows`` are only consulted for the no-criteria
-    line, which delegates to ``bundle._run_summary_counts_text`` so that
-    F-34's wording has one home.
+    1. **cancelled** beats everything. A run that stopped early tells you
+       nothing about what it would have screened.
+    2. **no criteria** (F-34) beats everything below it, because a stage
+       that evaluated nothing cannot have failed to get an answer.
+    3. **no answers** beats *nothing separated*, because a dead server also
+       separates nothing — and the two call for opposite responses from the
+       user, so reporting the general case would send them looking in the
+       wrong place.
+    4. **nothing separated** is the honest name for the case where the
+       model *was* heard from and no record cleared the evidence gate. It
+       is a screening result, not a misconfiguration, and it may well be
+       genuine.
+    5. **partial failure** is a real result with a documented hole.
+
+    ``llm_report`` is the engine's, not re-derived here. The counting
+    substrate exists (wave 8 part 1) and a second derivation would be two
+    representations of one fact — F-69's shape, which this project has
+    shipped four times. Unknown keys are ignored and missing keys default,
+    so wave 9's provenance fields and an older build's absent report are
+    both non-events.
     """
     if cancelled:
         return Outcome(
@@ -110,7 +136,149 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 counts, stage=stage, total_rows=total_rows),
             ack_reason=None,
         )
+
+    records = int(llm_report.get("records", 0) or 0)
+    answered = int(llm_report.get("answered", 0) or 0)
+    failed = int(llm_report.get("failed", 0) or 0)
+    rejected = int(llm_report.get("decisions_rejected", 0) or 0)
+    calls_failed = int(llm_report.get("calls_failed", 0) or 0)
+    separated = int(counts.get("OUT", 0) or 0) + int(counts.get("PASS_CLEAN", 0) or 0)
+
+    if records and answered == 0:
+        return Outcome(
+            code=OUTCOME_NO_ANSWERS,
+            label=(f"{stage}: NO ANSWERS — 0 of {records} record-criterion "
+                   f"pairs carry a decision ({failed} failed)."),
+            ack_reason=(
+                f"{stage} did not obtain a usable answer for a single "
+                f"record.\n\n"
+                f"{failed} of {records} record-criterion pairs ended in a "
+                f"failed call, and {calls_failed} call(s) raised. Every "
+                f"record is therefore flagged rather than screened, and an "
+                f"exported bundle will record that outcome as though the "
+                f"stage had run normally.\n\n"
+                f"This is what an unreachable server, a misspelled model "
+                f"name, a model that was never pulled and a rejected key all "
+                f"look like. The Log tab names the cause of each failed "
+                f"call.\n\n"
+                f"Export anyway?"
+            ),
+        )
+
+    if total_rows and separated == 0:
+        return Outcome(
+            code=OUTCOME_NOTHING_SEPARATED,
+            label=(f"{stage}: nothing separated — every record flagged "
+                   f"(model answered {answered} of {records})."),
+            ack_reason=(
+                f"{stage} separated none of the {total_rows} records: none "
+                f"was excluded and none passed cleanly.\n\n"
+                f"The model was heard from — {answered} of {records} "
+                f"record-criterion pairs carry a decision — so this is a "
+                f"screening result rather than a misconfiguration, and it "
+                f"may well be genuine: a corpus the model is unsure about "
+                f"produces exactly this. Every record is recorded as "
+                f"flagged for human review.\n\n"
+                f"Export anyway?"
+            ),
+        )
+
+    if failed or rejected:
+        return Outcome(
+            code=OUTCOME_PARTIAL_FAILURE,
+            label=(f"{stage} done, with gaps — {failed} failed and "
+                   f"{rejected} unreadable of {records}."),
+            ack_reason=None,
+        )
+
     return Outcome(code=OUTCOME_OK, label=f"{stage} done.", ack_reason=None)
+
+
+# ----------------------------
+# Readiness — whether a run may start at all
+# ----------------------------
+
+READY = "ready"
+NO_BUNDLE = "no_bundle"
+NO_KEY = "no_key"
+NO_MODEL = "no_model"
+
+READINESS_CODES = (READY, NO_BUNDLE, NO_KEY, NO_MODEL)
+"""The closed set of pre-run states, over the inputs available today.
+
+**Wave 10 extends this set, and the extension is the point of the split.**
+Once an endpoint is a first-class GUI value, three more states become
+decidable — endpoint unreachable, endpoint reachable but the model was
+never pulled, and a keyless server that must not be blocked for want of a
+key. Each is a new member here and a new branch in ``llm_readiness``,
+reached by new keyword arguments; none of them changes a state that already
+exists. §B1.4's six *discovery* states (0, 4, 5, 6, 7, 9) arrive the same
+way and for the same reason.
+"""
+
+
+@dataclass(frozen=True)
+class Readiness:
+    """Whether the stage may start, and what to say if not.
+
+    ``model`` is the *normalised* model — stripped — so the caller uses this
+    rather than re-deriving it. Two places deciding what the model is was
+    how F-93 happened.
+    """
+
+    code: str
+    can_run: bool
+    label: str
+    detail: str
+    model: str = ""
+
+
+def llm_readiness(*, stage: str, has_bundle: bool, has_key: bool,
+                  model: Optional[str]) -> Readiness:
+    """Decide whether an LLM stage may start.
+
+    The order is the order the user encounters the steps in, so a user with
+    nothing set up is told to load a bundle rather than sent to find an API
+    key. Each check names the single next thing to fix.
+
+    F-93 lives in the last one. ``(self.var_model.get() or
+    DEFAULT_MODEL).strip()`` put the strip *outside* the ``or``, so a
+    whitespace-only field is truthy, survives the fallback and reaches the
+    engine as ``""`` — which the engine takes as "no model" and skips
+    silently, producing a full corpus of unscreened records and a status
+    line reading "done".
+    """
+    if not has_bundle:
+        return Readiness(
+            code=NO_BUNDLE, can_run=False, label="No bundle loaded",
+            detail=f"Load a ScreenA bundle ZIP before running {stage}.",
+        )
+    if not has_key:
+        return Readiness(
+            code=NO_KEY, can_run=False, label="OPENAI_API_KEY ✗",
+            detail=(
+                f"No API key is visible in the environment.\n\n"
+                f"{stage} sends each record to an OpenAI-compatible "
+                f"endpoint, and the client requires OPENAI_API_KEY to be "
+                f"set even when the endpoint ignores its value — a "
+                f"placeholder such as \"local\" is enough for a server that "
+                f"does not check it."
+            ),
+        )
+    normalised = (model or "").strip()
+    if not normalised:
+        return Readiness(
+            code=NO_MODEL, can_run=False, label="No model set",
+            detail=(
+                f"The {stage} model field is empty or contains only "
+                f"whitespace.\n\n"
+                f"Type the name of the model to screen with. A run started "
+                f"without one would call nothing, return no answers, and "
+                f"still report every record as processed."
+            ),
+        )
+    return Readiness(code=READY, can_run=True, label="Ready to run",
+                     detail="", model=normalised)
 
 
 # ----------------------------
