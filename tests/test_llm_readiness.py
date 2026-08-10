@@ -71,17 +71,17 @@ NORMAL = {"OUT": 3, "PASS_CLEAN": 40, "PASS_FLAGGED": 42}
 class TestReadiness:
 
     def test_everything_present_is_ready(self):
-        r = llm_readiness(stage="EL", has_bundle=True, has_key=True,
+        r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="sk-test",
                           model="gpt-4o-mini")
         assert r.code == READY and r.can_run is True
 
     def test_no_bundle_blocks(self):
-        r = llm_readiness(stage="EL", has_bundle=False, has_key=True,
+        r = llm_readiness(stage="EL", has_bundle=False, provider="openai", api_key="sk-test",
                           model="gpt-4o-mini")
         assert r.code == NO_BUNDLE and r.can_run is False
 
     def test_no_key_blocks(self):
-        r = llm_readiness(stage="EL", has_bundle=True, has_key=False,
+        r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="",
                           model="gpt-4o-mini")
         assert r.code == NO_KEY and r.can_run is False
 
@@ -91,28 +91,28 @@ class TestReadiness:
         put the strip *outside* the ``or``, so a whitespace-only field is
         truthy, survives the fallback, and strips to ``""`` — which the
         engine takes as "no model" and skips silently."""
-        r = llm_readiness(stage="EL", has_bundle=True, has_key=True,
+        r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="sk-test",
                           model=model)
         assert r.code == NO_MODEL and r.can_run is False
 
     def test_a_model_with_surrounding_whitespace_is_accepted(self):
         """Padding is a typo, not a refusal. The engine receives the
         stripped form."""
-        r = llm_readiness(stage="EL", has_bundle=True, has_key=True,
+        r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="sk-test",
                           model="  gpt-4o-mini  ")
         assert r.code == READY and r.model == "gpt-4o-mini"
 
     def test_the_blocking_order_names_the_first_thing_to_fix(self):
         """With nothing set at all the user is told to load a bundle — the
         step that comes first — rather than sent to find an API key."""
-        r = llm_readiness(stage="EL", has_bundle=False, has_key=False,
+        r = llm_readiness(stage="EL", has_bundle=False, provider="openai", api_key="",
                           model="")
         assert r.code == NO_BUNDLE
 
     def test_every_blocked_state_explains_itself(self):
-        for kw in ({"has_bundle": False, "has_key": True, "model": "m"},
-                   {"has_bundle": True, "has_key": False, "model": "m"},
-                   {"has_bundle": True, "has_key": True, "model": ""}):
+        for kw in ({"has_bundle": False, "provider": "openai", "api_key": "sk-test", "model": "m"},
+                   {"has_bundle": True, "provider": "openai", "api_key": "", "model": "m"},
+                   {"has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": ""}):
             r = llm_readiness(stage="EL", **kw)
             assert r.detail and r.detail.rstrip()[-1] in ".!", r.code
 
@@ -121,16 +121,16 @@ class TestReadiness:
         ``"OPENAI_API_KEY ✓"`` — 16 characters. Nothing may be longer, or
         the actions frame reflows. This is the one property here that is
         genuinely about rendering, so it is pinned rather than eyeballed."""
-        for kw in ({"has_bundle": False, "has_key": True, "model": "m"},
-                   {"has_bundle": True, "has_key": False, "model": "m"},
-                   {"has_bundle": True, "has_key": True, "model": " "},
-                   {"has_bundle": True, "has_key": True, "model": "m"}):
+        for kw in ({"has_bundle": False, "provider": "openai", "api_key": "sk-test", "model": "m"},
+                   {"has_bundle": True, "provider": "openai", "api_key": "", "model": "m"},
+                   {"has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": " "},
+                   {"has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": "m"}):
             r = llm_readiness(stage="EL", **kw)
             assert len(r.label) <= 16, f"{r.label!r} is {len(r.label)} chars"
 
     def test_the_widget_now_carries_more_than_one_bit(self):
         """F-111's actual complaint, as an assertion."""
-        labels = {llm_readiness(stage="EL", has_bundle=b, has_key=k,
+        labels = {llm_readiness(stage="EL", has_bundle=b, provider="openai", api_key=("sk-test" if k else ""),
                                 model=m).label
                   for b, k, m in ((False, True, "m"), (True, False, "m"),
                                   (True, True, ""), (True, True, "m"))}
@@ -138,7 +138,7 @@ class TestReadiness:
 
     @pytest.mark.parametrize("stage", STAGES)
     def test_it_is_stage_neutral_except_where_it_names_the_stage(self, stage):
-        r = llm_readiness(stage=stage, has_bundle=True, has_key=False,
+        r = llm_readiness(stage=stage, has_bundle=True, provider="openai", api_key="",
                           model="m")
         assert r.code == NO_KEY
 

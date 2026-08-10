@@ -217,6 +217,38 @@ way and for the same reason.
 """
 
 
+#: Providers that authenticate. Everything else is assumed to, because
+#: refusing to run costs a click while guessing that an unknown endpoint
+#: is unauthenticated could leak a key or spend money.
+_KEYLESS_PROVIDERS = ("local", "custom")
+
+
+def key_required(provider: str) -> bool:
+    """Whether this provider needs an API key at all (F-117, D1).
+
+    The unification point. There were two predicates over one environment
+    variable: ``llm_client._has_openai_key`` stripped, and the
+    harmoniser's ``_llm_available`` used bare ``os.getenv`` truthiness —
+    so a whitespace-only key made the harmoniser offer to spend money
+    while EL and IL refused.
+
+    Making both strip would have left the deeper defect. A local server
+    does not authenticate, so under a *presence* check the local user must
+    invent a placeholder credential to pass a gate that exists for a
+    provider they are not using — which is exactly what the old ``NO_KEY``
+    message instructed them to do. The question is therefore about the
+    provider, not about the string.
+    """
+    return (provider or "").strip().lower() not in _KEYLESS_PROVIDERS
+
+
+def key_ok(*, provider: str, api_key: Optional[str]) -> bool:
+    """Whether this configuration's key requirement is satisfied."""
+    if not key_required(provider):
+        return True
+    return bool((api_key or "").strip())
+
+
 @dataclass(frozen=True)
 class Readiness:
     """Whether the stage may start, and what to say if not.
@@ -233,13 +265,21 @@ class Readiness:
     model: str = ""
 
 
-def llm_readiness(*, stage: str, has_bundle: bool, has_key: bool,
-                  model: Optional[str]) -> Readiness:
+def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
+                  api_key: Optional[str], model: Optional[str]) -> Readiness:
     """Decide whether an LLM stage may start.
 
     The order is the order the user encounters the steps in, so a user with
     nothing set up is told to load a bundle rather than sent to find an API
     key. Each check names the single next thing to fix.
+
+    **F-117 replaced ``has_key: bool`` with ``provider`` and ``api_key``**,
+    which is the extension ``READINESS_CODES`` anticipates. A boolean could
+    not express "this provider needs no key", so the local user was sent to
+    invent a placeholder. The parameter was *removed* rather than kept as a
+    deprecated alias: a caller left on ``has_key=`` would silently keep the
+    presence check, and two predicates is the defect being closed. A
+    ``TypeError`` is the cheaper failure.
 
     F-93 lives in the last one. ``(self.var_model.get() or
     DEFAULT_MODEL).strip()`` put the strip *outside* the ``or``, so a
@@ -253,16 +293,14 @@ def llm_readiness(*, stage: str, has_bundle: bool, has_key: bool,
             code=NO_BUNDLE, can_run=False, label="No bundle loaded",
             detail=f"Load a ScreenA bundle ZIP before running {stage}.",
         )
-    if not has_key:
+    if not key_ok(provider=provider, api_key=api_key):
         return Readiness(
-            code=NO_KEY, can_run=False, label="OPENAI_API_KEY ✗",
+            code=NO_KEY, can_run=False, label="API key ✗",
             detail=(
-                f"No API key is visible in the environment.\n\n"
-                f"{stage} sends each record to an OpenAI-compatible "
-                f"endpoint, and the client requires OPENAI_API_KEY to be "
-                f"set even when the endpoint ignores its value — a "
-                f"placeholder such as \"local\" is enough for a server that "
-                f"does not check it."
+                f"The selected provider ({provider}) authenticates, and no "
+                f"API key is set.\n\n"
+                f"Enter one in the provider settings, or switch to a local "
+                f"model, which needs no key."
             ),
         )
     normalised = (model or "").strip()

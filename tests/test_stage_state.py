@@ -192,7 +192,7 @@ class TestExportGateAsItIsToday:
 # ---------------------------------------------------------------------------
 
 def _ready(**over):
-    kw = {"stage": "EL", "has_bundle": True, "has_key": True, "model": "m"}
+    kw = {"stage": "EL", "has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": "m"}
     kw.update(over)
     return llm_readiness(**kw)
 
@@ -225,7 +225,7 @@ class TestControlStates:
         path alone and runs in the ``finally`` of every run, so from the
         first run of a session onward it overwrote the gate the load path
         had applied."""
-        st = control_states(running=False, readiness=_ready(has_key=False),
+        st = control_states(running=False, readiness=_ready(provider="openai", api_key=""),
                             has_rows=False, has_input_errors=False)
         assert st.run is False
 

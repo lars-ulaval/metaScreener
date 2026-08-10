@@ -57,6 +57,7 @@ from plugins._common.stage_state import (
     tk_state,
 )
 
+from plugins._common.settings import load_settings
 from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
     from_dict_skipped,
@@ -684,9 +685,15 @@ class ILView(ttk.Frame):
         handler — asks it. Three places deciding separately is how the
         gate came to be dropped (F-118) and how an empty model field
         came to start a run (F-93)."""
+        # F-117. The provider decides whether a key is needed at all, so
+        # readiness reads the persisted configuration rather than probing
+        # the environment for one variable. A local server authenticates
+        # nothing, and asking its user for a credential was the defect.
+        cfg = load_settings()
         return llm_readiness(stage="IL",
                              has_bundle=bool(self.bundle_zip_path),
-                             has_key=_has_openai_key(),
+                             provider=cfg.get("provider", "local"),
+                             api_key=cfg.get("api_key", ""),
                              model=self.var_model.get())
 
     def _refresh_readiness_label(self):

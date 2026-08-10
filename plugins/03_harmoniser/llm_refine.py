@@ -69,7 +69,32 @@ def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120) 
 
 
 def _llm_available() -> bool:
-    if not os.getenv("OPENAI_API_KEY"):
+    """Whether this stage may call a model.
+
+    F-117. This used to read ``os.getenv("OPENAI_API_KEY")`` with bare
+    truthiness while ``llm_client._has_openai_key`` stripped — so a
+    whitespace-only key made *this* stage offer to spend money while EL
+    and IL refused. One subsystem, one variable, two answers.
+
+    The two now share one predicate, and it asks about the provider
+    rather than about the string: a local server authenticates nothing,
+    so a user running locally is no longer asked for a credential in
+    order to reach a free model. The importability check is kept — a key
+    without the SDK is still not availability.
+    """
+    from plugins._common.settings import load_settings
+    from plugins._common.stage_state import key_ok
+
+    try:
+        cfg = load_settings()
+    except Exception:
+        # Unreadable settings must not silently enable a paid call. The
+        # dialog that reports it belongs to the GUI; here the safe answer
+        # is "not available".
+        return False
+
+    if not key_ok(provider=cfg.get("provider", "local"),
+                  api_key=cfg.get("api_key", "")):
         return False
     try:
         import openai  # noqa: F401

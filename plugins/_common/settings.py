@@ -285,6 +285,34 @@ def effective_model(settings: Mapping[str, Any], stage: str) -> str:
     return effective(settings, stage, "model", "")
 
 
+#: What goes in the SDK's ``api_key`` slot for a server that ignores it.
+#: Not a secret and not a credential — a placeholder the OpenAI client
+#: requires to be non-empty before it will construct.
+PLACEHOLDER_KEY = "local"
+
+
+def placeholder_key_for(provider: str, api_key: Optional[str]) -> str:
+    """The key to hand the client, which is not always the user's key.
+
+    The SDK refuses to construct with an empty ``api_key`` even against a
+    server that never reads it. Before F-117 that requirement was pushed
+    onto the user: the ``NO_KEY`` message told every user to type a
+    placeholder such as ``"local"``. Asking someone to invent a fake
+    credential to reach a free local model is a GUI-first defect wearing a
+    security gate's clothes, so the application satisfies the SDK itself.
+
+    A real key is never replaced, so a local server that *does*
+    authenticate still works. And ``openai`` is never given a placeholder:
+    substituting one would turn "you forgot your key" into a 401 from the
+    vendor — a worse error, further from its cause.
+    """
+    real = (api_key or "").strip()
+    if real:
+        return real
+    from plugins._common.stage_state import key_required
+    return "" if key_required(provider) else PLACEHOLDER_KEY
+
+
 def mixed_models(settings: Mapping[str, Any],
                  stages: Iterable[str]) -> Tuple[str, ...]:
     """The distinct models the given stages would use, if more than one.
