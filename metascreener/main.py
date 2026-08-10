@@ -10,7 +10,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from .plugin_manager import discover
-from .api_key_dialog import ApiKeyDialog
 
 ENV_FILE_NAME = ".env"
 ENV_KEY = "OPENAI_API_KEY"
@@ -46,6 +45,19 @@ def _load_env_file(env_path: Path):
 
 def _save_env_key(env_path: Path, key: str) -> EnvSaveResult:
     """Write/replace OPENAI_API_KEY in .env, preserving everything else.
+
+    **No longer reached by the application (F-144, wave 11 session B.)**
+    The settings store is the write target now, because this function
+    is correct about *how* it writes and wrong about *where*: under
+    the onefile build ``env_path`` resolves inside ``sys._MEIPASS``,
+    the directory PyInstaller deletes on exit, so the write succeeded,
+    the result said ``ok=True``, and the key was gone next launch.
+
+    It is kept rather than deleted because it is F-139's fix and
+    carries that finding's regression tests. **Do not call it from a
+    new path without first establishing that the target directory
+    outlives the process** — that is precisely the blind spot F-144
+    records, and every check this function performs will pass anyway.
 
     F-139. This used to open with ``lines = []``, overwrite that with the
     file's contents inside a ``try``, and fall back to ``lines = []`` when
@@ -324,15 +336,27 @@ class MetaScreenerApp(tk.Tk):
         self.project_root = Path(__file__).resolve().parents[1]  # .../metaScreener
         self.env_path = self.project_root / ENV_FILE_NAME
 
-        # Load .env only to PREFILL (we will still prompt every time)
+        # `.env` remains an INPUT for source runs — it is no longer the
+        # write target (F-144). Read before anything else so a developer's
+        # exported values are visible to what follows.
         _load_env_file(self.env_path)
 
-        # Always prompt; exit if user cancels
-        if not self._prompt_api_key_always():
-            self.after(0, self.destroy)
-            return
-
-        # Main UI
+        # ------------------------------------------------------------------
+        # The UI is built first, unconditionally, and nothing below may
+        # prevent it.
+        #
+        # F-91. The old order asked for an API key here and answered a
+        # cancel with `self.after(0, self.destroy)` and a bare `return` —
+        # three lines before the notebook existed. So dismissing a *key*
+        # dialog destroyed the whole application, including stages 03, 04
+        # and 05, which need no model of any kind and are the majority of
+        # the funnel. It also left `self.nb`, `self._plugins` and both
+        # event bindings unassigned, so `_on_close` would have raised had
+        # anything been able to reach it.
+        #
+        # The provider conversation is now something that happens *to* a
+        # working application rather than a gate in front of one.
+        # ------------------------------------------------------------------
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True)
 
@@ -342,35 +366,132 @@ class MetaScreenerApp(tk.Tk):
         self.nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-    def _prompt_api_key_always(self) -> bool:
-        """Show the API key dialog on every launch, regardless of existing values."""
-        # Prefill with any existing value (env or .env) for convenience
-        existing = os.environ.get(ENV_KEY, "")
-        dlg = ApiKeyDialog(self, existing_key=existing, remember_default=True)
-        self.wait_window(dlg)
-        if not dlg.value:
-            return False  # user cancelled
+        # Deferred to the event loop so the window is on screen before the
+        # provider dialog appears over it, and so a failure here cannot
+        # unwind __init__.
+        self.after(0, self._offer_provider_choice)
 
-        # Use what the user entered for this process
-        os.environ[ENV_KEY] = dlg.value
+    def _offer_provider_choice(self) -> None:
+        """Settle which model provider this session uses — without ever
+        being able to stop the application.
 
-        # Persist to .env only if they checked 'Remember'
-        if dlg.remember_var.get():
-            # F-139: a persist that did nothing used to be indistinguishable
-            # from one that worked. The run continues either way — the key is
-            # already in os.environ for this process, so failing to persist
-            # costs a re-type next launch and nothing more — but the user is
-            # told, because the two states differ next launch and only one of
-            # them is their fault to fix.
-            #
-            # Direct messagebox rather than an `after` marshal: this runs on
-            # the main thread during __init__. F-112/F-137's marshalling
-            # applies to the worker threads, not here.
-            result = _save_env_key(self.env_path, dlg.value)
-            if not result.ok:
-                messagebox.showwarning("Could not save the API key",
-                                       result.message, parent=self)
-        return True
+        D7: a remembered choice is honoured silently. The dialog appears
+        only when there is no choice yet, or when the remembered one has
+        stopped being available — interrupting a user to re-confirm
+        something that still works is its own defect.
+
+        Every failure path here ends in a working GUI whose LLM stages
+        report why they are unavailable. That is what
+        ``stage_state.NOT_CONFIGURED`` exists to say.
+        """
+        from plugins._common.settings import load_settings
+
+        try:
+            cfg = load_settings()
+        except Exception as e:
+            # An unreadable settings file must not be fatal and must not be
+            # silently overwritten. Say so and carry on unconfigured.
+            messagebox.showwarning(
+                "Could not read your settings",
+                f"{e}\n\nmetaScreener has left the file untouched and is "
+                f"running without a model provider. The deterministic "
+                f"stages are unaffected.", parent=self)
+            return
+
+        if (cfg.get("provider") or "").strip():
+            # A remembered choice. Confirm it is still usable, off the GUI
+            # thread, and leave the user alone unless it is not.
+            self._refresh_provider_status(cfg, interrupt_if_unavailable=True)
+            return
+
+        self._show_provider_dialog(cfg)
+
+    def _refresh_provider_status(self, cfg, *,
+                                 interrupt_if_unavailable: bool = False) -> None:
+        """Probe the configured endpoint on a worker thread.
+
+        Detection is a network call and must never run on the GUI thread —
+        the whole reason ``llm_readiness`` is *told* the answer rather than
+        finding it out. The result is deposited where the stage views read
+        it, and the views are refreshed through ``after`` because Tk is not
+        thread-safe (F-112/F-137).
+        """
+        import threading
+        from plugins._common import provider_detect as pd
+        from plugins._common.llm_client import resolve_openai_base_url
+
+        pd.forget()
+        endpoint = resolve_openai_base_url()
+
+        def _work():
+            try:
+                found = pd.refresh(endpoint)
+            except Exception:
+                found = None            # detection never raises; belt and braces
+            self.after(0, lambda: self._provider_status_arrived(
+                cfg, found, interrupt_if_unavailable))
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _provider_status_arrived(self, cfg, found,
+                                 interrupt_if_unavailable: bool) -> None:
+        """Back on the GUI thread with a detection result."""
+        for plugin, _frame in getattr(self, "_plugins", []):
+            notify_plugin(plugin, "on_provider_changed")
+        if interrupt_if_unavailable and (found is None or not found.can_use):
+            self._show_provider_dialog(cfg, status=found)
+
+    def _show_provider_dialog(self, cfg, status=None) -> None:
+        """Present the provider choice. Never blocks the application."""
+        try:
+            from metascreener.provider_dialog import ProviderDialog
+            dlg = ProviderDialog(self, settings=cfg, status=status)
+            self.wait_window(dlg)
+            chosen = getattr(dlg, "result", None)
+        except Exception as e:                      # pragma: no cover - GUI
+            print(f"[PROVIDER] dialog failed: {e}")
+            return
+
+        if not chosen:
+            # Dismissed. The application keeps working; the LLM stages say
+            # why they cannot run. Nothing is written, so the store stays
+            # UNCONFIGURED rather than acquiring a provider by fiat.
+            return
+
+        self._persist_provider(chosen)
+
+    def _persist_provider(self, chosen: dict) -> None:
+        """Write the choice to the settings store — **not** to ``.env``.
+
+        F-144. ``_save_env_key`` is correct about *how* it writes and wrong
+        about *where*: under the onefile build ``self.env_path`` resolves
+        inside ``sys._MEIPASS``, the directory PyInstaller deletes on exit.
+        The write succeeded, the result said ``ok=True``, and the key was
+        gone next launch. Improving the write again would have closed
+        nothing; the store is addressed from ``%APPDATA%`` /
+        ``XDG_CONFIG_HOME``, which outlive the process.
+        """
+        from plugins._common.settings import update_settings
+
+        try:
+            update_settings(**chosen)
+        except Exception as e:
+            messagebox.showwarning(
+                "Could not save your provider settings",
+                f"{e}\n\nThis session will use the choice you just made; "
+                f"it will not be remembered for next time.", parent=self)
+
+        # The key still reaches the SDK through the environment for this
+        # process, which is what every existing call path reads.
+        key = (chosen.get("api_key") or "").strip()
+        if key:
+            os.environ[ENV_KEY] = key
+
+        from plugins._common.settings import load_settings
+        try:
+            self._refresh_provider_status(load_settings())
+        except Exception:
+            pass
 
     def _load_plugins(self):
         from metascreener.plugin_manager import discover
