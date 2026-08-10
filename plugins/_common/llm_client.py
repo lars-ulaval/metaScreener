@@ -1051,9 +1051,10 @@ def _render_prompt_for_key(messages: Sequence[Dict[str, str]]) -> str:
 
 
 def _cache_key(*, prompt_version: str, model: str, rendered_prompt: str,
-               temperature: float = 0.0) -> str:
+               endpoint: str, temperature: float = 0.0) -> str:
     """Compose a cache key from everything that determines the model's
-    answer: the fully-rendered prompt, the model, and the temperature.
+    answer: the fully-rendered prompt, the model, the endpoint, and the
+    temperature.
 
     F-01. This used to hash an enumerated list of invocation parameters —
     ``prompt_version|model|cid|a_id|text_hash|trunc_chars`` — of which the
@@ -1081,11 +1082,71 @@ def _cache_key(*, prompt_version: str, model: str, rendered_prompt: str,
     only when non-zero, to spare a cache captured before it was part of
     the key; that cache is superseded by this change anyway. 0.0 is still
     the default, so an omitted temperature and an explicit 0.0 agree.
+
+    ``endpoint`` — F-89
+    -------------------
+    The argument above covers everything the model is **asked**. It does
+    not cover **who answers**, and the endpoint decides that. A model name
+    served by OpenAI and the same name served by Ollama were one cache
+    namespace; the README's own local-provider section instructs the
+    ``.env`` edit that triggers the collision *and* tells the user to leave
+    the Model field alone, which is the maximally ambiguous configuration.
+    The result was 100% cache hits and the previous provider's answers,
+    logged as a normal ``cache_hits=N``, with no trace in any artefact.
+
+    **Required, not defaulted.** A default would let a future call site
+    omit it and quietly reintroduce F-89 for that path with the suite
+    green — which is precisely how the pre-F-01 enumerated key accreted
+    its omissions.
+
+    **A parameter, not an environment read.** Resolution belongs to the
+    stage engine, which does it once per run
+    (``run_el_screen`` / ``run_il_screen``) from
+    :func:`resolve_openai_base_url` — the same function
+    :func:`_openai_client_for` uses, so the key and the client cannot
+    disagree about where a run went. Reading ``os.environ`` here instead
+    would make golden byte-identity environment-dependent, and neither
+    ``test_key_stable_across_processes`` (which copies ``os.environ``
+    wholesale) nor CI could detect that; it would fail only on the machine
+    of whoever was developing the feature.
+
+    **Hashed verbatim** — not digested, not reduced to a coarse label.
+    Neither value in play is sensitive; an unsalted digest of a short
+    internal hostname is dictionary-guessable, so it is a discriminator
+    rather than a secret and buys privacy it cannot deliver, while a
+    per-bundle salt would destroy the cross-machine comparability that is
+    the reason to record it at all. A coarse "local vs remote" label
+    cannot separate two local servers on different ports, which is exactly
+    the comparison this is for.
+
+    **Absent is hashed as the resolved default, not as ``""``.** §B4.5 of
+    ``06_llm_integration.md`` measured those two candidates to give
+    *disjoint* key sets, so this is a one-way door and is decided here
+    deliberately. Hashing the resolved value means an unset
+    ``OPENAI_BASE_URL`` and an explicit
+    ``OPENAI_BASE_URL=https://api.openai.com/v1`` — the same endpoint,
+    reached two ways — share one namespace, which is correct. Hashing the
+    raw variable with absent as ``""`` would split one provider into two
+    namespaces and charge the user a full re-run for a no-op edit.
+
+    The value hashed is this repository's own resolved string, **not**
+    ``str(client.base_url)``. httpx normalises the latter to
+    ``https://api.openai.com/v1/`` with a trailing slash, and the two are
+    different pre-images. Keeping the SDK's normalisation out of the key
+    keeps the key set equal to the one §B4.5 measured, and keeps a vendor
+    formatting change from silently re-keying every cache in the world.
+
+    The cost of verbatim, stated so it is not rediscovered as a bug:
+    ``…/v1`` and ``…/v1/`` route identically but key differently, as do
+    ``localhost`` and ``127.0.0.1``. That is over-discrimination, and it is
+    the safe direction — it costs a redundant re-run, where
+    under-discrimination costs a wrong answer, which is F-89 itself.
     """
     base = json.dumps(
         {
             "prompt_version": _safe_str(prompt_version),
             "model": _safe_str(model),
+            "endpoint": _safe_str(endpoint),
             "temperature": float(temperature),
             "prompt": rendered_prompt,
         },

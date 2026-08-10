@@ -415,14 +415,19 @@ def _parse_criteria_harmonized_csv(csv_text: str, stage_filter: str) -> Criteria
 # one-item render is the per-item slice of what the model sees, and it is what
 # makes criterion wording, record text and trunc_chars all reach the key
 # without being enumerated.
+#
+# F-89: `endpoint` is required and is threaded in from the caller, which
+# resolves it once per run. It is not defaulted and not read from the
+# environment here — see plugins/_common/llm_client.py::_cache_key.
 def _cache_key(*, model: str, criterion: Dict[str, Any], item: Dict[str, Any],
-               trunc_chars: int, temperature: float = 0.0) -> str:
+               trunc_chars: int, endpoint: str, temperature: float = 0.0) -> str:
     return _shared_cache_key(
         prompt_version=PROMPT_VERSION,
         model=model,
         rendered_prompt=_render_prompt_for_key(
             _build_llm_messages_for_criterion(criterion, [item], trunc_chars)
         ),
+        endpoint=endpoint,
         temperature=temperature,
     )
 
@@ -649,7 +654,8 @@ def run_il_screen(
             if not a_id:
                 continue
             k = _cache_key(model=model, criterion=crit_pack, item=it,
-                           trunc_chars=trunc_chars, temperature=temperature)
+                           trunc_chars=trunc_chars, endpoint=endpoint,
+                           temperature=temperature)
             if use_cache and k in cache_out:
                 # reuse cached evidence
                 ev = dict(cache_out[k])
@@ -689,7 +695,8 @@ def run_il_screen(
                 # cid is c.id here — res only ever carries this criterion —
                 # so crit_pack is the pack the prompt was rendered from.
                 k = _cache_key(model=model, criterion=crit_pack, item=it,
-                               trunc_chars=trunc_chars, temperature=temperature)
+                               trunc_chars=trunc_chars, endpoint=endpoint,
+                               temperature=temperature)
                 # F-87: a non-answer is not a verdict. Without this gate a
                 # transient 500, a timeout, an auth blip or a plain omission
                 # was cached under a key that matches on every later run, so

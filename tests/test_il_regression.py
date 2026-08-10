@@ -74,7 +74,15 @@ def _il_to_csv(out_path: Path) -> None:
     parse = il.ParseReport(header=csv_header, rows=csv_rows, skipped=[])
     crits = il._parse_criteria_harmonized_csv(criteria_text, "IL")
 
+    # Defensive: tests must NEVER hit the live API
     saved_key = os.environ.pop("OPENAI_API_KEY", None)
+    # F-89: the endpoint is now a cache-key input, and run_il_screen resolves
+    # it from os.environ. The goldens were captured against the public API, so
+    # a developer who exports OPENAI_BASE_URL for their own local server would
+    # key every lookup differently, miss all 84 entries, and see this
+    # byte-identity test fail on their machine alone while CI stayed green.
+    # Pinned here rather than left to the shell.
+    saved_base = os.environ.pop("OPENAI_BASE_URL", None)
     try:
         (full_rows, _surv, _counts, _impacts, _evals, _cache_out,
          _cancelled, _report) = il.run_il_screen(
@@ -92,6 +100,8 @@ def _il_to_csv(out_path: Path) -> None:
     finally:
         if saved_key is not None:
             os.environ["OPENAI_API_KEY"] = saved_key
+        if saved_base is not None:
+            os.environ["OPENAI_BASE_URL"] = saved_base
 
     fieldnames = list(parse.header) + [
         "il_outcome", "il_failed_ids", "il_missing_ids",

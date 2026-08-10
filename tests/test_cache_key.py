@@ -77,9 +77,21 @@ def _item(**over):
     return base
 
 
+# A fixed endpoint for every key computed here (F-89).
+#
+# Passed explicitly rather than left to resolve from os.environ, so these
+# assertions cannot change meaning on a machine that happens to export
+# OPENAI_BASE_URL. `_cache_key` takes the endpoint as a parameter for
+# exactly this reason: the resolution is the stage engine's job, and a
+# hash function that reads the environment is a hash function whose
+# fixtures are the developer's shell.
+_ENDPOINT = "https://api.openai.com/v1"
+_OTHER_ENDPOINT = "http://localhost:11434/v1"
+
+
 def _key(mod, **over):
     kw = dict(model="gpt-4o-mini", criterion=_criterion(),
-              item=_item(), trunc_chars=4000)
+              item=_item(), trunc_chars=4000, endpoint=_ENDPOINT)
     crit_over = over.pop("criterion_over", None)
     item_over = over.pop("item_over", None)
     if crit_over:
@@ -120,6 +132,102 @@ class TestEditedCriterionContentInvalidatesCache:
             f"every record the previous criterion's answer, with evidence "
             f"quotes taken against text the model never saw this run."
         )
+
+
+class TestEndpointIsInTheKey:
+    """F-89: **who answers** must reach the key, not only what is asked.
+
+    The key hashed ``{prompt_version, model, temperature, prompt}``.
+    ``base_url`` appeared nowhere and no repository code read
+    ``OPENAI_BASE_URL`` at all, so a model name served by OpenAI and the
+    same name served by Ollama were one namespace.
+
+    This is F-01's exact failure shape displaced onto the provider axis.
+    ``_cache_key``'s post-F-01 argument — "anything that changes what the
+    model sees changes the key automatically" — is true, and it does not
+    cover who is being asked. The trigger is not exotic: it is the literal
+    ``.env`` edit the README's "Using local LLM providers" section
+    instructs, and the same section tells the user to leave the Model
+    field alone, which is the maximally ambiguous configuration.
+    """
+
+    @pytest.mark.parametrize("mod_getter", [get_el, get_il], ids=["el", "il"])
+    def test_endpoint_change_changes_key(self, mod_getter):
+        """**This is F-89.**
+
+        Before the fix both sides collapsed to one key, so following the
+        README's Ollama recipe produced 100% cache hits and OpenAI's
+        answers, logged as a normal ``cache_hits=N``, with no trace in any
+        artefact.
+        """
+        mod = mod_getter()
+        assert _key(mod) != _key(mod, endpoint=_OTHER_ENDPOINT), (
+            "F-89: the same model name at two different endpoints produced "
+            "one cache key. A run switched to a local provider is served "
+            "the previous provider's answers and reports a healthy run."
+        )
+
+    @pytest.mark.parametrize("mod_getter", [get_el, get_il], ids=["el", "il"])
+    def test_two_local_servers_on_different_ports_differ(self, mod_getter):
+        """The comparison the maintainer expects to run.
+
+        A coarse "local vs remote" label could not distinguish these, which
+        is one of the two reasons the endpoint is hashed verbatim.
+        """
+        mod = mod_getter()
+        assert (_key(mod, endpoint="http://localhost:11434/v1")
+                != _key(mod, endpoint="http://localhost:8080/v1"))
+
+    @pytest.mark.parametrize("mod_getter", [get_el, get_il], ids=["el", "il"])
+    def test_same_endpoint_same_key(self, mod_getter):
+        """The endpoint discriminates and nothing more — it must not make
+        the key unstable for an unchanged configuration."""
+        mod = mod_getter()
+        assert _key(mod, endpoint=_ENDPOINT) == _key(mod, endpoint=_ENDPOINT)
+
+    @pytest.mark.parametrize("mod_getter", [get_el, get_il], ids=["el", "il"])
+    def test_endpoint_is_hashed_verbatim_not_reduced(self, mod_getter):
+        """Two hosts that differ only below a coarse label must differ.
+
+        Pins the decision recorded in ``_cache_key``'s docstring: the
+        resolved endpoint is hashed as-is, not digested and not reduced to
+        a category. A digest of a short internal hostname is a
+        discriminator rather than a secret, so it would buy privacy it
+        cannot deliver while destroying cross-machine comparability.
+        """
+        mod = mod_getter()
+        assert (_key(mod, endpoint="http://gpu-01.lan:8080/v1")
+                != _key(mod, endpoint="http://gpu-02.lan:8080/v1"))
+
+    @pytest.mark.parametrize("mod_getter", [get_el, get_il], ids=["el", "il"])
+    def test_endpoint_is_required(self, mod_getter):
+        """Omitting it must be a TypeError, not a silent default.
+
+        A default would let a future call site forget the endpoint and
+        quietly reintroduce F-89 for that path, with the suite green —
+        which is how the enumerated key accreted its omissions in the
+        first place (F-01).
+        """
+        mod = mod_getter()
+        with pytest.raises(TypeError):
+            mod._cache_key(model="gpt-4o-mini", criterion=_criterion(),
+                           item=_item(), trunc_chars=4000)
+
+    def test_the_key_does_not_read_the_environment(self, monkeypatch):
+        """The endpoint arrives as an argument, so the key is a pure
+        function of its inputs.
+
+        If ``_cache_key`` read ``os.environ`` itself, golden byte-identity
+        would become environment-dependent and neither
+        ``test_key_stable_across_processes`` (which copies ``os.environ``
+        wholesale) nor CI could detect the instability — the failure would
+        show up only on the machine of the person developing the feature.
+        """
+        el = get_el()
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        unset = _key(el)
+        monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+        assert _key(el) == unset
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +316,7 @@ _SUBPROCESS_SRC = textwrap.dedent(
     crit = {crit}
     item = {item}
     print(mod._cache_key(model="gpt-4o-mini", criterion=crit, item=item,
-                         trunc_chars=4000))
+                         trunc_chars=4000, endpoint={endpoint!r}))
     """
 )
 
@@ -228,6 +336,7 @@ def test_key_stable_across_processes(stage):
         stage=stage,
         crit=repr(_criterion()),
         item=repr(_item()),
+        endpoint=_ENDPOINT,
     )
     keys = []
     for seed in ("0", "1", "12345"):
