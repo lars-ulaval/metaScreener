@@ -22,6 +22,8 @@ button state. The three findings in scope — F-93, F-111, F-118 — are all
 defects *in those expressions*. Extracting them into
 ``plugins/_common/stage_state.py`` is what makes them assertable at all.
 """
+import types
+
 import pytest
 
 from plugins._common.bundle import NOT_SCREENED, _export_confirm_reason
@@ -192,7 +194,9 @@ class TestExportGateAsItIsToday:
 # ---------------------------------------------------------------------------
 
 def _ready(**over):
-    kw = {"stage": "EL", "has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": "m"}
+    kw = {"stage": "EL", "has_bundle": True, "provider": "openai",
+          "api_key": "sk-test", "model": "m",
+          "probe": types.SimpleNamespace(state="ready", detail="")}
     kw.update(over)
     return llm_readiness(**kw)
 

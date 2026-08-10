@@ -55,6 +55,7 @@ from plugins._common.stage_state import (
 )
 
 from plugins._common.settings import load_settings
+from plugins._common.provider_detect import last_known
 from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
     from_dict_skipped,
@@ -481,11 +482,17 @@ class ELView(ttk.Frame):
             cfg = load_settings()
         except Exception:
             cfg = {}
+        # Wave 11 session B. `probe` is the last detection the app
+        # deposited, never a call made here: this runs inside Tk
+        # callbacks, and detection is a network operation. `None` means
+        # "not checked yet", which readiness reports as its own state
+        # rather than guessing either way.
         return llm_readiness(stage="EL",
                              has_bundle=bool(self.bundle_zip_path),
-                             provider=cfg.get("provider", "local"),
+                             provider=cfg.get("provider", ""),
                              api_key=cfg.get("api_key", ""),
-                             model=self.var_model.get())
+                             model=self.var_model.get(),
+                             probe=last_known())
 
     def _refresh_readiness_label(self):
         """The widget used to read `OPENAI_API_KEY ✓` and nothing else:

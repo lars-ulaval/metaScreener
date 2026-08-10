@@ -91,6 +91,51 @@ class Detection:
         return self.state == READY
 
 
+# ---------------------------------------------------------------------------
+# The last known status, shared between the app and the stage views
+# ---------------------------------------------------------------------------
+#
+# Readiness must mean *reachable*, and the stage views decide readiness
+# inside Tk callbacks — where a network call is exactly what must not
+# happen. So detection runs off the GUI thread, deposits its answer here,
+# and the views read it synchronously.
+#
+# ``None`` means *not yet checked*, which readiness reports as its own
+# state rather than treating as either outcome. A module global rather
+# than a field on the app object because the stage views are constructed
+# by the plugin loader and do not have a reference to it.
+_LAST_PROBE: Optional["Detection"] = None
+
+
+def last_known() -> Optional["Detection"]:
+    """The most recent detection, or ``None`` if none has run yet."""
+    return _LAST_PROBE
+
+
+def remember(detection: Optional["Detection"]) -> None:
+    global _LAST_PROBE
+    _LAST_PROBE = detection
+
+
+def forget() -> None:
+    """Drop the cached status, so the next read reports *not yet checked*.
+
+    Called when the provider changes: the previous answer describes a
+    server the user is no longer pointing at, and reporting it would be a
+    stale-cache defect of the kind this project keeps finding.
+    """
+    remember(None)
+
+
+def refresh(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
+            which: Optional[Callable[[str], Optional[str]]] = None
+            ) -> "Detection":
+    """Detect and cache. Safe to call from a worker thread."""
+    d = detect(endpoint, timeout=timeout, which=which)
+    remember(d)
+    return d
+
+
 def _models_url(endpoint: str) -> str:
     return (endpoint or "").rstrip("/") + "/models"
 

@@ -42,6 +42,8 @@ is now the application's problem, not the user's — see
 import importlib.util
 import sys
 
+import types
+
 import pytest
 
 from conftest import PROJECT_ROOT
@@ -131,7 +133,8 @@ class TestReadinessTakesTheProvider:
 
     def _ready(self, **kw):
         base = dict(stage="EL", has_bundle=True, provider="openai",
-                    api_key="sk-abc", model="gpt-4o-mini")
+                    api_key="sk-abc", model="gpt-4o-mini",
+                    probe=types.SimpleNamespace(state="ready", detail=""))
         base.update(kw)
         return ss.llm_readiness(**base)
 

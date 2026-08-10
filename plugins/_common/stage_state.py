@@ -203,7 +203,16 @@ NO_BUNDLE = "no_bundle"
 NO_KEY = "no_key"
 NO_MODEL = "no_model"
 
-READINESS_CODES = (READY, NO_BUNDLE, NO_KEY, NO_MODEL)
+#: Wave 11 session B. Added as new members, per this vocabulary's own
+#: extension contract below — no existing state changed meaning.
+NOT_CONFIGURED = "not_configured"
+NOT_CHECKED = "not_checked"
+ENDPOINT_UNREACHABLE = "endpoint_unreachable"
+NO_MODELS_PULLED = "no_models_pulled"
+
+READINESS_CODES = (READY, NO_BUNDLE, NO_KEY, NO_MODEL,
+                   NOT_CONFIGURED, NOT_CHECKED, ENDPOINT_UNREACHABLE,
+                   NO_MODELS_PULLED)
 """The closed set of pre-run states, over the inputs available today.
 
 **Wave 10 extends this set, and the extension is the point of the split.**
@@ -266,7 +275,8 @@ class Readiness:
 
 
 def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
-                  api_key: Optional[str], model: Optional[str]) -> Readiness:
+                  api_key: Optional[str], model: Optional[str],
+                  probe: Any = None) -> Readiness:
     """Decide whether an LLM stage may start.
 
     The order is the order the user encounters the steps in, so a user with
@@ -293,6 +303,25 @@ def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
             code=NO_BUNDLE, can_run=False, label="No bundle loaded",
             detail=f"Load a ScreenA bundle ZIP before running {stage}.",
         )
+    # Wave 11 session B. Before anything about keys or models: has a
+    # provider been *chosen*? `key_required("local")` is False, so local
+    # waives the key gate — correct once chosen, catastrophic before.
+    # Session A shipped `provider="local"` as a default and left a fresh
+    # install worse off than before that wave: previously blocked at
+    # NO_KEY, afterwards waved through and billed. D1 describes what the
+    # popup SHOWS; it says nothing about what is true before the choice
+    # exists. So an unchosen provider blocks here, ahead of every check
+    # that could otherwise be satisfied and make the path look complete.
+    if not (provider or "").strip():
+        return Readiness(
+            code=NOT_CONFIGURED, can_run=False, label="No provider chosen",
+            detail=(
+                f"{stage} has no model provider yet.\n\n"
+                f"Choose one — a local model, or a hosted provider — and "
+                f"metaScreener will remember it for next time. The "
+                f"deterministic stages do not need one and are unaffected."
+            ),
+        )
     if not key_ok(provider=provider, api_key=api_key):
         return Readiness(
             code=NO_KEY, can_run=False, label="API key ✗",
@@ -315,6 +344,49 @@ def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
                 f"still report every record as processed."
             ),
         )
+    # Wave 11 session B. "Ready" must mean **reachable**, not merely
+    # configured — a configured provider whose server is not answering
+    # produces a run that fails record by record, which the run report
+    # would then have to explain after the fact.
+    #
+    # No probe is performed here: it is a network call, and this function
+    # is called from Tk callbacks. It is *told* the result. Being told
+    # nothing is its own state rather than silent optimism, because "we
+    # have not looked" and "we looked and it answered" are different
+    # claims and only the second licenses a run.
+    if probe is None:
+        return Readiness(
+            code=NOT_CHECKED, can_run=False, label="Checking provider…",
+            detail=(
+                f"metaScreener has not yet confirmed that the {stage} "
+                f"provider is reachable. This resolves on its own; if it "
+                f"does not, re-check the provider settings."
+            ),
+            model=normalised,
+        )
+
+    state = getattr(probe, "state", None)
+    if state == "no_models":
+        return Readiness(
+            code=NO_MODELS_PULLED, can_run=False, label="No models pulled",
+            detail=getattr(probe, "detail", "") or
+            "The server is running but has no models pulled yet.",
+            model=normalised,
+        )
+    if state != "ready":
+        # The detail is carried through verbatim. D4/D5 turn on three
+        # distinct, actionable messages — not installed, installed but
+        # stopped, and reachable but empty are three different problems —
+        # and flattening them into one "unavailable" is exactly the wasted
+        # afternoon those decisions exist to prevent.
+        return Readiness(
+            code=ENDPOINT_UNREACHABLE, can_run=False,
+            label="Provider unreachable",
+            detail=getattr(probe, "detail", "") or
+            "The configured endpoint did not answer.",
+            model=normalised,
+        )
+
     return Readiness(code=READY, can_run=True, label="Ready to run",
                      detail="", model=normalised)
 

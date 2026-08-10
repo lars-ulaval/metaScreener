@@ -30,12 +30,18 @@ Those are wave 10's. What is buildable today is the pre-run arm over
 test at the bottom of this file pins the property wave 10 needs: adding a
 state must not change any state that already exists.
 """
+import types
+
 import pytest
 
 from plugins._common.stage_state import (
     NO_BUNDLE,
     NO_KEY,
     NO_MODEL,
+    NOT_CONFIGURED,
+    NOT_CHECKED,
+    ENDPOINT_UNREACHABLE,
+    NO_MODELS_PULLED,
     OUTCOME_CANCELLED,
     OUTCOME_NOTHING_SEPARATED,
     OUTCOME_NO_ANSWERS,
@@ -68,21 +74,28 @@ NORMAL = {"OUT": 3, "PASS_CLEAN": 40, "PASS_FLAGGED": 42}
 # The pre-run arm
 # ---------------------------------------------------------------------------
 
+# Wave 11 session B: "ready" now means *reachable*, so a case that
+# expects READY must say what the probe found. Blocked cases
+# short-circuit before the probe check, so passing it everywhere
+# keeps these calls uniform without weakening any of them.
+_LIVE = types.SimpleNamespace(state="ready", detail="")
+
+
 class TestReadiness:
 
     def test_everything_present_is_ready(self):
         r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="sk-test",
-                          model="gpt-4o-mini")
+                          model="gpt-4o-mini", probe=_LIVE)
         assert r.code == READY and r.can_run is True
 
     def test_no_bundle_blocks(self):
         r = llm_readiness(stage="EL", has_bundle=False, provider="openai", api_key="sk-test",
-                          model="gpt-4o-mini")
+                          model="gpt-4o-mini", probe=_LIVE)
         assert r.code == NO_BUNDLE and r.can_run is False
 
     def test_no_key_blocks(self):
         r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="",
-                          model="gpt-4o-mini")
+                          model="gpt-4o-mini", probe=_LIVE)
         assert r.code == NO_KEY and r.can_run is False
 
     @pytest.mark.parametrize("model", ["", "   ", "\t", "\n ", None])
@@ -92,28 +105,28 @@ class TestReadiness:
         truthy, survives the fallback, and strips to ``""`` — which the
         engine takes as "no model" and skips silently."""
         r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="sk-test",
-                          model=model)
+                          model=model, probe=_LIVE)
         assert r.code == NO_MODEL and r.can_run is False
 
     def test_a_model_with_surrounding_whitespace_is_accepted(self):
         """Padding is a typo, not a refusal. The engine receives the
         stripped form."""
         r = llm_readiness(stage="EL", has_bundle=True, provider="openai", api_key="sk-test",
-                          model="  gpt-4o-mini  ")
+                          model="  gpt-4o-mini  ", probe=_LIVE)
         assert r.code == READY and r.model == "gpt-4o-mini"
 
     def test_the_blocking_order_names_the_first_thing_to_fix(self):
         """With nothing set at all the user is told to load a bundle — the
         step that comes first — rather than sent to find an API key."""
         r = llm_readiness(stage="EL", has_bundle=False, provider="openai", api_key="",
-                          model="")
+                          model="", probe=_LIVE)
         assert r.code == NO_BUNDLE
 
     def test_every_blocked_state_explains_itself(self):
         for kw in ({"has_bundle": False, "provider": "openai", "api_key": "sk-test", "model": "m"},
                    {"has_bundle": True, "provider": "openai", "api_key": "", "model": "m"},
                    {"has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": ""}):
-            r = llm_readiness(stage="EL", **kw)
+            r = llm_readiness(stage="EL", probe=_LIVE, **kw)
             assert r.detail and r.detail.rstrip()[-1] in ".!", r.code
 
     def test_the_label_fits_the_widget(self):
@@ -125,13 +138,13 @@ class TestReadiness:
                    {"has_bundle": True, "provider": "openai", "api_key": "", "model": "m"},
                    {"has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": " "},
                    {"has_bundle": True, "provider": "openai", "api_key": "sk-test", "model": "m"}):
-            r = llm_readiness(stage="EL", **kw)
+            r = llm_readiness(stage="EL", probe=_LIVE, **kw)
             assert len(r.label) <= 16, f"{r.label!r} is {len(r.label)} chars"
 
     def test_the_widget_now_carries_more_than_one_bit(self):
         """F-111's actual complaint, as an assertion."""
         labels = {llm_readiness(stage="EL", has_bundle=b, provider="openai", api_key=("sk-test" if k else ""),
-                                model=m).label
+                                model=m, probe=_LIVE).label
                   for b, k, m in ((False, True, "m"), (True, False, "m"),
                                   (True, True, ""), (True, True, "m"))}
         assert len(labels) == 4
@@ -139,7 +152,7 @@ class TestReadiness:
     @pytest.mark.parametrize("stage", STAGES)
     def test_it_is_stage_neutral_except_where_it_names_the_stage(self, stage):
         r = llm_readiness(stage=stage, has_bundle=True, provider="openai", api_key="",
-                          model="m")
+                          model="m", probe=_LIVE)
         assert r.code == NO_KEY
 
 
@@ -259,11 +272,14 @@ class TestOutcomeStates:
 class TestTheModelIsExtensible:
 
     def test_the_code_sets_are_closed_and_published(self):
-        """Wave 10 adds `endpoint unreachable`, `endpoint set but no model
+        """Wave 11 session B added `endpoint unreachable`, `endpoint set but no model
         pulled` and `keyless server` to the pre-run arm. They are new
         members of READINESS_CODES, reached by new inputs — not changes to
         the existing branches."""
-        assert set(READINESS_CODES) == {READY, NO_BUNDLE, NO_KEY, NO_MODEL}
+        assert set(READINESS_CODES) == {
+            READY, NO_BUNDLE, NO_KEY, NO_MODEL,
+            NOT_CONFIGURED, NOT_CHECKED, ENDPOINT_UNREACHABLE,
+            NO_MODELS_PULLED}
         assert set(OUTCOME_CODES) == {
             OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_NO_ANSWERS,
             OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK}
