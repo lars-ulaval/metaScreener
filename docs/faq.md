@@ -280,9 +280,16 @@ The prompts are versioned per stage under `plugins/*/prompt.py`.
 Editing them locally is supported; doing so changes the prompt
 version stamp, which means the cache will not match previous runs
 (so a re-run will hit the live API for every record). The prompt
-version is not written into the bundle manifest, so if you edit a
-prompt, record which version you ran alongside the bundle yourself —
-the archive cannot tell you afterwards.
+version is written into the bundle manifest, in the `provenance`
+block of the stage's run-history entry, so an archived bundle can say
+which prompt produced it.
+
+One caveat if you edit prompts. That stamp is a hand-maintained label,
+not a hash of the prompt text, so editing a prompt *without* bumping
+its version leaves the manifest naming the old one. The cache is not
+misled by this — its key covers the rendered prompt itself, so your
+edit does invalidate it — but the manifest is only as accurate as the
+label you maintain.
 
 ### Are there hooks for adding a new plugin?
 
