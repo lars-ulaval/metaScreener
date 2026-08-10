@@ -176,3 +176,58 @@ class TestTheOldSignatureIsGone:
         with pytest.raises(TypeError):
             ss.llm_readiness(stage="EL", has_bundle=True, has_key=True,
                              model="m")
+
+
+class TestTheEngineGateAgreesWithReadiness:
+    """The regression this wave introduced, caught in its own review pass.
+
+    Making ``llm_readiness`` provider-aware without moving the engine's
+    own gate left the two disagreeing: readiness said **ready** for a
+    local provider with no key, and ``run_m1_llm_for_criterion`` then
+    returned ``{}`` for every criterion because ``OPENAI_API_KEY`` was
+    absent. Run button live, every record unscreened, status line
+    "done" — **F-93's harm shape, reached by another route**, which is
+    the failure mode wave 9's review caught twice.
+
+    A gate one layer below the readiness the user is shown is decorative
+    unless both answer the same question.
+    """
+
+    def _cfg(self, monkeypatch, tmp_path, **over):
+        monkeypatch.setenv("APPDATA", str(tmp_path / "a"))
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "x"))
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        S.update_settings(**over)
+
+    def test_a_local_provider_with_no_key_passes_the_engine_gate(
+            self, monkeypatch, tmp_path):
+        self._cfg(monkeypatch, tmp_path, provider="local", api_key="")
+        import plugins._common.llm_client as lc
+        assert lc._has_openai_key() is True, (
+            "the engine would skip every criterion on a run the GUI "
+            "reported as ready"
+        )
+
+    def test_openai_with_no_key_still_fails_the_engine_gate(
+            self, monkeypatch, tmp_path):
+        self._cfg(monkeypatch, tmp_path, provider="openai", api_key="")
+        import plugins._common.llm_client as lc
+        assert lc._has_openai_key() is False
+
+    def test_readiness_and_the_engine_gate_never_disagree(
+            self, monkeypatch, tmp_path):
+        """The invariant, over the grid that matters."""
+        import plugins._common.llm_client as lc
+        for provider in ("local", "openai", "custom"):
+            for key in ("", "   ", "sk-real"):
+                self._cfg(monkeypatch, tmp_path, provider=provider,
+                          api_key=key)
+                gui = ss.llm_readiness(
+                    stage="EL", has_bundle=True, provider=provider,
+                    api_key=key, model="m").code != ss.NO_KEY
+                engine = lc._has_openai_key()
+                assert gui == engine, (
+                    f"provider={provider!r} key={key!r}: GUI says "
+                    f"{'ready' if gui else 'blocked'} and the engine says "
+                    f"{'ready' if engine else 'blocked'}"
+                )

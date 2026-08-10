@@ -187,8 +187,24 @@ def _openai_client_for():
     and this function's job is to read it.
     """
     from openai import OpenAI  # type: ignore
+    from plugins._common.settings import load_settings, placeholder_key_for
+
+    # F-117. The SDK refuses to construct with an empty ``api_key`` even
+    # against a server that never reads it, so a local run would die here
+    # with a credential error for a credential it does not need. That
+    # requirement is the application's to satisfy, not the user's — before
+    # this, the NO_KEY message told every user to invent a placeholder.
+    # A real key is never replaced, and ``openai`` is never given one.
+    try:
+        cfg = load_settings()
+        provider = cfg.get("provider", "local")
+        stored = cfg.get("api_key", "")
+    except Exception:
+        provider, stored = "openai", ""
+
     return OpenAI(
-        api_key=os.environ.get("OPENAI_API_KEY"),
+        api_key=placeholder_key_for(
+            provider, stored or os.environ.get("OPENAI_API_KEY", "")),
         base_url=resolve_openai_base_url(),
     )
 
@@ -217,7 +233,36 @@ def _quote_in_text(quote: str, text: str) -> bool:
     return bool(qn) and (qn in tn)
 
 def _has_openai_key() -> bool:
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    """Whether the configured provider's key requirement is satisfied.
+
+    **F-117, and a regression this wave introduced and then caught.** This
+    used to be a presence check on ``OPENAI_API_KEY``. Once
+    ``llm_readiness`` became provider-aware, a local run reported
+    **ready** — a local server authenticates nothing — while this gate,
+    one layer down, still demanded a key and returned ``{}`` for every
+    criterion. The Run button would have been live, every record would
+    have gone unscreened, and the status line would have read "done":
+    **F-93's exact harm shape, reached by another route.** The readiness
+    layer and the engine must answer the same question or the gate is
+    decorative.
+
+    The name is kept deliberately, for the same reason
+    ``_openai_client_for`` stays zero-argument: ten test doubles across
+    the suite bind this name with ``lambda: True``, and renaming it would
+    break them all for no behavioural gain. What it *means* has widened,
+    which is what the docstring is for.
+    """
+    from plugins._common.settings import load_settings
+    from plugins._common.stage_state import key_ok
+
+    try:
+        cfg = load_settings()
+    except Exception:
+        # Unreadable settings must not silently enable a paid call.
+        return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    return key_ok(provider=cfg.get("provider", "local"),
+                  api_key=cfg.get("api_key", "")
+                  or os.environ.get("OPENAI_API_KEY", ""))
 
 def _sample_of(counts: "Counter", limit: int = 5) -> str:
     """Render the commonest few keys of a tally for a log line.
