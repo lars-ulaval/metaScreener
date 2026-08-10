@@ -516,63 +516,138 @@ def _akd():
 
 
 class TestTheKeyDialogValidatesOneStringAndStoresAnotherToday:
-    """**Characterisation. Inverted by the F-140 commit.**
+    """**FLIPPED by the F-140 commit.**
 
-    ``_on_save`` sanitizes the entry once and hands the result to
-    ``validate_api_key``, which sanitizes it *again*. ``sanitize_api_key``
-    strips whitespace **before** quotes and never re-strips, so it is not
-    idempotent and the two strings differ.
+    Was: ``sanitize_api_key`` stripped whitespace *before* quotes and
+    never re-stripped, so ``'" x "'`` became ``' x '``; ``_on_save``
+    sanitized once, ``validate_api_key`` sanitized again internally, and
+    the decision was taken on ``'x'`` while ``' x '`` reached the
+    endpoint. Measured: ``once == ' x '``, ``twice == 'x'``.
+
+    Now: two independent guards. The function iterates to a fixed point,
+    so sanitizing twice cannot differ from sanitizing once; and
+    ``_on_save`` hands the **raw** entry to the validator and stores
+    ``sanitize(raw)``, so the two are the same expression over the same
+    input whether or not the function is idempotent.
     """
 
-    def test_sanitize_is_not_idempotent(self):
-        m = _akd()
-        once = m.sanitize_api_key('" x "')
-        twice = m.sanitize_api_key(once)
-        assert once == " x ", repr(once)
-        assert twice == "x", repr(twice)
-        assert once != twice, (
-            "characterisation: F-140 — the decision is taken on the second "
-            "form and the first is what gets stored"
-        )
+    CORPUS = ['" x "', "  'ollama'  ", '"sk-abc"', "\t sk-abc \n",
+              "'\" nested \"'", "ollama", "", "   ", None]
 
-    def test_the_validated_string_and_the_stored_string_differ(self):
-        """The row, executed rather than argued. ``_on_save`` computes
-        ``key = sanitize(entry)``, validates ``sanitize(key)`` inside
-        ``validate_api_key``, and assigns ``self.value = key``."""
+    @pytest.mark.parametrize("raw", CORPUS)
+    def test_sanitize_is_idempotent(self, raw):
         m = _akd()
-        entry = '" x "'
-        stored = m.sanitize_api_key(entry)              # what _on_save keeps
-        validated = m.sanitize_api_key(stored)          # what it decided on
-        accepted, _msg = m.validate_api_key(stored)
-        assert accepted is True
-        assert stored != validated
-        assert stored == " x " and validated == "x"
+        once = m.sanitize_api_key(raw)
+        assert m.sanitize_api_key(once) == once, repr(once)
+
+    def test_the_specific_value_the_row_measured(self):
+        m = _akd()
+        assert m.sanitize_api_key('" x "') == "x"
+
+    @pytest.mark.parametrize("raw", CORPUS)
+    def test_the_validated_string_and_the_stored_string_are_the_same(
+            self, raw):
+        """``_on_save``'s two expressions, evaluated. ``validate_api_key``
+        sanitizes internally; the stored value is ``sanitize(raw)``. Same
+        function, same input."""
+        m = _akd()
+        validated = m.sanitize_api_key(raw)
+        accepted, _msg = m.validate_api_key(raw)
+        stored = m.sanitize_api_key(raw)
+        assert stored == validated
+        assert accepted is bool(validated)
+
+    def test_the_save_handler_passes_the_raw_entry_to_the_validator(self):
+        """The second guard, asserted by AST: pre-sanitizing before the
+        validator is what made the two differ, and it must not come back
+        if the first guard is ever relaxed."""
+        tree = ast.parse((PROJECT_ROOT / "metascreener" /
+                          "api_key_dialog.py").read_text(encoding="utf-8"))
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "_on_save")
+        calls = [n for n in ast.walk(fn)
+                 if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Name)
+                 and n.func.id == "validate_api_key"]
+        assert len(calls) == 1
+        arg = calls[0].args[0]
+        assert isinstance(arg, ast.Name) and arg.id == "raw", ast.unparse(arg)
+
+
+class TestTheReachableDialogSanitisesTheSameWay:
+    """**FLIPPED.** ``ProviderDialog._accept`` stored
+    ``var_key.get().strip()`` — whitespace only, no quotes — so a key
+    pasted with the quotes a copy commonly carries was stored verbatim
+    and refused with a 401. It now shares the other dialog's function, so
+    the two cannot disagree about what a key is.
+    """
+
+    def test_the_provider_dialog_uses_the_shared_sanitiser(self):
+        """Narrowed to ``_accept``, which is what *stores*. ``_probe``
+        also reads the key and strips it, and that is correct — a probe
+        sends it as a bearer token and never persists it, so a blanket
+        ban would forbid the legitimate use alongside the defect."""
+        tree = ast.parse(
+            (PROJECT_ROOT / "metascreener" / "provider_dialog.py")
+            .read_text(encoding="utf-8"))
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "_accept")
+        body = ast.unparse(fn)
+        assert "sanitize_api_key(self.var_key.get())" in body
+        assert "self.var_key.get().strip()" not in body
+
+    def test_a_quoted_key_would_now_be_stored_unquoted(self):
+        """What the user pastes, and what the endpoint would receive."""
+        m = _akd()
+        assert m.sanitize_api_key('"sk-a-real-key"') == "sk-a-real-key"
+        assert '"sk-a-real-key"'.strip() == '"sk-a-real-key"', (
+            "the old expression kept the quotes, which is the defect"
+        )
 
 
 class TestTheReachableDialogDoesNotSanitiseAtAllToday:
-    """**Characterisation.** F-140's row names ``ApiKeyDialog``, which
-    session B made unreachable — the launch modal is ``ProviderDialog``
-    now. The reachable dialog does not sanitize quotes at all, so a key
-    pasted with the surrounding quotes a copy commonly carries is stored
-    verbatim and refused by the endpoint with a 401.
+    """**Characterisation, and the half that did not flip.**
+
+    F-140's row is written against ``ApiKeyDialog``, which session B made
+    unreachable. That fact is recorded here so the fix is not mistaken
+    for a live-path repair on its own — the live path is
+    ``ProviderDialog``, fixed in ``TestTheReachableDialogSanitisesTheSameWay``
+    above.
     """
 
-    def test_the_provider_dialog_only_strips_whitespace(self):
-        src = (PROJECT_ROOT / "metascreener" / "provider_dialog.py").read_text(
-            encoding="utf-8")
-        assert 'self.var_key.get().strip()' in src
-        assert "sanitize_api_key" not in src, (
-            "characterisation: the quote-stripping the other dialog does is "
-            "absent from the one the application actually opens"
-        )
-
-    def test_the_old_dialog_is_no_longer_reached(self):
+    def test_the_old_dialog_class_is_no_longer_constructed(self):
         """Stated so the F-140 fix is not mistaken for a live-path repair
-        on its own."""
-        callers = []
+        on its own.
+
+        By AST: ``provider_dialog.py`` now *names* ``ApiKeyDialog`` in the
+        comment explaining that the row is written against it, so a text
+        search matches the explanation. What matters is that nothing
+        constructs it."""
+        constructed = []
         for path in (PROJECT_ROOT / "metascreener").glob("*.py"):
             if path.name == "api_key_dialog.py":
                 continue
-            if "ApiKeyDialog" in path.read_text(encoding="utf-8"):
-                callers.append(path.name)
-        assert callers == [], f"unexpectedly still reached from {callers}"
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(
+                        node.func, ast.Name) and \
+                        node.func.id == "ApiKeyDialog":
+                    constructed.append(f"{path.name}:{node.lineno}")
+        assert constructed == [], (
+            f"unexpectedly still constructed at {constructed}"
+        )
+
+    def test_the_shared_sanitiser_is_what_both_dialogs_import(self):
+        """The one thing the two dialogs must agree on. Two definitions
+        of what a key is would be F-117's shape applied to the value
+        instead of the predicate."""
+        tree = ast.parse(
+            (PROJECT_ROOT / "metascreener" / "provider_dialog.py")
+            .read_text(encoding="utf-8"))
+        imports = [
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.ImportFrom)
+            and n.module == "metascreener.api_key_dialog"
+            and any(a.name == "sanitize_api_key" for a in n.names)
+        ]
+        assert imports, "the provider dialog defines its own sanitiser"

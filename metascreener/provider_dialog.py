@@ -264,10 +264,24 @@ class ProviderDialog(tk.Toplevel):
         if not endpoint:
             endpoint = (DEFAULT_OPENAI_ENDPOINT if provider == "openai"
                         else DEFAULT_LOCAL_ENDPOINT)
+        # **F-140's live route, which its row does not name.** The row is
+        # written against ``ApiKeyDialog``, which session B made
+        # unreachable — this is the dialog the application opens now, and
+        # it did not sanitize quotes at all. A key pasted with the
+        # surrounding quotes a copy commonly carries was stored verbatim
+        # and refused by the endpoint with a 401, which surfaces as a
+        # terminal batch failure and a corpus of manufactured non-answers
+        # (F-93), pointing the user at everything except the quotes.
+        #
+        # One function, shared with the other dialog, so the two cannot
+        # disagree about what a key is — which is F-117's shape applied
+        # to the value rather than to the predicate.
+        from metascreener.api_key_dialog import sanitize_api_key
+
         self.result = {
             "provider": provider,
             "endpoint": endpoint,
-            "api_key": self.var_key.get().strip(),
+            "api_key": sanitize_api_key(self.var_key.get()),
             "model": self.var_model.get().strip(),
         }
         self.destroy()

@@ -24,9 +24,51 @@ LOCAL_PROVIDER_HINT = (
 )
 
 
+#: How many strip passes before giving up. Four covers every realistic
+#: paste — a key wrapped in quotes that were themselves wrapped when the
+#: value was copied out of a shell history or a JSON blob. The bound
+#: exists so a pathological input cannot spin here; it is not reached by
+#: anything a user can plausibly type.
+_SANITIZE_PASSES = 4
+
+
 def sanitize_api_key(s):
-    """Trim whitespace/newlines and one layer of surrounding quotes."""
-    return (s or "").strip().strip('"').strip("'")
+    """Trim whitespace/newlines and surrounding quotes, to a fixed point.
+
+    **F-140. This used to be one pass, and it was not idempotent**, which
+    is the whole of that finding. The order was strip-whitespace, then
+    strip-quotes, and it never re-stripped — so a value that had
+    whitespace *inside* its quotes came out still carrying it:
+
+        '" x "'  ->  ' x '        one pass
+        ' x '    ->  'x'          two passes
+
+    ``ApiKeyDialog._on_save`` sanitized once and handed the result to
+    ``validate_api_key``, which sanitized it **again** internally. So the
+    accept/reject decision was taken on ``'x'`` while ``'  x '`` is what
+    reached ``os.environ`` and the endpoint — the value checked was not
+    the value used, on the axis this project keeps being bitten on. A
+    padded key is refused with a 401, which surfaces as a terminal batch
+    failure and a full corpus of manufactured non-answers (F-93),
+    pointing the user at everything except the space.
+
+    Iterating to a fixed point makes the function idempotent by
+    construction, so sanitizing twice can no longer differ from
+    sanitizing once. That is the belt; ``_on_save`` sanitizing exactly
+    once is the braces, and the two are independent.
+
+    Known limit, unchanged from the one-pass version: a key whose real
+    value begins and ends with a quote character cannot be entered. No
+    provider issues one, and the alternative — pasting quotes and having
+    them kept — is the far commoner mistake.
+    """
+    out = (s or "")
+    for _ in range(_SANITIZE_PASSES):
+        nxt = out.strip().strip('"').strip("'").strip()
+        if nxt == out:
+            break
+        out = nxt
+    return out
 
 
 def looks_like_openai_key(key: str) -> bool:
@@ -165,8 +207,15 @@ class ApiKeyDialog(tk.Toplevel):
         return looks_like_openai_key(key)
 
     def _on_save(self):
-        key = self._sanitize(self.entry.get())
-        accepted, message = validate_api_key(key)
+        # F-140, the second of two independent guards. The RAW entry goes
+        # to `validate_api_key`, which sanitizes it internally, and the
+        # stored value is `sanitize_api_key` of that same raw string — so
+        # the two are the same expression over the same input and cannot
+        # differ, whether or not `sanitize_api_key` is idempotent. It is,
+        # now, which is the first guard; this one does not depend on it.
+        raw = self.entry.get()
+        accepted, message = validate_api_key(raw)
+        key = self._sanitize(raw)
         if not accepted:
             self.msg_label.configure(fg="red")
             self.msg_var.set(message)
