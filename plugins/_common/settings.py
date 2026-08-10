@@ -138,16 +138,39 @@ def settings_path() -> Path:
     return settings_dir() / SETTINGS_FILE_NAME
 
 
-def defaults() -> Dict[str, Any]:
-    """The shipped configuration.
+#: The provider value meaning *the user has not been asked yet*.
+UNCHOSEN = ""
 
-    ``local`` is preselected (D1). The recommended model name is **not** a
-    constant here — see ``recommended_model``.
+
+def defaults() -> Dict[str, Any]:
+    """The configuration before the user has chosen anything.
+
+    **The provider is deliberately unset, and this is the fix for the
+    worst defect this wave's review found.** An earlier version of this
+    function shipped ``provider="local"`` on the reasoning that D1
+    preselects local. D1 preselects it *in the popup* — it does not make
+    it the effective configuration before the popup exists.
+
+    Asserting it here was silently catastrophic. ``key_required("local")``
+    is ``False``, so a fresh install with no settings file waived the key
+    gate at every layer; meanwhile nothing yet read ``endpoint``, so the
+    request still went to ``resolve_openai_base_url()``. A run the store
+    called *local* was therefore sent to **the paid vendor endpoint**,
+    with the literal string ``"local"`` as the credential — or, because
+    the launch modal cannot be dismissed without a key, with the user's
+    **real** key, billing their account for a run labelled local. Before
+    that change the same user was correctly blocked at ``NO_KEY``.
+
+    ``UNCHOSEN`` is not in ``_KEYLESS_PROVIDERS``, so an unconfigured
+    install behaves exactly as it did before this wave: a key is
+    required, and the endpoint falls through to the environment and then
+    to the vendor default. The store becomes authoritative only once
+    something has written a real choice into it.
     """
     return {
         "schema": SCHEMA,
-        "provider": "local",
-        "endpoint": DEFAULT_LOCAL_ENDPOINT,
+        "provider": UNCHOSEN,
+        "endpoint": "",
         "api_key": "",
         "model": "",
         "batch_size": 5,
@@ -180,8 +203,22 @@ def load_settings() -> Dict[str, Any]:
         )
     merged = defaults()
     merged.update(raw)          # unknown keys survive; missing keys default
-    if not isinstance(merged.get("stages"), dict):
-        merged["stages"] = {}
+    # The container was validated and its entries were not, so a file
+    # that is structurally wrong passed this gate and crashed later with
+    # an unrelated exception type instead of the SettingsUnreadableError
+    # this module promises. Entries that are not mappings are dropped;
+    # `provider` is coerced, because `key_required` calls `.strip()` on
+    # it and an integer there raised an AttributeError on a GUI
+    # construction path. Found in this session's review.
+    stages = merged.get("stages")
+    merged["stages"] = ({
+        str(k): dict(v) for k, v in stages.items() if isinstance(v, dict)
+    } if isinstance(stages, dict) else {})
+    if not isinstance(merged.get("provider"), str):
+        merged["provider"] = UNCHOSEN
+    for key in ("endpoint", "api_key", "model"):
+        if not isinstance(merged.get(key), str):
+            merged[key] = ""
     return merged
 
 

@@ -163,7 +163,32 @@ def resolve_openai_base_url() -> str:
     This is the single place the endpoint is decided. :func:`_cache_key`'s
     callers and :func:`_openai_client_for` both read it from here, so the
     key and the client cannot disagree about where a run went.
+
+    **Wave 11 adds the settings store as the first source, and it must be
+    first.** The store is what a GUI choice writes, so a stale
+    ``OPENAI_BASE_URL`` in the environment winning over it would make the
+    control the user just operated do nothing — a GUI-first defect of the
+    same family as F-91. The order is therefore: an explicitly stored
+    endpoint, then the environment variable, then the vendor default.
+
+    An *unconfigured* install stores nothing, so this reduces exactly to
+    the previous expression — which is what keeps the golden replays
+    valid, since they pop ``OPENAI_BASE_URL`` and rely on reaching
+    ``DEFAULT_OPENAI_BASE_URL``. Session A's review found the earlier
+    version of this wave shipping ``provider="local"`` in the defaults
+    while nothing read ``endpoint``, so a run the store called local went
+    to the paid vendor. Reading the endpoint here is one half of that fix;
+    not presuming a provider (``settings.defaults``) is the other.
     """
+    try:
+        from plugins._common.settings import load_settings
+        stored = (load_settings().get("endpoint") or "").strip()
+    except Exception:
+        # Unreadable or unavailable settings must never change where a
+        # run is sent; fall through to the behaviour that predates them.
+        stored = ""
+    if stored:
+        return stored
     return os.environ.get(OPENAI_BASE_URL_ENV, "").strip() or DEFAULT_OPENAI_BASE_URL
 
 

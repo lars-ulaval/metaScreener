@@ -231,3 +231,101 @@ class TestTheEngineGateAgreesWithReadiness:
                     f"{'ready' if gui else 'blocked'} and the engine says "
                     f"{'ready' if engine else 'blocked'}"
                 )
+
+
+class TestAnUnconfiguredInstallIsNotSilentlyLocal:
+    """The worst defect this session's review found.
+
+    ``defaults()`` shipped ``provider="local"`` on the reasoning that D1
+    preselects local. D1 preselects it *in the popup*; it is not the
+    effective configuration before the popup exists. Because
+    ``key_required("local")`` is False, a fresh install waived the key
+    gate at every layer — while nothing read ``endpoint``, so the request
+    still went to the vendor. A run the store called *local* was sent to
+    ``https://api.openai.com/v1`` with the credential ``"local"``, or,
+    since the launch modal cannot be dismissed without a key, with the
+    user's real key: **billing their account for a run labelled local.**
+    Before the change the same user was correctly blocked at NO_KEY.
+    """
+
+    def _fresh(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("APPDATA", str(tmp_path / "a"))
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "x"))
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    def test_the_shipped_provider_is_unchosen(self):
+        assert S.defaults()["provider"] == S.UNCHOSEN
+        assert ss.key_required(S.UNCHOSEN) is True
+
+    def test_a_fresh_install_still_requires_a_key(self, monkeypatch, tmp_path):
+        self._fresh(monkeypatch, tmp_path)
+        import plugins._common.llm_client as lc
+        assert lc._has_openai_key() is False, (
+            "an unconfigured install was waved past the key gate"
+        )
+
+    def test_a_fresh_install_still_routes_to_the_vendor_default(
+            self, monkeypatch, tmp_path):
+        """Not a change anyone asked for, and the one that keeps the
+        golden replays valid."""
+        self._fresh(monkeypatch, tmp_path)
+        import plugins._common.llm_client as lc
+        assert lc.resolve_openai_base_url() == lc.DEFAULT_OPENAI_BASE_URL
+
+    def test_the_key_gate_and_the_endpoint_cannot_disagree(
+            self, monkeypatch, tmp_path):
+        """The invariant the earlier version broke: a configuration that
+        waives the key requirement must not still be pointed at a server
+        that charges for it."""
+        self._fresh(monkeypatch, tmp_path)
+        import plugins._common.llm_client as lc
+        S.update_settings(provider="local", endpoint="http://localhost:11434/v1")
+        assert lc._has_openai_key() is True
+        assert lc.resolve_openai_base_url() == "http://localhost:11434/v1", (
+            "the store waived the key gate while the call still went to "
+            "the paid vendor"
+        )
+
+    def test_a_stored_endpoint_beats_a_stale_environment_variable(
+            self, monkeypatch, tmp_path):
+        """A GUI choice must not be silently overridden by a leftover
+        shell export — that is F-91's family of defect."""
+        self._fresh(monkeypatch, tmp_path)
+        monkeypatch.setenv("OPENAI_BASE_URL", "http://stale:9999/v1")
+        import plugins._common.llm_client as lc
+        S.update_settings(endpoint="http://localhost:11434/v1")
+        assert lc.resolve_openai_base_url() == "http://localhost:11434/v1"
+
+
+class TestACorruptSettingsFileCannotDeleteAStage:
+    """Review of this session. ``load_settings`` raises on an unparseable
+    file, and the EL/IL readiness call runs inside ``_build_ui`` — where
+    ``main.py::resolve_plugin_entrypoint`` swallows every exception into a
+    ``print()``. So a JSON typo made both screening tabs silently absent,
+    with nowhere for the message to go in a windowed onefile build."""
+
+    def _at(self, monkeypatch, tmp_path, text):
+        monkeypatch.setenv("APPDATA", str(tmp_path / "a"))
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "x"))
+        S.settings_path().parent.mkdir(parents=True, exist_ok=True)
+        S.settings_path().write_text(text, encoding="utf-8")
+
+    def test_a_non_string_provider_does_not_raise(self, monkeypatch, tmp_path):
+        """``key_required`` calls ``.strip()``; an integer there raised an
+        AttributeError on a construction path."""
+        self._at(monkeypatch, tmp_path, '{"provider": 123}')
+        cfg = S.load_settings()
+        assert ss.key_required(cfg["provider"]) is True
+
+    def test_a_non_mapping_stage_entry_is_dropped_not_fatal(
+            self, monkeypatch, tmp_path):
+        self._at(monkeypatch, tmp_path, '{"stages": {"EL": "oops"}}')
+        cfg = S.load_settings()
+        assert cfg["stages"] == {}
+        assert S.effective_model(cfg, "EL") == ""
+
+    def test_a_non_string_model_does_not_reach_a_caller_as_a_number(
+            self, monkeypatch, tmp_path):
+        self._at(monkeypatch, tmp_path, '{"model": 42}')
+        assert S.load_settings()["model"] == ""

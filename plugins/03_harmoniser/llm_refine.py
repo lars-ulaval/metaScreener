@@ -42,8 +42,17 @@ from .inference import _validate_row
 def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120) -> Dict[str, Any]:
     """Best-effort OpenAI call returning JSON."""
     try:
-        from openai import OpenAI  # type: ignore
-        client = OpenAI()
+        # F-117, review of this session. This was a bare ``OpenAI()`` —
+        # no api_key, no base_url. Once ``_llm_available`` admitted a
+        # keyless local provider, the predicate said yes for exactly the
+        # configuration this constructor cannot build for: the button
+        # went live and the call then failed into the ``except`` below,
+        # which falls through to the removed 0.x API and reports a
+        # meaningless error. It also meant this stage ignored the
+        # endpoint EL and IL honour, so a "local" run refined criteria
+        # against the vendor. One client builder for all three stages.
+        from plugins._common.llm_client import _openai_client_for
+        client = _openai_client_for()
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],

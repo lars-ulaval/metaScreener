@@ -689,7 +689,18 @@ class ILView(ttk.Frame):
         # readiness reads the persisted configuration rather than probing
         # the environment for one variable. A local server authenticates
         # nothing, and asking its user for a credential was the defect.
-        cfg = load_settings()
+        # Review of this session: `load_settings` raises on a settings
+        # file that exists and cannot be parsed, and this runs inside
+        # `_build_ui` — where `main.py::resolve_plugin_entrypoint`
+        # swallows every exception into a `print()`, so a JSON typo made
+        # the EL and IL tabs silently absent, with nowhere for the
+        # message to go in a windowed onefile build. Readiness degrades
+        # to "unconfigured" instead, which blocks the run for a stated
+        # reason rather than deleting the stage.
+        try:
+            cfg = load_settings()
+        except Exception:
+            cfg = {}
         return llm_readiness(stage="IL",
                              has_bundle=bool(self.bundle_zip_path),
                              provider=cfg.get("provider", "local"),
