@@ -200,6 +200,15 @@ F-121, F-144, F-91, F-118, F-140 and decisions D1–D9. The golden re-capture an
 wave 12's, as does any published claim about how well a local model screens — that needs a
 live measurement and nothing in this wave's code or documentation asserts one.
 
+**Session C's review pass did not complete, and the register records that rather than the
+number it printed.** Nine of twenty-nine reviewers died on a session limit: one of six lenses
+never ran, and eight findings never reached a verifier. Twenty-three were raised, fifteen
+adjudicated, six survived; the eight unverified were then adjudicated by hand, by execution,
+and yielded two further real defects. All eight repairs, plus one I shipped into the repairs
+myself, are in `605e360`. **F-14 is not closed** — but `tests/test_view_smoke.py` now covers
+the three LLM Views against a real Tk in a subprocess, to session B's written specification,
+because a `NameError` that stopped both screening tabs opening passed 1321 green tests.
+
 **Wave 11 session B closed two Highs — F-91 and F-144 — and opened none.** F-144 was
 opened by session A and closed by session B, one session apart; the reason is recorded
 in its own fix cell and above, because a row opened and closed inside one wave reads

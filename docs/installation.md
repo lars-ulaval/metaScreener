@@ -241,8 +241,23 @@ interface is not silently overridden by a leftover shell export.
 ### Per-plugin model selection
 
 Each LLM-using plugin (01, 03, 06, 07) has its own model field in the
-GUI — a free-text box, not a dropdown, so any identifier your endpoint
-accepts is valid and nothing validates the string.
+GUI. For plugins 03, 06 and 07 it is an **editable combobox**: it is
+filled with whatever your endpoint reports through `/v1/models`, and you
+can still type a name that is not on the list. It is deliberately not a
+read-only dropdown — llama.cpp ignores the model field entirely, and a
+server that will not enumerate its models would otherwise leave you
+unable to name one. Nothing validates the string.
+
+If the list call fails, times out, or returns nothing, the field is
+still usable and the run is still allowed to start; a line under the
+field says which of the three happened. Discovery is an aid, never a
+gate.
+
+Stages 06 and 07 also carry their own **Endpoint** field, which
+overrides the application-level endpoint for that stage alone, with a
+line beneath naming which source the current value came from. A stage
+whose endpoint points at a billing host always requires an API key,
+whatever the provider is set to.
 
 The model, the resolved endpoint, the temperature, the prompt version,
 the truncation limit and the batch size **are** recorded in the bundle's

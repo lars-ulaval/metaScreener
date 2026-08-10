@@ -1076,3 +1076,259 @@ old key indicator did. The test now says exactly that: every read lives inside
 it is meant to permit gets deleted rather than obeyed, and the same correction was needed for
 the model-control guard, which first flagged `configure(values=…)` — the line that *fills* the
 dropdown.
+
+### 12.16 The review pass, and an honest ratio
+
+Six lenses, all required to **execute** — session B's instruction, kept.
+One was mandatory: *reach api.openai.com with a keyless provider, by any
+route the per-stage controls open.*
+
+**The numbers must be reported with a caveat, because the pass did not
+complete.** Nine of twenty-nine agents died on a session limit: the whole
+sixth lens (the tests-and-coverage lens) **never ran**, and eight
+verifiers never ran. The orchestration script counted an unverified
+finding as refuted, which is wrong, so its printed 39% is not an
+adjudicated ratio and is not the figure recorded here.
+
+| | Session A | Session B | Session C |
+|---|---|---|---|
+| Lenses planned / run | 3 / 3 | 3 / 3 | 6 / **5** |
+| Raised | 19 | 14 | 23 |
+| Adjudicated by a verifier | 19 | 14 | **15** |
+| Survived | 4 | 2 | **6** |
+| Refuted | 15 | 12 | 6 |
+| **Never verified** | 0 | 0 | **8** |
+| Ratio, of what was adjudicated | 21% | 14% | **40%** |
+
+The eight unverified findings were adjudicated **by hand, by execution**,
+before any of them was acted on. Six of the survivors are fixed in
+`605e360`; the eight unverified reduced to two more real defects — the
+trailing-dot host, and the pinning cluster's environment half — both also
+fixed, and six that were duplicates of survivors or documented behaviour.
+
+**The instruction held.** Every survivor arrived with a paste-able repro
+and real output, and all six refutations were *"reproduces, but is
+pre-existing"* — refuted on scope with a `git show ec8f7c3` to prove it,
+which is a better class of refutation than session A's hypotheticals. The
+higher survival rate is not a worse review: it is a session that touched
+more surface, and the reviewers found more because there was more to find.
+
+**The mandatory lens paid for itself.** It produced the trailing-dot FQDN:
+`api.openai.com.` is the same host to DNS and a different string to a
+comparison, so `key_required_for("local", "https://api.openai.com./v1")`
+returned `False`. **That is INV-1 broken by a fourth route, by one
+character** — in the invariant this very session wrote to close routes two
+and three.
+
+### 12.17 What the review found, and the shape it had
+
+Two of the six survivors are the same mistake: **a value that is right for
+the application was applied to a stage that had moved.** Session C added
+per-stage endpoints and left two application-scoped things behind it.
+
+**The probe.** One global, written by the application, read by every
+stage. A stage with an endpoint override reported `Ready to run` while its
+own server had nothing listening — breaking *ready means reachable*, the
+property session B built, for the very feature session C added. It is
+keyed by endpoint now; an unprobed stage reads `NOT_CHECKED` and blocks;
+and the launch path probes every distinct stage endpoint, because keying
+alone would have left such a stage blocked forever.
+
+**The baseline.** `stage_overrides_for` compared a field against a
+resolution that did not know what the widget had been *seeded* with, so
+`model='gpt-4o-mini'` and `batch_size=50` looked like deliberate edits.
+Opening a tab once and leaving any field pinned them permanently — so D6's
+batch size and the user's own model choice reached only the stages they
+had **not** opened, and the two stages silently diverged.
+
+**Why §12.8's test did not catch it, which is the more useful half.**
+`test_stage_fields.py` asserts *"an untouched field pins nothing"* — and
+sets the application level first, so the field it checks is already backed
+by the store. **The fresh-install case, the state every user starts in,
+was never exercised.** That is session B's fixture defect in different
+clothes: not a state the system cannot reach, but the one state it always
+starts in.
+
+### 12.18 The defect I shipped into the repair, and what it cost to find
+
+While repairing the batch-size finding I left a plain `NameError` in
+`_build_ui` — `seed` referenced in a method where it is not in scope.
+**The EL and IL tabs could not open at all, and 1321 tests were green.**
+
+It was caught by a hand-driven real-Tk run. That is the third time in two
+sessions that the thing which caught a live GUI defect was a person
+looking, and session B recorded that conclusion as a LIMIT with an
+explicit warning not to treat it as a safety net.
+
+So `tests/test_view_smoke.py` closes F-14's gap for the three LLM Views,
+to session B's own four-point specification. The tkinter mock is
+process-wide and installed at import, so the smoke runs in a **clean
+subprocess** with the real `tkinter`, and **skips** where there is no
+display — a *ratchet*, not a gate: it adds cover on developer machines and
+on any CI with a display, and never subtracts. Mutation-checked:
+reintroducing that `NameError` fails all nine smoke tests, while the rest
+of the suite notices only two AST string checks.
+
+*(A process note, since it cost time: that mutation check was performed on
+the working tree and reverted with `git checkout --`, which discarded the
+same file's other uncommitted repairs. They were re-applied and verified
+marker by marker. A copy in a temporary directory is the correct way to
+mutation-check, and the reviewers used one.)*
+
+### 12.19 Two findings deliberately not fixed
+
+**A deliberately-typed override equal to the application value is
+retracted.** That is §12.8's documented trade: the alternative is pinning
+an invisible copy, which is strictly worse, because it stops the
+application setting reaching that stage and nothing shows it.
+
+**`ProviderDialog._probe` strips rather than sanitizes.** It sends the key
+as a bearer token and never persists it, so F-140's validate-one-store-
+another shape does not apply. The test is narrowed to `_accept`
+accordingly, because a blanket ban would forbid the legitimate use
+alongside the defect.
+
+### 12.20 Scope taken beyond the brief, and why
+
+**The user documentation this wave falsified.** Not in session C's stated
+scope; taken for the reason session A gave when it took F-121 —
+independent, cheap, and otherwise the thing that slips — and because the
+wave's deliverable is unreachable to anyone who reads the README first.
+Four statements were false as of session B and nobody had updated them:
+
+* `README.md` said the application *"will prompt for confirmation on each
+  launch"*; session B removed that;
+* it told local users to set `OPENAI_BASE_URL` and
+  `OPENAI_API_KEY=ollama (or any non-empty placeholder)` — **instructing
+  them to invent the fake credential F-117 exists to abolish**, in the
+  file most users read first;
+* `.env.example` said the same;
+* `docs/usage.md` stated a batch size that is now provider-dependent, and
+  `docs/installation.md` called the model field *"a free-text box, not a
+  dropdown"*.
+
+A `CHANGELOG.md` entry now records the wave for users, including what it
+does **not** claim: nothing about how well a local model screens.
+
+### 12.21 Close-out
+
+#### Goldens, both ways
+
+| Check | Result |
+|---|---|
+| Per-file SHA-256 vs the step-0 manifest | **9/9 identical** |
+| `git diff main...HEAD -- tests/golden/` | **empty** |
+| `rekey_cache_goldens --verify` | clean — EL 170/170, IL 84/84, disjoint from the pre-F-89 key set |
+
+#### Suite
+
+| | Passed | Skipped |
+|---|---:|---:|
+| Step 0 | 936 | 7 |
+| Session C close | **1330** | 7 |
+
+**+394 passed, no test deleted.** Nine are the real-Tk View smoke, which
+skips where there is no display.
+
+#### Tools
+
+`audit_imports`, `audit_decorators`, `check_encoding` (198 paths) and
+`rekey_cache_goldens --verify` all clean.
+
+#### What a user can now do that they could not before wave 11
+
+**Screen with a model on their own computer, with no API key.** Measured
+rather than asserted, with `OPENAI_API_KEY` absent from the environment
+and no key in the store:
+
+```text
+--- BEFORE any choice (a fresh install) ---
+  EL          endpoint=https://api.openai.com/v1  gate=False  readiness=not_configured
+  IL          endpoint=https://api.openai.com/v1  gate=False  readiness=not_configured
+  harmoniser  endpoint=https://api.openai.com/v1  gate=False  readiness=not_configured
+
+--- AFTER choosing a local model, NO API KEY ANYWHERE ---
+  EL          endpoint=http://localhost:11434/v1  gate=True  can_run=True  credential='local'  batch=5
+  IL          endpoint=http://localhost:11434/v1  gate=True  can_run=True  credential='local'  batch=5
+  harmoniser  endpoint=http://localhost:11434/v1  gate=True  can_run=True  credential='local'  batch=5
+
+nothing resolves to the vendor: True
+```
+
+All three LLM stages — including the harmoniser, which until this session
+still demanded a paid key — run against a local server with no key at any
+layer. The credential is the application's own placeholder, and it is
+never handed to a host that bills.
+
+Specifically, and none of it was possible before this wave:
+
+* **choose a provider from the interface at all**, and have the choice
+  remembered — including in the packaged build, where it used to be
+  written into a directory PyInstaller deletes on exit;
+* **dismiss that question and keep working.** Stages 03, 04 and 05 need no
+  model of any kind and used to die with the dialog;
+* **see and edit the endpoint**, at the application level and per stage,
+  with a line naming which source the value came from;
+* **pick a model from the server's own list, or type one that is not on
+  it** — and still run when the list call fails, times out, or returns
+  nothing;
+* **be told which of three local-server problems they have**, and be
+  offered a model download, sized before a byte moves and cancellable;
+* **run the harmoniser's LLM refinement locally**, which is the button
+  that still demanded a paid key at the start of this session.
+
+#### What still requires an OpenAI key
+
+**A run whose effective endpoint is `api.openai.com` — and nothing else.**
+That is where an unconfigured installation still points, so a user who
+chooses nothing is still asked for a key, exactly as before wave 11. An
+endpoint that bills always requires one, whatever the provider field says,
+including per stage and including the fully-qualified spelling with a
+trailing dot.
+
+**This wave makes no claim about how well a local model screens.** That
+needs a live measurement, it belongs to wave 12, and nothing in this
+session's code, tests or documentation asserts one.
+
+#### Human observations
+
+**One.** Session B's three remain open and are not restated.
+
+**HO-11C-1 — is the endpoint's source line legible, or noise?** Each stage
+tab now carries a second grey line under the Endpoint field reading
+`Source: stage override` / `application setting` / `keyless default` /
+`OPENAI_BASE_URL` / `vendor default`. It exists because of F-119's lesson:
+the URL alone does not distinguish *I chose this* from *my configuration
+was not read*. But it is a fifth line in a panel that already had four,
+and a line nobody reads is clutter that has pushed the useful controls
+down.
+*Repro:* open the EL tab on a fresh install; then after choosing a local
+provider; then after typing a different endpoint into that tab.
+*Report:* whether the line is noticed at all, whether its wording means
+anything without this document, and whether the settings panel now needs a
+scrollbar at the default window size.
+
+#### Commits
+
+| Hash | Subject |
+|---|---|
+| `e5e36e8` | `test: characterise the seams session C moves, before moving them` |
+| `75764d8` | `feat(F-91, INV-1b): one resolver per stage, and the invariant over the pair` |
+| `48a9e5b` | `feat(D4/D5): discovery carried through to the tabs, and fixtures that came from the producer` |
+| `231f0fc` | `feat(F-91): the endpoint field and the editable model combobox, per stage` |
+| `0c09395` | `feat(D6): batch size 5 for a local model, with the reason beside the number` |
+| `8a3f188` | `fix(F-118, D9): delete the checkbox, and give the harmoniser the shared gate` |
+| `ebab1b0` | `fix(F-140): sanitize once, and validate and store the same string` |
+| `605e360` | `fix: repair the seven defects the review found by executing, and close F-14's gap for the Views` |
+
+#### Register
+
+**141 rows, 69 closed, 72 open** (from 141 / 67 / 74). Closed this
+session: **F-118** (Medium) and **F-140** (Low). **No row opened.** Totals
+regenerated by derivation from the Effort markers, with the script first
+checked to reproduce the published wave-11b figures unchanged.
+
+F-118's empty partial-closure marker, carried since wave 8, becomes
+`(done)`. That convention did exactly what it exists for: the row was
+never readable as finished while a half of it was outstanding — across
+three waves and two opposite coordinator decisions about that half.

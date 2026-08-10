@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### You can now screen with a model on your own computer, and no API key
+
+Before this release, metaScreener could only be used with an OpenAI key. The
+documentation described a local-provider workflow, but it was unreachable
+through the interface: the only ways to point the application at a local
+server were to hand-edit a `.env` file or to set an environment variable, and
+the launch dialog refused to let you past without entering *something* in the
+API key box — its own message told you to invent a placeholder such as
+`"ollama"`.
+
+What changed:
+
+- **The application asks which provider you want**, once, and remembers the
+  answer. Dismissing that question no longer closes the application: stages 03,
+  04 and 05 need no model of any kind and now stay available.
+- **A local model needs no API key at any layer.** The key requirement is a
+  question about the provider and the endpoint, not a box that must be
+  non-empty.
+- **The endpoint is a visible, editable field**, at the application level and
+  per stage, and a second line tells you where the value came from — your stage
+  override, your application setting, the `OPENAI_BASE_URL` variable, or a
+  default.
+- **The model field offers what your server reports**, and you can still type a
+  name that is not listed. Some servers ignore the model field entirely, so the
+  list is a suggestion and never a restriction. If your server will not list its
+  models, nothing is disabled.
+- **Three local-server problems are told apart**: Ollama is not installed, it is
+  installed but not running, or it is running with no model pulled. Each says
+  what to do about that one, and the application offers to download a
+  recommended model — with its size stated before anything is downloaded, and
+  cancellable.
+- **The batch size defaults to 5 for a local model** instead of 50. Asking a
+  small model for fifty JSON objects in one reply is where it loses track. This
+  is a quality setting, not a correctness one, and changing it does not
+  invalidate your cached decisions.
+- **Your settings survive a launch and the packaged build.** They are stored
+  beside your other application data rather than next to the program, which in
+  the packaged build was a temporary directory deleted on exit — so a key you
+  asked to be remembered was silently gone next time.
+
+**What still needs an OpenAI key:** a run whose endpoint is
+`api.openai.com`, which is where an unconfigured installation still points. An
+endpoint that bills always requires a key, whatever the provider is set to.
+
+**This release makes no claim about how well a local model screens.** That is a
+measurement nobody has made here yet. What is claimed is narrower: the path
+exists, it is reachable from the interface, and it does not require paying for
+a credential you will not use.
+
 ### If you produced results with an earlier version, read this first
 
 This release fixes defects that could have affected screening results. Most

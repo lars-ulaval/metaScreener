@@ -333,8 +333,11 @@ three practical implications:
 - **Cost predictability.** Only the records that survive the
   deterministic stages reach the LLM. On the demonstration corpus
   that is 85 records at EL and 84 at IL — 254 individual decisions in
-  total, which at the default batch size of 50 is a handful of API
-  requests, not thousands. Subsequent runs use zero.
+  total, which at the hosted default batch size of 50 is a handful of API
+  requests, not thousands. Subsequent runs use zero. (Selecting a local
+  provider offers a batch size of 5 instead, which is more requests to a
+  server that charges nothing for them; it does not change the number of
+  decisions, and it does not invalidate the cache.)
 - **Reproducibility.** Bundles produced from a cached run are
   byte-identical (modulo the timestamps in `manifest.json`).
 - **Debugging.** To re-run a stage's decisions after editing a

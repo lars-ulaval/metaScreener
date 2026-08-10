@@ -317,17 +317,17 @@ Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 | `OPENAI_API_KEY` | Yes (for LLM stages) | — | Your OpenAI API key |
 | `SCREENA_EL_MODEL` | No | `gpt-4o-mini` | Model identifier for the EL stage |
 | `SCREENA_EL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM (EL) |
-| `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (EL) |
+| `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (EL). The interface offers **5** instead when a local provider is selected — a small model loses track of a fifty-item list. This is a throughput and quality setting, not a correctness one, and changing it does not invalidate the decision cache. |
 | `SCREENA_EL_USE_CACHE` | No | `1` | Enable (`1`) or disable (`0`) the persistent decision cache (EL) |
 | `SCREENA_IL_MODEL` | No | `gpt-4o-mini` | Model identifier for the IL stage |
 | `SCREENA_IL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM (IL) |
-| `SCREENA_IL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (IL) |
+| `SCREENA_IL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (IL). See `SCREENA_EL_BATCH_SIZE`. |
 | `SCREENA_IL_USE_CACHE` | No | `1` | Enable (`1`) or disable (`0`) the persistent decision cache (IL) |
 
 The EL and IL stages are configured independently: setting `SCREENA_EL_MODEL` does not
 change the model used by IL.
 
-Copy `.env.example` to `.env` and set your API key. The application will prompt for confirmation on each launch.
+These variables are still read, and a `.env` file in the project root still works for a source-tree setup. **They are no longer the route.** From v3.2 the application asks which provider you want on first launch and remembers the answer in `settings.json` (see `docs/installation.md`); a stored choice takes precedence over `OPENAI_BASE_URL`, so a leftover shell export cannot silently override a choice made in the interface. The launch dialog no longer demands a key before the application will start, and dismissing it leaves the deterministic stages (03–05) fully usable.
 
 ## Using local LLM providers
 
@@ -336,15 +336,23 @@ metaScreener targets any **OpenAI-compatible API endpoint**. The default backend
 - **Hosted commercial APIs** — Azure OpenAI, DeepSeek, and others that mirror OpenAI's chat completions schema.
 - **Locally hosted models** — open-weight models served via compatible inference frameworks such as Ollama, llama.cpp, and vLLM.
 
-Switching providers requires no code change: set the `OPENAI_BASE_URL` environment variable to the target endpoint and ensure `OPENAI_API_KEY` is non-empty (most local servers ignore the key value but require it to be set). The **Model** field in metaScreener's EL/IL Settings panels then selects which backend model to use. Three commonly used local-model paths are described below.
+**Switching providers is a choice in the interface, and a local model needs no API key.** Pick *On this computer* in the provider dialog, or open it again later; the endpoint is a visible, editable field, at the application level and per stage. Earlier versions of this section told you to set `OPENAI_BASE_URL` and to put "any non-empty placeholder" in the key box — **that instruction is withdrawn.** Asking someone to invent a fake credential to reach a free local model was a defect in this application, not a requirement of the protocol, and it is fixed: the application satisfies the SDK's non-empty-key requirement itself and never sends a placeholder to an endpoint that bills.
+
+The **Model** field is an editable combobox: it offers whatever your server reports through `/v1/models`, and you can still type a name that is not listed, because some servers ignore the field entirely. If your server will not list its models, nothing is disabled.
+
+Three commonly used local-model paths are described below. The environment-variable forms still work and are kept for source-tree and scripted setups.
 
 ### Ollama
 
-[Ollama](https://ollama.com/) exposes an OpenAI-compatible chat completions endpoint at `http://localhost:11434/v1`. After installing Ollama and pulling a model (e.g., `ollama pull llama3.1`), set `OPENAI_BASE_URL=http://localhost:11434/v1` and `OPENAI_API_KEY=ollama` (or any non-empty placeholder). In the EL/IL Settings panels, set **Model** to the local model name (e.g., `llama3.1`).
+[Ollama](https://ollama.com/) exposes an OpenAI-compatible chat completions endpoint at `http://localhost:11434/v1`. Install it and start it with `ollama serve`; metaScreener detects whether it is installed, whether it is running and whether any model has been pulled, and says which of those three is the problem. If nothing has been pulled it offers to download a recommended model, with the size stated before anything is transferred and the download cancellable.
+
+**No API key is needed, and none should be invented.** Choosing *On this computer* is the whole configuration. The **Model** field is then filled from what your server reports; on a source-tree setup the equivalent is `OPENAI_BASE_URL=http://localhost:11434/v1` with `OPENAI_API_KEY` left unset.
 
 ### llama.cpp
 
-[llama.cpp](https://github.com/ggerganov/llama.cpp)'s `llama-server` binary exposes an OpenAI-compatible endpoint at `http://localhost:8080/v1` by default. Start the server with `./llama-server --model your-model.gguf` and set `OPENAI_BASE_URL=http://localhost:8080/v1` with `OPENAI_API_KEY=llama-cpp` (or any non-empty placeholder). The **Model** field can be set to any value when running llama.cpp directly, since the server uses whichever model is currently loaded.
+[llama.cpp](https://github.com/ggerganov/llama.cpp)'s `llama-server` binary exposes an OpenAI-compatible endpoint at `http://localhost:8080/v1` by default. Start it with `./llama-server --model your-model.gguf`, then choose *Another OpenAI-compatible server (advanced)* and enter that endpoint. No API key is needed.
+
+The **Model** field can be set to any value here, because llama.cpp uses whichever model is currently loaded and ignores the field entirely. That is why the field is an editable combobox rather than a dropdown: a list of what the server reports would be a suggestion at best and, for this server, a restriction over the wrong set.
 
 ### vLLM and DeepSeek
 
