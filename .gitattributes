@@ -3,3 +3,10 @@
 # Golden files for byte-identity regression tests. Treat as binary so
 # autocrlf does not rewrite line endings between commit and checkout.
 tests/golden/** binary
+
+# The frozen input of the published validation study (F-98). Same reason
+# as above, and load-bearing for a different one: these bytes are pinned
+# by docs/data/study_input/SHA256SUMS, so a checkout that rewrote their
+# line endings would fail the integrity check and look like tampering.
+# Three of the four are pure-LF and one is pure-CRLF.
+docs/data/study_input/*.csv binary

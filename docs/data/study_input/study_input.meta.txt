@@ -1,0 +1,43 @@
+# The input of the human-vs-LLM validation study published in
+# docs/llm-evaluation.md. This is a frozen, citable dataset, NOT a test
+# fixture: it must never be re-captured, re-generated or "synced" with
+# tests/golden/.
+#
+# The four files below were copied byte-for-byte out of tests/golden/ at
+# the commit named in frozen_from_commit. They were identical at that
+# moment and are expected to diverge: the copies in tests/golden/ are
+# regression fixtures and are re-captured whenever the behaviour they
+# guard legitimately changes, which is exactly what a cited dataset must
+# not do (F-98).
+#
+# Integrity is held by SHA256SUMS beside this file and asserted on every
+# suite run by tests/test_study_input_freeze.py, which also re-runs the
+# reproduction command published in docs/llm-evaluation.md
+# §Reproducibility against these bytes and compares the output with the
+# committed docs/data/eval_* artefacts byte-for-byte.
+
+role=study_input
+study=docs/llm-evaluation.md
+frozen_from=tests/golden/
+frozen_from_commit=4fbe8fd9b3893e31570775c0cf5bca864aa3ff85
+captured_at=2026-05-02
+corpus_records=776
+
+# Engine that produced the LLM decisions carried in the *_evidence_json
+# columns of el_filtered and il_filtered. Recorded here because no
+# artefact of the run itself records it (F-88): these three values are
+# read from the `_invocation` envelope of tests/golden/{el,il}_cache_v3.1.0.json,
+# which is a property of the capture harness rather than of the product.
+model=gpt-4o-mini
+trunc_chars=4000
+batch_size=5
+
+# NOT recorded by the capture harness, and therefore NOT asserted here.
+# The endpoint was inferred in wave 9 rather than read (F-128); the
+# temperature is the code default at the capture commit rather than an
+# observation. Both are stated as inference in docs/llm-evaluation.md
+# §Model under evaluation and must not be promoted to fact without a
+# re-capture.
+endpoint=unrecorded (inferred: the OpenAI default base URL)
+temperature=unrecorded (inferred: the 0.0 code default)
+prompt_version=unrecorded (no such field existed at capture)

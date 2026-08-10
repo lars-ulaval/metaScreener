@@ -35,6 +35,12 @@ quickstart pointers, see the [project README](../README.md).
 The [`data/`](data/) subdirectory holds reproducibility evidence for
 the human-vs-LLM agreement study:
 
+- [`data/study_input/`](data/study_input/) — the study's frozen input:
+  the screening output being adjudicated, the criteria table, and the
+  post-IH record set. Pinned by
+  [`SHA256SUMS`](data/study_input/SHA256SUMS) and never re-captured, so
+  the regression fixtures under `tests/golden/` can move without
+  rewriting the input of a published analysis.
 - [`data/grids/partition_manifest.csv`](data/grids/partition_manifest.csv)
   — per-rater record assignments (overlap vs disjoint), with seed and
   metadata in

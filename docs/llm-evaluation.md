@@ -76,6 +76,27 @@ recorded in
 and the run metadata in
 [`partition_manifest.meta.txt`](data/grids/partition_manifest.meta.txt).
 
+**Study input.** The screening output this study adjudicates is frozen
+under [`docs/data/study_input/`](data/study_input/): the two filtered
+CSVs that carry the LLM's per-record decisions and evidence quotes, the
+harmonised criteria table, and the post-IH record set. Every command in
+§Reproducibility reads from there.
+
+These four files began as copies of the byte-identity regression
+fixtures under `tests/golden/`, and are deliberately no longer the same
+artefact. A regression fixture is *meant* to be re-captured when the
+behaviour it guards legitimately changes; a cited dataset must never
+change. While one pair of files served both roles, every change to the
+screening engine silently rewrote the input of this analysis — and this
+document would have gone on claiming byte-for-byte reproduction while
+producing different numbers. The frozen copies are pinned by
+[`SHA256SUMS`](data/study_input/SHA256SUMS), described in
+[`study_input.meta.txt`](data/study_input/study_input.meta.txt), and
+checked on every test run, which also re-runs the §Reproducibility
+command against them and compares its output with the committed
+`docs/data/eval_*` files byte-for-byte. The fixtures under
+`tests/golden/` are now free to move without touching this study.
+
 ## Rater interface
 
 To eliminate operator-translation friction, the dropdown options
@@ -334,7 +355,8 @@ The two heuristic stages give bit-identical results across every run we
 have: 776 records → EH excludes 125 → 651 → IH excludes 566 of those →
 **85**. The set of 85 is not merely the same size but the same records:
 the intersection of the EH and IH survivor sets is identical, record for
-record, to `tests/golden/el_input_v3.1.0.csv`. Those 691 exclusions are
+record, to
+[`el_input_v3.1.0.csv`](data/study_input/el_input_v3.1.0.csv). Those 691 exclusions are
 98.3% of the 703 total the README reports — the deterministic share the
 manuscript claims is exactly the share the goldens contain.
 
@@ -403,9 +425,9 @@ in the repository:
 
    ```text
    python tools/eval_grid_generator.py \
-       --el-filtered tests/golden/el_filtered_v3.1.0.csv \
-       --il-filtered tests/golden/il_filtered_v3.1.0.csv \
-       --criteria    tests/golden/criteria_harmonized_v3.1.0.csv \
+       --el-filtered docs/data/study_input/el_filtered_v3.1.0.csv \
+       --il-filtered docs/data/study_input/il_filtered_v3.1.0.csv \
+       --criteria    docs/data/study_input/criteria_harmonized_v3.1.0.csv \
        --raters      AReyes JKiss JVoisin \
        --output-dir  docs/data/grids \
        --overlap     15 --seed 42
@@ -421,10 +443,10 @@ in the repository:
    ```text
    python tools/eval_ingest.py \
        --manifest         docs/data/grids/partition_manifest.csv \
-       --criteria         tests/golden/criteria_harmonized_v3.1.0.csv \
+       --criteria         docs/data/study_input/criteria_harmonized_v3.1.0.csv \
        --filled-grids-dir docs/data/grids/filled \
-       --el-filtered      tests/golden/el_filtered_v3.1.0.csv \
-       --il-filtered      tests/golden/il_filtered_v3.1.0.csv \
+       --el-filtered      docs/data/study_input/el_filtered_v3.1.0.csv \
+       --il-filtered      docs/data/study_input/il_filtered_v3.1.0.csv \
        --output-dir       docs/data
    ```
 
