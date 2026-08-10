@@ -314,7 +314,7 @@ def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
     # that could otherwise be satisfied and make the path look complete.
     if not (provider or "").strip():
         return Readiness(
-            code=NOT_CONFIGURED, can_run=False, label="No provider chosen",
+            code=NOT_CONFIGURED, can_run=False, label="No provider",
             detail=(
                 f"{stage} has no model provider yet.\n\n"
                 f"Choose one — a local model, or a hosted provider — and "
@@ -356,7 +356,7 @@ def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
     # claims and only the second licenses a run.
     if probe is None:
         return Readiness(
-            code=NOT_CHECKED, can_run=False, label="Checking provider…",
+            code=NOT_CHECKED, can_run=False, label="Checking…",
             detail=(
                 f"metaScreener has not yet confirmed that the {stage} "
                 f"provider is reachable. This resolves on its own; if it "
@@ -381,7 +381,7 @@ def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
         # afternoon those decisions exist to prevent.
         return Readiness(
             code=ENDPOINT_UNREACHABLE, can_run=False,
-            label="Provider unreachable",
+            label="Unreachable",
             detail=getattr(probe, "detail", "") or
             "The configured endpoint did not answer.",
             model=normalised,

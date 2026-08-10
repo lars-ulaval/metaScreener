@@ -129,6 +129,38 @@ class TestReadiness:
             r = llm_readiness(stage="EL", probe=_LIVE, **kw)
             assert r.detail and r.detail.rstrip()[-1] in ".!", r.code
 
+    def test_the_label_fits_the_widget_in_every_state(self):
+        """Every code, not just the three the original loop reached.
+
+        Wave 11 session B added four states and the loop below did not
+        cover them, so three labels of 18, 18 and 20 characters shipped
+        past a test whose whole subject is that this label must not
+        exceed 16. A rendering constraint checked over a subset of the
+        states is a rendering constraint that holds by luck.
+        """
+        seen = set()
+        for kw in (
+            {"has_bundle": False, "provider": "openai", "api_key": "k", "model": "m"},
+            {"has_bundle": True, "provider": "", "api_key": "", "model": "m"},
+            {"has_bundle": True, "provider": "openai", "api_key": "", "model": "m"},
+            {"has_bundle": True, "provider": "openai", "api_key": "k", "model": " "},
+            {"has_bundle": True, "provider": "openai", "api_key": "k", "model": "m",
+             "probe": None},
+            {"has_bundle": True, "provider": "local", "api_key": "", "model": "m",
+             "probe": types.SimpleNamespace(state="not_running", detail="d")},
+            {"has_bundle": True, "provider": "local", "api_key": "", "model": "m",
+             "probe": types.SimpleNamespace(state="no_models", detail="d")},
+            {"has_bundle": True, "provider": "openai", "api_key": "k", "model": "m",
+             "probe": _LIVE},
+        ):
+            kw.setdefault("probe", _LIVE)
+            r = llm_readiness(stage="EL", **kw)
+            seen.add(r.code)
+            assert len(r.label) <= 16, f"{r.label!r} is {len(r.label)} chars"
+        assert seen == set(READINESS_CODES), (
+            f"states never exercised: {set(READINESS_CODES) - seen}"
+        )
+
     def test_the_label_fits_the_widget(self):
         """The indicator is a ``ttk.Label`` in a grid cell that has held
         ``"OPENAI_API_KEY ✓"`` — 16 characters. Nothing may be longer, or
