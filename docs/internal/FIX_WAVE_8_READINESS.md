@@ -1,9 +1,10 @@
-# metaScreener — Wave 8, part 1: readiness and honesty, engine and artefact
+# metaScreener — Wave 8: readiness and honesty
 
 The wave that lets the application distinguish a run that worked from a run that did not.
-**This document covers part 1 only.** The wave was split after the step-0 reading, with the
-coordinator's agreement; the seam and the reasoning are in *§ The split* below. Part 1 is
-the engine and the exported artefact. Part 2 is the interface.
+**Both parts.** The wave was split after the step-0 reading, with the coordinator's
+agreement; the seam and the reasoning are in *§ The split* below. **Part 1** — the engine and
+the exported artefact — is §§ Part 0–2 and closed at `153a7ce`. **Part 2** — the interface —
+is § Part 2 of the wave onward and closed at `e188a07`.
 
 Branch `fix/wave-8-readiness` off `main` @ `ed61b6a` (tagged `post-wave-7`). Standing rules
 as before: one logical change per commit, suite green after every commit, no golden may move
@@ -506,8 +507,17 @@ Criticals.
 
 Not merged, not tagged, not pushed.
 
-### What part 2 inherits
+### What part 2 inherited
 
+*Kept as written at part 1's close, so the handover can be checked against what was
+actually done. All five items were delivered. Two of them were wrong in ways part 2 had to
+correct, and those corrections are in § Part 2 below — the note about
+`plugins/06_el/standalone.py` was right, and the note about F-119's reachable trigger was
+not.*
+
+*Kept as written at part 1's close, so the handover can be checked against what was
+actually done. All five items were delivered; two of them turned out to be wrong in ways
+recorded below.*
 The substrate is in place and has one consumer already (the manifest). Part 2 needs:
 
 - **F-93's GUI half** — refuse an empty model before starting (`(self.var_model.get() or
@@ -524,3 +534,412 @@ The substrate is in place and has one consumer already (the manifest). Part 2 ne
   `except` block).
 - **F-118** — the `btn_run` gate and the numeric validation; not the harmoniser checkbox.
 - **F-119** — neutralise the provider-locked strings and log `model={model!r}`.
+
+---
+---
+
+# Part 2 — the interface
+
+Branch continues on `fix/wave-8-readiness` from `153a7ce`. Gate: HEAD `153a7ce`, clean, 6
+ahead of `main` and 0 behind, `main` 0/0 with origin, branch never pushed (so there is no
+upstream to compare it against, which is correct). Goldens identical to part 1's manifest.
+Suite **604 passed, 4 skipped**.
+
+---
+
+## Part 0 — F-142, and why it is not F-88
+
+The brief asked first whether F-88's provenance scope already covers a cache entry poisoned
+before `3f37f17`. **It does not, and the distinction is the row's whole point.** F-88 asks
+*which model* produced a decision and writes into `manifest.pipeline.history[]`. This asks
+*which code version* produced a **cache entry**. Even with both of F-88's tiers implemented,
+a pre-fix and a post-fix entry carrying the same model, temperature and prompt version are
+indistinguishable, because neither tier records the engine. F-88 is cross-referenced, not
+amended.
+
+Everything was verified rather than assumed:
+
+| Claim | Check | Result |
+|---|---|---|
+| the key is unchanged across the fix | `git show 3f37f17 -- plugins/_common/llm_client.py` | **zero** occurrences of `_cache_key` |
+| the cache records no code version | `::_dump_cache_to_jsonl` | writes `{"key", "val"}` per line, nothing else |
+| the value records no provenance | 170 values in `tests/golden/el_cache_v3.1.0.json` | exactly seven keys: `decision`, `confidence`, `field`, `quote`, `span`, `valid_quote`, `used` |
+| the `_invocation` envelope might carry it | the golden JSON | `{batch_size, model, trunc_chars}` — and it exists **only in the golden *capture* format, not in the shipped `.jsonl`**, and records no code version either. F-96's "a field inside a test fixture", a second time |
+
+Swept against F-33, F-86, F-87, F-88, F-89, F-96, F-99, F-101, F-102, F-103, F-128, F-133 and
+F-135. New. **Filed High with the case for Critical stated in the row rather than suppressed**
+— the consequence is a fabricated exclusion in a systematic review, which is what made F-86
+Critical, and the path is live at HEAD. Held at High because the code is correct, the affected
+population is fixed and shrinking rather than growing, and a zero-cost remedy exists once
+known: it is *undiscoverable*, not unavailable.
+
+One sequencing note that changes wave 9's order, and it is the most useful thing in the row:
+**F-89's fix is an incidental remedy.** Hashing the endpoint changes every key, stranding every
+pre-fix entry including the poisoned ones. If F-89 lands first, F-142 reduces to the audit
+question alone; the other order wastes the work.
+
+---
+
+## The method — extract, then fix
+
+Part 1 established that `ELView` is not instantiable under `tests/conftest.py` and that no
+test in the suite asserts on a status label. So part 2 ran in two movements, in separate
+commits, and the discipline paid for itself.
+
+### Movement one — `ed05fb3`, behaviour-preserving
+
+`plugins/_common/stage_state.py` took the Views' decisions as transcribed expressions, and
+`tests/test_stage_state.py` locked in **today's behaviour, defects included**. Five assertions
+encoded defects deliberately, each carrying a `CHARACTERISATION` marker naming the finding it
+was waiting for:
+
+| Assertion, as written in `ed05fb3` | Finding | Flipped in |
+|---|---|---|
+| a wholly failed run `== f"{stage} done."` | F-93/F-111 | `91ed3f8` |
+| failed and all-uncertain `broken == unsure` | F-111 | `91ed3f8` |
+| a wholly failed run's confirm `is None` | F-93 | `a0e95b0` |
+| `st.run is True` with no key | F-118 | `866c988` |
+| the two `btn_run` predicates disagree | F-118 | `866c988` |
+
+**Exactly those five changed, and no others.** The remaining assertions are identical in
+`ed05fb3` and at close, so the diff of each fix commit shows precisely which user-visible
+behaviour moved. Each flipped test now carries a docstring naming the commit that set it and
+quoting what it used to assert, so the history survives in the file rather than only in git.
+
+The scaffold deserves a note. `run_button_enabled_after_load` was written **solely so the
+F-118 contradiction could be stated as a passing test** — two functions deciding one button
+from disjoint inputs. `866c988` deletes it, and the replacement assertion is
+`not hasattr(ss, "run_button_enabled_after_load")`. Asserting the *absence* of the second
+predicate is a stronger guarantee than asserting the first one's behaviour.
+
+### What the extraction covers, and what F-14 still inherits
+
+Recorded because **F-14's migration is gated on headless View testing**, and this is the
+second instalment — wave 4a's mocked-Tk row-preparation tests were the first.
+
+**Covered.** The two Views' *decisions*, now one implementation each rather than two: status
+text, button enablement, export gating, readiness, numeric validation. These were twinned
+between `06_el/ui.py` and `07_il/ui.py`; they are not any more, and they are tested.
+
+**Not covered, and an F-14 wave inherits all of it.** The rendering path — `DataTable` is
+still three copies (`_common/widgets.py` plus one in each View), which is F-49. Widget
+construction and layout. Event wiring. The row-detail modal. The two standalone shells, which
+diverge materially and were deliberately left alone (see *Scope decisions*). And the thing
+that would make the rest testable: **no View is instantiable under `tests/conftest.py`, and
+nothing here changes that.** What this wave demonstrates is that the decisions can be lifted
+out without touching the widgets — not that the widgets can be tested.
+
+---
+
+## The state model — F-111, `91ed3f8`
+
+### The design, and the argument for it
+
+Two arms, because the inputs arrive at two different times and answer two different questions.
+Before a run the facts are configuration — bundle, key, model — and the question is *may I
+start, and what do I fix first*. After a run the facts are the outcome counts and part 1's run
+report, and the question is *did that work, and may I export it*. A single flat enumeration
+over eleven states would have to mix the two, and **§B1.4's own table does mix them**: state
+10 ("model blank") is a pre-run check, states 2–7 are probe results, and the post-run states
+are absent from it entirely, because that section was written about model *discovery* rather
+than about run outcomes. Splitting the arms is what lets wave 10 add its endpoint states to
+the first without touching the second, and what lets the second consume a report the first
+knows nothing about.
+
+### What was buildable, and what was not
+
+§B1.4's eleven states are numbered **0–10**, and **six of them (0, 4, 5, 6, 7, 9) are
+discovery states** requiring an endpoint and a `/v1/models` call — out of scope until waves 9
+and 10. What is decidable today is the pre-run arm over (bundle, key, model), plus a post-run
+arm the document does not enumerate at all.
+
+| Arm | States | Decidable today? |
+|---|---|---|
+| pre-run | `ready`, `no_bundle`, `no_key`, `no_model` (§B1.4 state 10) | yes |
+| pre-run | endpoint unreachable, model not pulled, keyless server (§B1.4 1–7, 9) | **no — wave 10** |
+| post-run | `cancelled`, `not_screened` | already existed |
+| post-run | `no_answers`, `nothing_separated`, `partial_failure` | **yes, and new** |
+
+### Extensibility, which was a constraint rather than a hope
+
+Both functions are **keyword-only**, so a new input disturbs no existing call site. The code
+sets are published constants. `tests/test_llm_readiness.py::TestTheModelIsExtensible` asserts
+all of it, plus the two properties wave 9 needs: an unknown key in the report is ignored, and
+a missing one defaults. Wave 10's three states are new members and new branches reached by new
+arguments; none of them changes a state that already exists.
+
+### It reads the report; it does not re-derive it
+
+The counting substrate exists from part 1, and a second derivation would be F-69's shape —
+two representations of one fact — which this project has shipped four times. The test that
+proves the direction of authority does it by **disagreeing the two inputs**: `counts` saying
+"a normal screening pass" and a report saying "nothing answered" classify as `no_answers`.
+
+### One gate, two diagnoses — and a disagreement settled
+
+Part 1's brief recorded a disagreement to resolve here. The register's F-93 fix cell says to
+extend the acknowledgement gate to cover "an all-uncertain run"; the wave's thesis is that a
+model answering `uncertain` and a model not answering are *different*. Both are right, and the
+resolution is to separate the gate from the diagnosis:
+
+- **The gate is one condition** — this stage separated nothing (`OUT == 0 and PASS_CLEAN == 0`).
+- **The diagnosis is two**, drawn from the report: `no_answers` ("the model was never heard
+  from — this is what an unreachable server, a misspelled model name, a model that was never
+  pulled and a rejected key all look like") and `nothing_separated` ("the model *was* heard
+  from and nothing cleared the evidence gate — this may well be genuine").
+
+`partial_failure` is reported and **not** gated. A run with a documented hole is a real result,
+and gating it would train the user to click through the dialog that matters.
+
+### The rendering constraint, pinned rather than eyeballed
+
+The indicator is a `ttk.Label` in a grid cell that held `"OPENAI_API_KEY ✓"` — 16 characters.
+Every new label is ≤16 and a test asserts it, because that is a genuine rendering question
+rather than a matter of taste. A trace on the model `StringVar` keeps the label current while
+the user types; without it the indicator would go stale the moment someone typed a model name,
+which would be a new dishonesty in the widget this finding exists to make honest.
+
+**One deliberate string change to flag:** in the ready state the label now reads `Ready to
+run` rather than `OPENAI_API_KEY ✓`. After this wave the widget's job is readiness, and
+labelling the ready state after an environment variable is what made it a constant in the
+first place. The `✗` string is kept verbatim for the case it actually described.
+
+---
+
+## F-93's remaining half — `a0e95b0`
+
+**Refuse rather than substitute.** `_run_clicked` asks the same readiness the indicator and
+the Run button ask, and refuses an empty or whitespace-only model. This is a deliberate
+reading of "refuse an empty model before starting": a blanked field is a mistake, and quietly
+screening a whole corpus against `DEFAULT_MODEL` costs real money and produces results
+attributable to the wrong model. The fallback survives where it belongs — as the `StringVar`'s
+initial value.
+
+**Extend, don't reinvent.** `_export_confirm_reason` gains one keyword, `outcome_reason`. It is
+a parameter rather than an import because the dependency runs the other way — `stage_state`
+imports `bundle`. EH and IH are not LLM stages, pass nothing, and keep exactly the behaviour
+they had across their twelve call sites. F-34's question is checked **first** and wins when
+both apply: a stage with no criteria never called anything, so its report is empty and would
+otherwise read as "no answers", and "you have no criteria for this stage" is the diagnosis
+that tells the user what to do.
+
+**A third export door, found while wiring the other two.** IL's `_export_final_clicked` had
+**no acknowledgement gate at all** — a pre-existing asymmetry with its two siblings, and in
+the worst possible place, since `ScreenA_Report.xlsx` is the terminal deliverable a reviewer
+actually reads. Gating two doors and leaving the third open is not a gate, so it is gated
+here.
+
+### The partial-closure convention, in practice
+
+F-93 was the register's first partially-closed row, and it is now closed, so the convention
+can be reported rather than proposed. It cost nothing and caught something:
+
+- the Effort marker stays **empty** until every half is done, so the totals count the row as
+  open;
+- the fix cell **opens** with which half was fixed and which was not, and names the commit for
+  each;
+- the closing annotation names **both** commits.
+
+It caught something because F-118 needed the same treatment three commits later, and the shape
+was already there. F-118 now carries a partial closure and will until wave 10.
+
+---
+
+## F-118 — `866c988`, two halves of three
+
+**The gate.** `control_states` takes a `Readiness` rather than a bundle flag, which makes a
+second predicate *impossible to reintroduce* — there is nowhere left to put a different one —
+and `_load_bundle_inputs` stops deciding for itself. That incidentally fixes something no
+finding records: IL's `btn_export_final` was absent from the load path's reset block, so it
+stayed enabled after loading a new bundle while its three siblings were forced back to
+disabled.
+
+**The numerics, and a correction to the row.** The register says a negative `trunc_chars`
+"truncates the **tail** of every field". Measured on the real builder, it is worse:
+
+```
+trunc=     1500  title_len= 31  abstract_len= 317  keywords_len= 13  TAIL present
+trunc=        0  title_len= 31  abstract_len= 317  keywords_len= 13  TAIL present
+trunc=     -100  title_len=  0  abstract_len= 217  keywords_len=  0  TAIL gone
+trunc= -1000000  title_len=  0  abstract_len=   0  keywords_len=  0
+```
+
+`-100` removes the last 100 characters of the abstract **and empties the title and keywords
+outright**, because any field shorter than 100 characters slices to `""`. Titles and keywords
+are routinely under 100 characters, so a modest negative value blanks two of the three fields
+for essentially every record. Three consequences follow, none of them in the row: `valid_quote`
+collapses for want of any text to validate against; the oversize truncation step-down is
+silently disabled, because its guard is `cur_trunc > 600`; and **wave 8's own run report
+scores the records as `answered`**, because the model did answer — about nothing. That last one
+is a real limit of part 1's substrate and is stated here rather than glossed.
+
+**`batch_size` is not part of the defect.** `plugins/_common/llm_client.py::chunked` does
+`max(1, int(n))` and its caller does it again, so 0 or negative degrades to one-item batches —
+slow, never wrong. It is reported only because what was typed and what ran differed.
+
+**Correct and report, rather than refuse.** A typo in a numeric box should not discard a
+configured run, and the old code already substituted a default for non-numeric input. What
+changes is that the substitution stops being silent. `0` is left alone: the builder's guard is
+`if trunc_chars and …`, so falsy means "do not truncate" — a documented value, not an error.
+
+**Deliberately not done:** clamping inside the prompt builder. The register says "validate the
+numerics at entry", and a clamp in the builder would mask a caller's bug rather than surface
+it. A direct caller passing a negative value remains unguarded, and that is the honest
+residual.
+
+**The checkbox.** Out of scope by decision, and F-118 stays partial. The decision — *wired, not
+deleted, in wave 10* — is recorded in the row so it is not re-litigated. One fact for whoever
+implements it, found while confirming the checkbox is dead: the LLM/no-LLM choice is **already
+expressed by two separate buttons**, `"Harmonise (no-LLM)"` and `"Harmonise + LLM"`, and
+`plugins/03_harmoniser/ui.py::_harmonise_llm` never consults `var_llm`. Wiring the checkbox
+therefore means deciding what it should mean when it disagrees with the button the user
+pressed. That is a design question rather than a coding one, and it is better asked before
+wave 10 than during it.
+
+---
+
+## F-119 — `744d4e6`
+
+The log line becomes `model={model!r}`. The two dialogs stop asserting a provider: what is
+actually true, and useful, is that the client requires `OPENAI_API_KEY` to be set *even when
+the endpoint ignores its value*, so a placeholder will do.
+
+**Writing the test corrected this row's own mechanism, and the correction matters.** The
+engine's guard is `if not model:`, and a whitespace-only string is **truthy** — so a whitespace
+model never reaches that line at all. What reached it was `""`, because the UI had already
+stripped the whitespace away. The row's "reachable trigger being a whitespace-only field"
+therefore holds only by way of a strip that happens somewhere else, and the old line was wrong
+twice over: it named `None` where the value was `""`. A second test pins the consequence — a
+whitespace-only model passed *directly* to the engine goes to the wire, because the engine
+cannot tell it from a real one — which is exactly why refusing it belongs in the UI.
+
+**Scope note, and a gap left standing:** `metascreener/api_key_dialog.py`'s window title
+(`"OpenAI API Key"`) and its heading (`"Enter your OpenAI API key:"`) are provider-locked
+strings on the **first screen a user sees**. They are not covered by F-119, whose evidence cell
+names the EL/IL panes and the skip line, and they are left alone. They were recorded in part
+1's report and belong to whichever wave deletes that modal.
+
+---
+
+## F-112 and F-137 — `e188a07`
+
+Three sites, one shape, one line each, with the `lambda m=str(e):` binding — which is
+**required rather than stylistic**: PEP 3110 compiles `except Exception as e:` with an implicit
+`finally: del e`, and the callback runs later on the main loop, so a bare closure would raise
+`NameError` inside an `after` callback. In the windowed frozen build that is a silent traceback
+with the real message lost.
+
+**The test is static, and the reasoning is worth keeping.** Observing this at run time means
+importing `plugins/01_reference_extractor/original/prisma_citations_ai_v3_1.py`, which has
+unguarded top-level `import fitz` and `from PIL import Image, ImageTk` — so a behavioural test
+would pass here and fail on any machine without PyMuPDF and Pillow. And `tests/conftest.py`
+replaces `tkinter` with a `MagicMock`, which is thread-agnostic: real Tk raises `RuntimeError:
+main thread is not in main loop`, the mock silently records the call. **A behavioural test
+would need to import an unimportable module in order to assert on a mock that cannot fail.**
+
+Reading the AST costs neither. `tests/test_worker_thread_tk_safety.py` walks every
+`threading.Thread(target=…)` closure in `plugins/` and fails on any `messagebox` call not
+lexically inside an `after(…)` argument — pinning the *property* rather than three instances of
+it. It found exactly the three sites, stays green on the seven workers that were already
+correct, and carries a vacuity guard so it cannot quietly stop matching the tree.
+
+**Recorded, not fixed:** the same closures read `tk.Variable`s off-thread inside their
+`run_pipeline(...)` argument lists — the same defect class at a different site, covered by no
+row. And plugin 02's `_ui_tick` closes over its loop variable (F-138) in the same two
+functions; fixing the `messagebox` line must not be confused with fixing that.
+
+---
+
+## Scope decisions
+
+**The standalone shells were left alone, deliberately.** They are not twins of the tab Views
+for any of this wave's purposes: they carry no status label at all, different buttons
+(`btn_export_csv` / `btn_export_xlsx`), `IntVar` + `Spinbox` numerics rather than free-text
+entries, and — for F-93 — they already had the *correct* model expression. Neither class is
+instantiated anywhere in the repository. Applying the state model to them would mean designing
+a second interface for dead code; papering over their divergence silently would be worse.
+F-115 records that divergence, and this wave neither deepens nor hides it.
+
+**Everything in the brief's OUT list stayed out:** no endpoint, `base_url`, provider or
+discovery work; no manifest provenance field; no cache-key change; no timeout change; the
+harmoniser checkbox untouched.
+
+---
+
+## Close-out — part 2
+
+### Goldens — verified both ways
+
+All nine SHA-256 hashes identical to the step-0 manifest recorded at the top of this document,
+and `git diff main...HEAD -- tests/golden/` empty. Nothing in part 2 touches an engine path a
+golden reaches: every change is in the two Views, in the new pure module, in
+`_export_confirm_reason`'s new optional parameter, in one engine log line, and in two plugins
+the goldens do not exercise at all.
+
+### Suite
+
+| | |
+|---|---|
+| Part 2 start (`153a7ce`) | **604 passed, 4 skipped** |
+| Part 2 close (`e188a07`) | **695 passed, 4 skipped** |
+| Part 2 delta | **+91 passed, 0 skipped** |
+| Whole wave (`ed61b6a` → `e188a07`) | **476 → 695, +219** |
+
+The +91 is three new test files plus additions to two existing ones:
+`tests/test_stage_state.py` 36, `tests/test_llm_readiness.py` 40,
+`tests/test_worker_thread_tk_safety.py` 2, and 4 added to
+`tests/test_decision_whitelist.py` — 82 — plus 9 from `test_stage_state.py`'s own growth
+across the fix commits. No existing test was deleted. The only existing assertions that
+changed are the five characterisation assertions, each by design and each documented in the
+test that replaced it.
+
+### Audit tools
+
+| Command | Exit |
+|---|---|
+| `python tools/audit_imports.py plugins` | **0** |
+| `python tools/audit_decorators.py plugins` | **0** |
+| `python tools/check_encoding.py` | **0** |
+
+### Register
+
+Regenerated from the rows. **139 rows, 56 closed, 83 open**, still no open Criticals.
+
+| Severity | Total | Closed | **Open** | unscheduled | scheduled | backlog | parked |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **Critical** | 4 | 4 | **0** | 0 | 0 | 0 | 0 |
+| **High** | 39 | 21 | **18** | 17 | 1 | 0 | 0 |
+| **Medium** | 62 | 18 | **44** | 40 | 2 | 2 | 0 |
+| **Low** | 34 | 13 | **21** | 16 | 0 | 3 | 2 |
+| **Total** | **139** | **56** | **83** | 73 | 3 | 5 | 2 |
+
+Part 2 closed **F-93, F-111, F-112, F-119 and F-137**; opened **F-142** (scheduled, wave 9);
+left **F-118** partial; and amended **F-88** — its history entry is now eight keys rather than
+seven, because part 1 added `llm`, a *counting* field that changes nothing about that row —
+and **F-14**, where the extraction is recorded as a down payment.
+
+### Commits — part 2
+
+| SHA | Subject |
+|---|---|
+| `18edaab` | `docs: open F-142 — a pre-3f37f17 poisoned cache entry is still undetectable` |
+| `ed05fb3` | `refactor: extract the LLM stages' UI decisions into pure functions` |
+| `91ed3f8` | `fix(F-111): a state model, so the interface can say which situation it is in` |
+| `744d4e6` | `fix(F-119): say what the code observed, and stop naming one provider` |
+| `a0e95b0` | `fix(F-93): refuse a model that is not set, and gate an export that did not work` |
+| `866c988` | `fix(F-118): restore the readiness gate, and validate the numeric settings` |
+| `e188a07` | `fix(F-112, F-137): marshal the worker threads' error dialogs through after()` |
+
+Not merged, not tagged, not pushed.
+
+### What wave 9 inherits
+
+- **F-142 before or after F-89** — F-89's fix strands every pre-fix cache key incidentally, so
+  landing it first collapses F-142 to the audit question. The other order wastes the work.
+- **F-135 with F-88 tier 1** — both write into the same records; separately they touch every
+  evidence writer twice and move the same goldens twice.
+- **The state model is ready for an endpoint.** Wave 10 adds three pre-run states as new
+  keyword arguments and new branches; `TestTheModelIsExtensible` is the contract that says so.
+- **The harmoniser checkbox needs a design answer before it needs code** — see F-118 above.
+- **F-139 is the highest-severity open row this wave touched but did not fix**, and every
+  later wave makes `.env` carry more while nothing guards it.
