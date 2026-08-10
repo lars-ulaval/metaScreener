@@ -92,13 +92,13 @@ def _build_messages(criterion, items, trunc_chars):
 
 @pytest.fixture
 def llm(monkeypatch):
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     return lc
 
 
 def _run(monkeypatch, decision, n_items=3, log=None):
     client = _DecisionClient(decision)
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
     criterion = {"id": CID, "type": "exclude", "operator": "llm",
                  "target": "title", "what": ["x"], "how": "llm",
                  "label": "x", "threshold": 0.6}
@@ -247,7 +247,7 @@ class TestRejectionsAreVisible:
                 ])
 
         client.chat = type("Chat", (), {"completions": _BadField()})()
-        monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+        monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
         out = lc.run_m1_llm_for_criterion(
             {"id": CID, "type": "exclude", "operator": "llm",
              "target": "title", "what": ["x"], "how": "llm", "label": "x",
@@ -322,7 +322,7 @@ class TestTheSkipLineNamesTheActualModel:
         about it: that is F-93's remaining half. Pinned here so the division
         of labour is recorded rather than assumed."""
         client = _DecisionClient("meet")
-        monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+        monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
         lines = []
         lc.run_m1_llm_for_criterion(
             {"id": CID, "type": "exclude", "operator": "llm",

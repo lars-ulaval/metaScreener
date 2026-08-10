@@ -87,6 +87,7 @@ import os
 import stat
 import sys
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
@@ -269,6 +270,28 @@ def update_settings(**changes: Any) -> Dict[str, Any]:
     return current
 
 
+#: Keys a stage may override. **``provider`` is deliberately absent, and
+#: that is a safety property rather than an omission.**
+#:
+#: There is one provider conversation, at the application level, and
+#: ``llm_readiness`` blocks an unchosen provider *ahead of* the key and
+#: model checks precisely because those can each be satisfied while the
+#: path as a whole is unconfigured. A stage-level provider would let a
+#: stage acquire an effective provider while the application is still
+#: ``UNCHOSEN`` — a path reaching a run without passing that check, which
+#: is the exact shape session B closed.
+#:
+#: Nothing is lost by refusing it. A stage that must talk to a different
+#: OpenAI-compatible server says so with an **endpoint** override; that is
+#: what the ``custom`` provider means and why one URL field covers LM
+#: Studio, llama.cpp and vLLM at once.
+STAGE_OVERRIDABLE = ("model", "endpoint", "batch_size")
+
+
+class StageOverrideRefused(ValueError):
+    """A key that must not vary per stage was offered as an override."""
+
+
 def set_stage_override(stage: str, *, model: Optional[str] = None,
                        **extra: Any) -> Dict[str, Any]:
     """Set or clear one stage's override of an app-level value.
@@ -278,7 +301,18 @@ def set_stage_override(stage: str, *, model: Optional[str] = None,
     whitespace-only field is truthy, survives an ``or`` fallback and
     reaches the engine as ``""``, which the engine takes as "no model"
     and skips silently.
+
+    Only :data:`STAGE_OVERRIDABLE` may be overridden; anything else
+    raises. See that constant for why ``provider`` is not among them.
     """
+    offered = set(extra) | ({"model"} if model is not None else set())
+    refused = sorted(offered - set(STAGE_OVERRIDABLE))
+    if refused:
+        raise StageOverrideRefused(
+            f"{', '.join(refused)} cannot vary per stage; only "
+            f"{', '.join(STAGE_OVERRIDABLE)} can. A stage that must reach a "
+            f"different server says so with an endpoint override."
+        )
     current = load_settings()
     stages = dict(current.get("stages") or {})
     entry = dict(stages.get(stage) or {})
@@ -328,7 +362,8 @@ def effective_model(settings: Mapping[str, Any], stage: str) -> str:
 PLACEHOLDER_KEY = "local"
 
 
-def placeholder_key_for(provider: str, api_key: Optional[str]) -> str:
+def placeholder_key_for(provider: str, api_key: Optional[str], *,
+                        endpoint: Optional[str] = None) -> str:
     """The key to hand the client, which is not always the user's key.
 
     The SDK refuses to construct with an empty ``api_key`` even against a
@@ -342,12 +377,141 @@ def placeholder_key_for(provider: str, api_key: Optional[str]) -> str:
     authenticate still works. And ``openai`` is never given a placeholder:
     substituting one would turn "you forgot your key" into a 401 from the
     vendor — a worse error, further from its cause.
+
+    **Session C decides this on the resolved pair.** A stage whose
+    endpoint override points at the paid vendor must not be handed the
+    literal string ``"local"`` as its credential because its *provider*
+    field says local — that is the wave's billing defect wearing the
+    credential's clothes. ``endpoint=None`` means unknown and reduces to
+    the provider-only question.
     """
     real = (api_key or "").strip()
     if real:
         return real
+    from plugins._common.stage_state import key_required_for
+    return "" if key_required_for(provider, endpoint) else PLACEHOLDER_KEY
+
+
+# ---------------------------------------------------------------------------
+# The effective configuration of one stage
+# ---------------------------------------------------------------------------
+
+#: Where the resolved endpoint came from. Reported rather than inferred,
+#: because F-119's lesson is that a user needs to see *which* source won:
+#: "endpoint=https://api.openai.com/v1" alone does not distinguish "I
+#: chose the public API" from "my configuration was not read".
+ENDPOINT_FROM_STAGE = "stage override"
+ENDPOINT_FROM_APP = "application setting"
+ENDPOINT_FROM_KEYLESS_DEFAULT = "keyless default"
+ENDPOINT_FROM_ENVIRONMENT = "OPENAI_BASE_URL"
+ENDPOINT_FROM_VENDOR_DEFAULT = "vendor default"
+
+
+@dataclass(frozen=True)
+class StageConfig:
+    """What one stage will actually talk to, as plain data.
+
+    Every field is resolved: per-stage override first, then the
+    application setting, then the environment, then a default. Nothing
+    downstream re-derives any of it — two places deciding what the
+    endpoint is would be F-89's shape, where the cache key and the client
+    could disagree about where a run went.
+    """
+
+    stage: str
+    provider: str
+    endpoint: str
+    api_key: str
+    model: str
+    batch_size: Optional[int]
+    endpoint_source: str
+
+
+def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
+                  env_endpoint: str = "",
+                  env_api_key: str = "") -> StageConfig:
+    """Resolve one stage's effective configuration.
+
+    ``stage=""`` means *the application level*, and resolves to exactly
+    what the application resolved to before per-stage overrides existed —
+    which is what keeps the golden replays valid.
+
+    The environment is passed in rather than read here so that this stays
+    a pure function of its arguments: it is the one place the endpoint is
+    decided, and a decision that reads ambient state cannot be tested
+    over a cross product.
+
+    **The endpoint order, and why each step is where it is**
+
+    1. an explicitly configured endpoint — the stage override, then the
+       application setting. A stored choice is what a GUI control writes,
+       so anything in the environment beating it would make the control
+       the user just operated do nothing (F-91's family);
+    2. **a keyless provider falls back to the local default, never to the
+       vendor.** Session B's invariant. Falling back to the local default
+       is wrong-but-harmless; falling back to the paid vendor is
+       wrong-and-billable, and the same shape arrives with no user error
+       at all from any settings file naming a provider and omitting an
+       endpoint;
+    3. ``OPENAI_BASE_URL``;
+    4. the vendor default.
+
+    Note what this function does **not** do: it does not decide whether a
+    key is required. That is
+    ``stage_state.key_required_for(provider, endpoint)``, and it is a
+    question about the resolved *pair* — see that function for why the
+    provider string alone stopped being sufficient the moment a stage
+    could point somewhere else.
+    """
+    provider = (settings.get("provider") or "").strip()
+
+    configured = effective(settings, stage, "endpoint", "")
+    if configured:
+        stages = settings.get("stages") or {}
+        entry = stages.get(stage) or {}
+        source = (ENDPOINT_FROM_STAGE
+                  if isinstance(entry.get("endpoint"), str)
+                  and entry["endpoint"].strip()
+                  else ENDPOINT_FROM_APP)
+        endpoint, endpoint_source = configured, source
+    elif provider and not _needs_key(provider):
+        endpoint = DEFAULT_LOCAL_ENDPOINT
+        endpoint_source = ENDPOINT_FROM_KEYLESS_DEFAULT
+    elif (env_endpoint or "").strip():
+        endpoint = env_endpoint.strip()
+        endpoint_source = ENDPOINT_FROM_ENVIRONMENT
+    else:
+        endpoint = DEFAULT_OPENAI_ENDPOINT
+        endpoint_source = ENDPOINT_FROM_VENDOR_DEFAULT
+
+    batch = effective(settings, stage, "batch_size", None)
+    try:
+        batch = int(batch) if batch is not None else None
+    except (TypeError, ValueError):
+        batch = None
+
+    return StageConfig(
+        stage=stage,
+        provider=provider,
+        endpoint=endpoint,
+        api_key=(effective(settings, stage, "api_key", "")
+                 or (env_api_key or "").strip()),
+        model=effective_model(settings, stage),
+        batch_size=batch,
+        endpoint_source=endpoint_source,
+    )
+
+
+def _needs_key(provider: str) -> bool:
+    """``stage_state.key_required``, imported lazily.
+
+    The two modules are mutually dependent by design — the key predicate
+    belongs with the readiness vocabulary and the store belongs here — so
+    the import is deferred the same way :func:`placeholder_key_for` defers
+    it.
+    """
     from plugins._common.stage_state import key_required
-    return "" if key_required(provider) else PLACEHOLDER_KEY
+    return key_required(provider)
 
 
 def mixed_models(settings: Mapping[str, Any],

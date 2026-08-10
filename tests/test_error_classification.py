@@ -257,7 +257,7 @@ def _build_messages(criterion, items, trunc_chars):
 
 @pytest.fixture
 def llm(monkeypatch):
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     # The back-off between salvage attempts is real code but is not what
     # these tests are about, and paying it would roughly double the whole
     # suite's wall-clock. Replace the module's own reference rather than
@@ -268,7 +268,7 @@ def llm(monkeypatch):
 
 def _run(monkeypatch, client, n_items=8, batch_size=8, trunc_chars=1500,
          log=None):
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
     criterion = {"id": CID, "type": "exclude", "operator": "llm",
                  "target": "title", "what": ["x"], "how": "llm",
                  "label": "x", "threshold": 0.6}
@@ -342,7 +342,7 @@ class TestTruncationStepDownFiresForALocalOversizeMessage:
             cut = [{**it, "title": it["title"][:trunc_chars]} for it in items]
             return _build_messages(criterion, cut, trunc_chars)
 
-        monkeypatch.setattr(lc, "_openai_client_for", lambda: _NeedsSmallerTrunc())
+        monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: _NeedsSmallerTrunc())
         out = lc.run_m1_llm_for_criterion(
             {"id": CID, "type": "exclude", "operator": "llm", "target": "title",
              "what": ["x"], "how": "llm", "label": "x", "threshold": 0.6},

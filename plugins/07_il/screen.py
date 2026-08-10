@@ -617,7 +617,10 @@ def run_il_screen(
     # computed in the loop. `_openai_client_for` reads the same function when
     # it builds the client, so the endpoint a key was computed for is the
     # endpoint the call actually went to.
-    endpoint = resolve_openai_base_url()
+    # Session C: resolved FOR THIS STAGE, so that a per-stage endpoint
+    # override reaches the cache key and the provenance record as well as
+    # the client. Two answers to "where did this run go?" is F-89's shape.
+    endpoint = resolve_openai_base_url("IL")
 
     # F-88. Recorded here rather than at export, because this is the only
     # point at which all six facts are simultaneously true of *this run*:

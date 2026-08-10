@@ -122,8 +122,8 @@ def _rows(n=4):
 def _run(mod, stage, monkeypatch, behaviour, *, rows=None, cache_in=None,
          batch_size=2):
     client = _Client(behaviour)
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     run = mod.run_el_screen if stage == "EL" else mod.run_il_screen
     (full_rows, _surv, counts, _imp, _ev, cache_out, cancelled,
      _report) = run(

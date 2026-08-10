@@ -124,30 +124,43 @@ class TestTheOverrideMechanismAlreadyWorks:
 
 
 class TestTheEndpointIsAppLevelOnlyToday:
-    """**Characterisation. Inverted by the per-stage endpoint commit.**
+    """**FLIPPED by the per-stage resolver commit.**
 
-    The store accepts a per-stage endpoint and nothing honours it, so a
-    control bound to it would be a widget that does nothing — F-91's own
-    family of defect, which is why this is recorded before the control
-    exists rather than after.
+    Was: *the store accepts a per-stage endpoint and nothing honours it*
+    — a control bound to that value would be a widget that does nothing,
+    F-91's own family of defect, which is why it was recorded before the
+    control existed rather than after.
+
+    Now: the resolver takes a stage, and ``stage=""`` still means the
+    application level, which is the property the golden replays rest on.
     """
 
-    def test_a_per_stage_endpoint_is_not_read_by_the_resolver(self, store):
+    def test_the_app_level_call_is_unchanged_by_a_stage_override(self, store):
+        """The half that did **not** flip, and it matters: an app-level
+        question must keep the app-level answer, or every existing caller
+        would start following whichever stage was edited last."""
         import plugins._common.llm_client as lc
         store.update_settings(provider="openai",
                               endpoint="https://api.openai.com/v1")
         store.set_stage_override("EL", endpoint="http://localhost:11434/v1")
-        assert lc.resolve_openai_base_url() == "https://api.openai.com/v1", (
-            "characterisation: today the resolver is app-level only"
-        )
+        assert lc.resolve_openai_base_url() == "https://api.openai.com/v1"
 
-    def test_the_resolver_takes_no_stage_today(self):
+    def test_a_per_stage_endpoint_is_now_read_by_the_resolver(self, store):
+        import plugins._common.llm_client as lc
+        store.update_settings(provider="openai",
+                              endpoint="https://api.openai.com/v1")
+        store.set_stage_override("EL", endpoint="http://localhost:11434/v1")
+        assert lc.resolve_openai_base_url("EL") == "http://localhost:11434/v1"
+        assert lc.resolve_openai_base_url("IL") == "https://api.openai.com/v1"
+
+    def test_the_resolver_takes_a_stage(self):
         import inspect
         import plugins._common.llm_client as lc
         params = inspect.signature(lc.resolve_openai_base_url).parameters
-        assert "stage" not in params, (
-            "characterisation: the endpoint is decided without reference "
-            "to which stage is asking"
+        assert "stage" in params
+        assert params["stage"].default == "", (
+            "the application level must remain the default, or an existing "
+            "caller silently changes which endpoint it resolves"
         )
 
 
@@ -156,32 +169,37 @@ class TestTheEndpointIsAppLevelOnlyToday:
 # ---------------------------------------------------------------------------
 
 class TestTheKeylessGateIgnoresTheEndpointToday:
-    """**Characterisation. Inverted by the invariant commit (INV-1b).**
+    """**FLIPPED by the invariant commit (INV-1b).**
 
-    Session B closed *a keyless provider never FALLS BACK to the paid
-    vendor*. That is a rule about the fallback. A per-stage endpoint
-    override reaches the vendor **explicitly**, so the rule does not fire
-    — which is this session's version of the defect this wave has now
-    produced twice.
+    Was: *the key requirement is decided on the provider string alone, so
+    nothing relates the gate to the endpoint.* Session B closed **a
+    keyless provider never FALLS BACK to the paid vendor** — a rule about
+    the fallback. A per-stage endpoint override reaches the vendor
+    **explicitly**, so that rule does not fire.
+
+    Now: the question is asked about the resolved pair, and where the two
+    halves disagree the safe side wins.
     """
 
-    def test_the_key_requirement_is_decided_on_the_provider_string_alone(self):
+    def test_the_provider_only_predicate_is_unchanged(self):
+        """``key_required`` keeps its exact meaning. One predicate asking
+        a larger question, not two predicates — which is F-117."""
         assert ss.key_required("local") is False
-        assert ss.key_ok(provider="local", api_key="") is True
+        assert ss.key_required("openai") is True
 
-    def test_nothing_today_relates_the_gate_to_the_endpoint(self):
-        """No predicate in the vocabulary takes an endpoint."""
-        import inspect
-        for fn in (ss.key_required, ss.key_ok):
-            assert "endpoint" not in inspect.signature(fn).parameters
+    def test_a_keyless_provider_pointed_at_the_vendor_needs_a_key(self):
+        assert ss.key_required_for("local", "https://api.openai.com/v1") is True
+        assert ss.key_ok(provider="local", api_key="",
+                         endpoint="https://api.openai.com/v1") is False
 
-    def test_readiness_does_not_ask_where_the_stage_points(self):
+    def test_readiness_asks_where_the_stage_points(self):
         import inspect
-        assert "endpoint" not in inspect.signature(
-            ss.llm_readiness).parameters, (
-            "characterisation: readiness cannot see a vendor endpoint "
-            "under a keyless provider"
-        )
+        assert "endpoint" in inspect.signature(ss.llm_readiness).parameters
+        r = ss.llm_readiness(stage="EL", has_bundle=True, provider="local",
+                             api_key="", model="m",
+                             endpoint="https://api.openai.com/v1",
+                             probe=D.Detection(D.READY, ("m",), "", ""))
+        assert r.code == ss.NO_KEY and r.can_run is False
 
 
 # ---------------------------------------------------------------------------

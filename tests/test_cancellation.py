@@ -286,7 +286,7 @@ class _FakeClient:
 @pytest.fixture
 def llm(monkeypatch):
     import plugins._common.llm_client as lc
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     return lc
 
 
@@ -303,7 +303,7 @@ def _build_messages(criterion, items, trunc_chars):
 
 def _run_llm(lc, monkeypatch, token, cancel_after_calls, n_items, batch_size):
     client = _FakeClient(token, cancel_after_calls)
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
     criterion = {"id": "EC-1", "type": "exclude", "operator": "llm",
                  "target": "title", "what": ["x"], "how": "llm",
                  "label": "x", "threshold": 0.6}

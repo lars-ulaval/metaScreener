@@ -137,8 +137,23 @@ deliberately not what reaches the key. See :func:`_cache_key`.
 """
 
 
-def resolve_openai_base_url() -> str:
+def resolve_openai_base_url(stage: str = "") -> str:
     """The endpoint this process will talk to, decided by this repository.
+
+    **Wave 11 session C: the decision itself moved to
+    ``settings.resolve_stage``, and this function takes a stage.**
+
+    ``stage=""`` is the application level and resolves to exactly what
+    this function resolved to before per-stage overrides existed — which
+    is what keeps the golden replays valid, and is asserted directly. A
+    named stage additionally honours ``stages[stage]["endpoint"]``.
+
+    The decision moved because it now has to be made about a *pair*: with
+    a per-stage endpoint the provider and the endpoint can be moved
+    independently, so the question "does this need a key?" stopped being
+    answerable from the provider string. Keeping the endpoint decision
+    next to the store is what lets one function answer both without a
+    second copy of either.
 
     F-92. The local-provider capability used to work only because the
     vendor SDK's ``OpenAI.__init__`` falls back to
@@ -180,39 +195,33 @@ def resolve_openai_base_url() -> str:
     to the paid vendor. Reading the endpoint here is one half of that fix;
     not presuming a provider (``settings.defaults``) is the other.
     """
-    provider = ""
+    return _stage_config(stage).endpoint
+
+
+def _stage_config(stage: str = ""):
+    """The resolved configuration of ``stage``, or of the application.
+
+    Unreadable or unavailable settings must never change where a run is
+    sent, so a failure here degrades to an empty store — which resolves
+    to the environment and then the vendor default, exactly the
+    behaviour that predates the store.
+    """
+    from plugins._common.settings import resolve_stage
+
     try:
         from plugins._common.settings import load_settings
         cfg = load_settings()
-        stored = (cfg.get("endpoint") or "").strip()
-        provider = (cfg.get("provider") or "").strip()
     except Exception:
-        # Unreadable or unavailable settings must never change where a
-        # run is sent; fall through to the behaviour that predates them.
-        stored = ""
-    if stored:
-        return stored
-
-    # **A keyless provider must never resolve to the paid vendor.**
-    # Session B's review reproduced session A's billing defect by a new
-    # route: a user who selects local and blanks the endpoint box stores
-    # {provider: "local", endpoint: ""}, and a blank endpoint used to fall
-    # straight through to DEFAULT_OPENAI_BASE_URL — so `key_required`
-    # waived the gate while the client was built against the vendor,
-    # carrying whatever key was left over. The same shape arrives with no
-    # user error from any settings file that names a provider and omits an
-    # endpoint. Falling back to the local default is wrong-but-harmless;
-    # falling back to the vendor is wrong-and-billable.
-    from plugins._common.stage_state import key_required
-    if provider and not key_required(provider):
-        from plugins._common.settings import DEFAULT_LOCAL_ENDPOINT
-        return DEFAULT_LOCAL_ENDPOINT
-
-    return os.environ.get(OPENAI_BASE_URL_ENV, "").strip() or DEFAULT_OPENAI_BASE_URL
+        cfg = {}
+    return resolve_stage(
+        cfg, stage,
+        env_endpoint=os.environ.get(OPENAI_BASE_URL_ENV, ""),
+        env_api_key=os.environ.get("OPENAI_API_KEY", ""),
+    )
 
 
-def _openai_client_for():
-    """Construct the OpenAI client.
+def _openai_client_for(stage: str = ""):
+    """Construct the OpenAI client for one stage.
 
     Extracted so cancellation and batching can be tested without a live
     key or network. Nothing else about the call path changed.
@@ -225,13 +234,22 @@ def _openai_client_for():
     load-bearing and the unresolved question of whether ``openai==1.40.0``
     has that fallback stops mattering.
 
-    Kept zero-argument on purpose: twelve test doubles across the suite
-    monkeypatch this name with ``lambda: client``, and a parameter here
-    would break all of them to no benefit — the endpoint is process state,
-    and this function's job is to read it.
+    **Wave 11 session C reverses this function's "kept zero-argument on
+    purpose" decision, and records the reversal rather than quietly
+    dropping it.** The reason given was that a parameter would break the
+    twelve test doubles binding ``lambda: client`` *to no benefit*,
+    because the endpoint was process state. Per-stage endpoints are the
+    benefit: without a stage this function cannot build a client for the
+    stage that is actually running, and the alternative — a module-level
+    "current stage" — would be wrong the moment EL and IL run at once,
+    which two tabs make ordinary. ``stage`` defaults to the application
+    level, so every direct caller keeps working; the doubles were widened
+    to ``lambda *a, **k: client`` in the same commit.
     """
     from openai import OpenAI  # type: ignore
-    from plugins._common.settings import load_settings, placeholder_key_for
+    from plugins._common.settings import placeholder_key_for
+
+    cfg = _stage_config(stage)
 
     # F-117. The SDK refuses to construct with an empty ``api_key`` even
     # against a server that never reads it, so a local run would die here
@@ -239,17 +257,14 @@ def _openai_client_for():
     # requirement is the application's to satisfy, not the user's — before
     # this, the NO_KEY message told every user to invent a placeholder.
     # A real key is never replaced, and ``openai`` is never given one.
-    try:
-        cfg = load_settings()
-        provider = cfg.get("provider", "local")
-        stored = cfg.get("api_key", "")
-    except Exception:
-        provider, stored = "openai", ""
-
+    #
+    # Session C: the placeholder is decided on the resolved PAIR. A stage
+    # whose endpoint bills must not be handed the literal string "local"
+    # as its credential just because its provider field says so.
     return OpenAI(
-        api_key=placeholder_key_for(
-            provider, stored or os.environ.get("OPENAI_API_KEY", "")),
-        base_url=resolve_openai_base_url(),
+        api_key=placeholder_key_for(cfg.provider, cfg.api_key,
+                                    endpoint=cfg.endpoint),
+        base_url=cfg.endpoint,
     )
 
 
@@ -276,8 +291,8 @@ def _quote_in_text(quote: str, text: str) -> bool:
     tn = _normalize_space(text)
     return bool(qn) and (qn in tn)
 
-def _has_openai_key() -> bool:
-    """Whether the configured provider's key requirement is satisfied.
+def _has_openai_key(stage: str = "") -> bool:
+    """Whether this stage's key requirement is satisfied.
 
     **F-117, and a regression this wave introduced and then caught.** This
     used to be a presence check on ``OPENAI_API_KEY``. Once
@@ -290,23 +305,19 @@ def _has_openai_key() -> bool:
     layer and the engine must answer the same question or the gate is
     decorative.
 
-    The name is kept deliberately, for the same reason
-    ``_openai_client_for`` stays zero-argument: ten test doubles across
-    the suite bind this name with ``lambda: True``, and renaming it would
-    break them all for no behavioural gain. What it *means* has widened,
-    which is what the docstring is for.
+    The name is kept deliberately: ten test doubles across the suite bind
+    this name with ``lambda: True``, and renaming it would break them all
+    for no behavioural gain. What it *means* has widened twice — F-117
+    made it a question about the provider, and session C makes it a
+    question about the resolved **pair**, so a stage whose endpoint
+    override points at the paid vendor is asked for a key however keyless
+    its provider claims to be. ``stage=""`` is the application level.
     """
-    from plugins._common.settings import load_settings
     from plugins._common.stage_state import key_ok
 
-    try:
-        cfg = load_settings()
-    except Exception:
-        # Unreadable settings must not silently enable a paid call.
-        return bool(os.environ.get("OPENAI_API_KEY", "").strip())
-    return key_ok(provider=cfg.get("provider", "local"),
-                  api_key=cfg.get("api_key", "")
-                  or os.environ.get("OPENAI_API_KEY", ""))
+    cfg = _stage_config(stage)
+    return key_ok(provider=cfg.provider, api_key=cfg.api_key,
+                  endpoint=cfg.endpoint)
 
 def _sample_of(counts: "Counter", limit: int = 5) -> str:
     """Render the commonest few keys of a tally for a log line.
@@ -760,9 +771,13 @@ def run_m1_llm_for_criterion(
     Returns (a_id, criterion_id) -> llm_decision_dict (used/decision/confidence/field/quote/span/valid_quote).
     Implements adaptive batching on errors (429/oversize).
 
-    The ``stage`` keyword (e.g. ``"EL"`` or ``"IL"``) is used for log prefixes
-    and the courtesy ``"stage"`` field on emitted progress events. No semantic
-    logic depends on its value.
+    The ``stage`` keyword (e.g. ``"EL"`` or ``"IL"``) names the log prefix and
+    the courtesy ``"stage"`` field on emitted progress events — **and, from
+    wave 11 session C, decides which configuration this run uses.** It is
+    passed to ``_has_openai_key`` and ``_openai_client_for`` so a per-stage
+    endpoint or model override is honoured by the gate and by the client
+    alike. That it was already threaded here is why no new parameter was
+    needed; what changed is that it stopped being decorative.
 
     The ``temperature`` keyword controls the OpenAI sampling temperature
     forwarded to ``client.chat.completions.create``. Default ``0.0`` is
@@ -789,12 +804,12 @@ def run_m1_llm_for_criterion(
         if log: log(f"{log_prefix} no model set (model={model!r}); "
                     f"skipping this criterion.\n")
         return {}
-    if not _has_openai_key():
+    if not _has_openai_key(stage):
         if log: log(f"{log_prefix} OPENAI_API_KEY not visible in environment; skipping.\n")
         return {}
 
     try:
-        client = _openai_client_for()
+        client = _openai_client_for(stage)
     except Exception as e:
         if log: log(f"{log_prefix} OpenAI client import/init failed: {e}\n")
         return {}

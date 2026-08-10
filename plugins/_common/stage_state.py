@@ -251,9 +251,77 @@ def key_required(provider: str) -> bool:
     return (provider or "").strip().lower() not in _KEYLESS_PROVIDERS
 
 
-def key_ok(*, provider: str, api_key: Optional[str]) -> bool:
-    """Whether this configuration's key requirement is satisfied."""
-    if not key_required(provider):
+#: Hosts that bill. Held as bare strings rather than derived from
+#: ``settings.DEFAULT_OPENAI_ENDPOINT`` because that module imports this
+#: one; ``tests/test_stage_endpoint_invariant.py`` asserts the two agree,
+#: so they cannot drift apart silently.
+PAID_VENDOR_HOSTS = ("api.openai.com",)
+
+
+def is_paid_vendor(endpoint: Optional[str]) -> bool:
+    """Whether this endpoint is a host that charges for the call.
+
+    Parsed as a URL rather than matched as a substring: ``https://
+    api.openai.com/v1`` and ``https://api.openai.com:443/v1/`` are the
+    same host, while ``http://api.openai.com.example.invalid/v1`` is not
+    — and a substring check would get the last one wrong in the direction
+    that costs money.
+
+    A value with no scheme is parsed as though it had one, because a user
+    typing an endpoint by hand routinely omits it and the answer must not
+    depend on that.
+    """
+    raw = (endpoint or "").strip()
+    if not raw:
+        return False
+    from urllib.parse import urlsplit
+    parsed = urlsplit(raw if "//" in raw else "//" + raw)
+    host = (parsed.hostname or "").lower()
+    return host in PAID_VENDOR_HOSTS
+
+
+def key_required_for(provider: str, endpoint: Optional[str] = None) -> bool:
+    """Whether this **resolved pair** needs an API key.
+
+    **Wave 11 session C. The provider string alone stopped being
+    sufficient the moment a stage could point somewhere else.**
+
+    Session B closed the wave's billing defect with an invariant over the
+    class: *a keyless provider never resolves to the paid vendor*. That
+    is a rule about the **fallback** — it fires when nothing named an
+    endpoint. A per-stage endpoint override reaches the vendor
+    **explicitly**, so the rule does not fire, and the combination
+
+        provider="local"  (``key_required`` is False, gate waived)
+        stages["EL"]["endpoint"] = "https://api.openai.com/v1"
+
+    is a keyless stage pointed straight at the paid vendor, with
+    ``placeholder_key_for`` supplying the literal string ``"local"`` as
+    the credential — or the user's real key if one is stored. That is the
+    same harm this wave has now produced twice, by a third route.
+
+    So the question is asked about the pair, and where the two halves
+    disagree the **safe** side wins: an endpoint that bills requires a
+    key whatever the provider field says. Refusing to run costs a click;
+    guessing that a billing endpoint is free spends money.
+
+    ``key_required`` is left exactly as it was and is still the answer
+    when no endpoint is known — one predicate, now asking a slightly
+    larger question, rather than two.
+    """
+    return key_required(provider) or is_paid_vendor(endpoint)
+
+
+def key_ok(*, provider: str, api_key: Optional[str],
+           endpoint: Optional[str] = None) -> bool:
+    """Whether this configuration's key requirement is satisfied.
+
+    ``endpoint`` defaults to unknown, which reduces to exactly the
+    provider-only question this asked before — so every existing caller
+    keeps its meaning and only the ones that know where the stage points
+    get the stronger check.
+    """
+    if not key_required_for(provider, endpoint):
         return True
     return bool((api_key or "").strip())
 
@@ -276,7 +344,8 @@ class Readiness:
 
 def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
                   api_key: Optional[str], model: Optional[str],
-                  probe: Any = None) -> Readiness:
+                  probe: Any = None, endpoint: Optional[str] = None
+                  ) -> Readiness:
     """Decide whether an LLM stage may start.
 
     The order is the order the user encounters the steps in, so a user with
@@ -322,14 +391,27 @@ def llm_readiness(*, stage: str, has_bundle: bool, provider: str,
                 f"deterministic stages do not need one and are unaffected."
             ),
         )
-    if not key_ok(provider=provider, api_key=api_key):
+    # Wave 11 session C. The key question is asked about the resolved
+    # PAIR. A stage whose endpoint override points at the paid vendor
+    # needs a key however keyless its provider claims to be — see
+    # `key_required_for`. `endpoint=None` means "not known here", which
+    # reduces to the provider-only question every earlier caller asked.
+    if not key_ok(provider=provider, api_key=api_key, endpoint=endpoint):
+        billing = is_paid_vendor(endpoint) and not key_required(provider)
         return Readiness(
             code=NO_KEY, can_run=False, label="API key ✗",
             detail=(
-                f"The selected provider ({provider}) authenticates, and no "
-                f"API key is set.\n\n"
-                f"Enter one in the provider settings, or switch to a local "
-                f"model, which needs no key."
+                (f"{stage} is pointed at {endpoint}, which bills for every "
+                 f"call, and no API key is set.\n\n"
+                 f"The provider is set to '{provider}', which normally needs "
+                 f"no key — but the endpoint decides who is billed, not the "
+                 f"provider name. Enter a key, or point {stage} back at a "
+                 f"local server."
+                 ) if billing else
+                (f"The selected provider ({provider}) authenticates, and no "
+                 f"API key is set.\n\n"
+                 f"Enter one in the provider settings, or switch to a local "
+                 f"model, which needs no key.")
             ),
         )
     normalised = (model or "").strip()

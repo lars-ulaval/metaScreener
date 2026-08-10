@@ -80,7 +80,7 @@ def _build_messages(criterion, items, trunc_chars):
 
 @pytest.fixture
 def llm(monkeypatch):
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     monkeypatch.setattr(lc, "time", types.SimpleNamespace(sleep=lambda *_a: None))
     return lc
 
@@ -88,7 +88,7 @@ def llm(monkeypatch):
 def _run(monkeypatch, n_items=4, batch_size=4, progress=None, log=None,
          client=None):
     client = client or _AnsweringClient()
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
     items = [{"a_id": f"A{i:03d}", "title": f"Title {i}", "abstract": "",
               "keywords": ""} for i in range(n_items)]
     out = lc.run_m1_llm_for_criterion(

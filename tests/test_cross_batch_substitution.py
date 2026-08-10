@@ -122,13 +122,13 @@ def _build_messages(criterion, items, trunc_chars):
 
 @pytest.fixture
 def llm(monkeypatch):
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     return lc
 
 
 def _run(monkeypatch, script, *, n_items=6, batch_size=3):
     client = _ScriptedClient(script)
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
     out = lc.run_m1_llm_for_criterion(
         CRITERION, _items(n_items), stage="EL",
         build_messages=_build_messages,
@@ -366,8 +366,8 @@ def _run_el(mod, monkeypatch, script, *, cache_in, batch_size=3):
     """Drive the real EL engine — real prompt builder, real cache keys —
     with a scripted client, and hand back everything the caller needs."""
     client = _ScriptedClient(script)
-    monkeypatch.setattr(lc, "_openai_client_for", lambda: client)
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_openai_client_for", lambda *_a, **_k: client)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     (full_rows, survivors, counts, _imp, _ev, cache_out, cancelled,
      _report) = \
         mod.run_el_screen(

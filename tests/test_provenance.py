@@ -107,7 +107,7 @@ def _answers(decision="meet", confidence=0.9):
 
 @pytest.fixture
 def llm(monkeypatch):
-    monkeypatch.setattr(lc, "_has_openai_key", lambda: True)
+    monkeypatch.setattr(lc, "_has_openai_key", lambda *_a, **_k: True)
     monkeypatch.setattr(lc, "time", types.SimpleNamespace(sleep=lambda *_a: None))
     return lc
 
@@ -130,7 +130,7 @@ def _setup(mod, stage, rows=4):
 
 def _run_stage(monkeypatch, mod, stage, handler=None, **kw):
     monkeypatch.setattr(lc, "_openai_client_for",
-                        lambda: _client(handler or _answers()))
+                        lambda *_a, **_k: _client(handler or _answers()))
     parse, report, run = _setup(mod, stage)
     opts = dict(model="gemma3", trunc_chars=1500, batch_size=4,
                 use_cache=False, cache_in={}, cancel_event=threading.Event())
