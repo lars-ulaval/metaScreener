@@ -425,7 +425,8 @@ document. Four lenses (numbers, overstatement, understatement, document
 coherence), each finding adversarially verified.
 
 **Eleven distinct defects raised; ten fixed, one deferred with a reason.** All
-were in Parts 3 and 4 — none in the code.
+were in Parts 3 and 4 — none in the code. **One of the fixes was itself wrong and
+was withdrawn** (§6.3a), which is the most useful thing the pass produced.
 
 *A note on reading the verdicts: several refutations returned "the quoted
 sentence is not in the file". That is an artefact of fixing confirmed findings
@@ -496,31 +497,55 @@ substitution looks like once the gate catches it.** Under F-86 the answer is
 filed against a record the call did not carry and the quote is then checked
 against *that* record's text, so a borrowed quote fails.
 
-Measured directly on the frozen study input rather than argued:
+### 6.3a The correction I published while fixing 6.3, and had to withdraw
 
-| | count |
-|---|---:|
-| entries with `valid_quote: false` | **9** (2 EL, 7 IL) |
-| — whose own record cannot supply the quote | **8** |
-| — of those, quote supplied by no corpus record at all (fabricated outright) | **7** |
-| — of those, quote supplied by **11 other records** and not its own — `A345`, on both `EC-2` and `IC-1`, quoting *"Augmented reality"* | **1** |
+The first fix replaced the inverted claim with a measurement — and **overstated in
+the opposite direction**, which is worse, because the subject is an accusation.
+It said `A345` carried *"a quote eleven other records can supply and its own
+cannot — the one entry in the study that matches the positive signature of a
+substitution."*
 
-So the wave-7 brief's companion claim — *"all 254 quotes are supplyable by their
-named record"* — is **also false**; it holds for the 245 that passed the gate,
-which is what passing the gate means. And `A345` is the one entry in the study
-matching the **positive** signature the brief says nothing exhibits.
+The adversarial verifier caught it, and the data confirms it. `A345`'s **own
+title** is *"Brain–Computer Interface Integrated With Augmented Reality for
+Human–Robot Interaction"*. The quote is "Augmented reality". It differs from the
+record's own title **by the case of one letter**, and the abstract carries it
+case-insensitively too. The parsimonious reading is a model quoting its own
+record's title, lower-casing a word and mislabelling the field as `keywords` —
+not a borrowed quote. My "own record cannot supply it" was an artefact of testing
+exact-match only, which is the validator's semantics but not the right question
+to ask when inferring intent.
 
-Both documents now say what the bucket actually supports, which is narrower and
-firmer: **those nine failed the evidence gate, so whatever produced them, none of
-them removed a record.** The doc adds the `A345` finding explicitly, because
-omitting the one near-positive result from a disclosure about integrity would be
-the exact failure the disclosure exists to avoid — and because the honest reading
-is that the gate worked.
+The full measurement, per entry rather than in aggregate:
 
-**This is a defect in `FIX_WAVE_7_CACHE.md`, not only in this wave's prose.** It
-is recorded here rather than corrected there: that brief is the historical record
-of wave 7, and the register row for F-86 is where a correction belongs if one is
-wanted.
+| Group | count | reading |
+|---|---:|---|
+| quote appears nowhere in the corpus, any field, any case | **6** | invented outright, not borrowed |
+| `A345` on `EC-2` and `IC-1` | **2** | own title supplies it bar one letter's case |
+| `A247` on `IC-1` | **1** | own record contains the quote *exactly*; the gate failure is about where the validator looked |
+
+**So none of the nine exhibits the positive signature after all**, and the
+corrected conclusion agrees with the wave-7 brief's — for a better-stated reason,
+and having been checked rather than inherited. Note the aggregate framing of the
+first fix also mis-stated `A247`, whose own record does supply its quote.
+
+What remains true of §6.3 is the logic: a failed quote is not *evidence against*
+a substitution, and the wave-7 row *"`valid_quote: false` — cannot be a
+substitution"* claims more than the audit's own formulation licenses — the audit
+says *"for a substituted verdict **to pass the gate**"*, which concedes the
+existence of ones that do not. The claim the documents now make is the one that
+survives either way: **those nine failed the gate, so none of them removed a
+record.**
+
+**Two lessons, recorded because both were mine.** A claim is not safe merely
+because it corrects an overstatement — the correction is a new claim and needs
+its own check. And exact-match absence is not evidence of foreign origin when the
+same string sits in the record's own title under different capitalisation.
+
+**The `FIX_WAVE_7_CACHE.md` row is loose rather than wrong in its conclusion**,
+and its companion sentence *"all 254 quotes are supplyable by their named
+record"* is false for the six invented ones under any matching. Recorded here
+rather than corrected there: that brief is the historical record of wave 7, and
+F-86's register row is where a correction belongs if one is wanted.
 
 ### 6.4 Two model-scoping gaps the amendment created or sharpened
 

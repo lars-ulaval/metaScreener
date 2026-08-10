@@ -279,10 +279,11 @@ outright and leaves **70 undecidable** — short, generic keyword
 fragments such as "Computer science" that recur across a bibliographic
 corpus, which is precisely the population in which a substitution could
 have survived the evidence gate at all. The remaining **9** failed that
-gate, so whatever produced them they cannot have removed a record; one
-of them is in fact the closest thing to a positive result anywhere in
-the set, a quote its own record cannot supply that eleven other records
-can. The gate caught it, which is what the gate is for.
+gate, so whatever produced them they cannot have removed a record —
+and, examined individually, none of them shows the signature of a
+substitution either: six quote text that appears nowhere in the corpus
+at all, two quote their own record's title bar one letter's case, and
+one quotes text its own record does contain.
 Narrowed to the five verdicts that actually removed a record from that
 study, four are provably not products of this defect and one — record
 `A452` on criterion `IC-1` — is undecidable, and will remain so. The

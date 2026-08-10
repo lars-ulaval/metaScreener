@@ -468,16 +468,29 @@ The findings reported above are bounded by several conditions:
 
   The remaining **9** are the entries whose quote failed validation, and
   they need stating carefully, because the direction is not the obvious
-  one. A failed quote is not proof that no substitution occurred — it is
-  what a substitution looks like once the gate catches it. Of the nine,
-  eight carry a quote their own record cannot supply. For seven of those
-  eight no record in the corpus supplies it either, so the model
-  fabricated the string outright rather than borrowing it. The eighth,
-  record `A345` (appearing on both `EC-2` and `IC-1`, quoting "Augmented
-  reality"), carries a quote eleven *other* records can supply and its
-  own cannot — the one entry in the study that matches the positive
-  signature of a substitution. What follows from all nine is narrower
-  and firmer than "they were not substitutions": **they failed the
+  one. A failed quote is not in itself proof that no substitution
+  occurred — a borrowed quote checked against a record that cannot
+  supply it is precisely what a caught substitution looks like. So the
+  nine were examined individually rather than assumed:
+
+  - **six** quote a string that appears nowhere in the corpus, in any
+    field of any record, even ignoring case — the model invented the
+    text rather than borrowing it;
+  - **two** are record `A345`, on `EC-2` and on `IC-1`, quoting
+    "Augmented reality". That string is supplied by `A345`'s **own
+    title** — *"Brain–Computer Interface Integrated With Augmented
+    Reality for Human–Robot Interaction"* — and differs from it only in
+    the case of one letter. The parsimonious reading is a model quoting
+    its own record's title, lower-casing a word and labelling the field
+    `keywords`; not a borrowed quote;
+  - **one** is record `A247`, whose quote its own record does contain
+    exactly, so its gate failure concerns where the validator looked
+    rather than whether the text exists.
+
+  **None of the nine exhibits the positive signature of a
+  substitution** — a record that cannot supply its own quote while
+  another can. And what follows from all nine collectively is narrower
+  and firmer than any claim about substitution: **they failed the
   evidence gate, so whatever produced them, none of them removed a
   record.**
 
@@ -490,7 +503,8 @@ The findings reported above are bounded by several conditions:
   are not evidence that anything went wrong: every quote that *passed*
   the evidence gate can be supplied by the record it is filed against,
   which is what passing the gate means, and none of them exhibits the
-  positive signature. Nor are they evidence that nothing did. The residue is structural rather than a
+  positive signature. Nor are they evidence that nothing did. The
+  residue is structural rather than a
   matter of effort — nothing in the artefacts ties a verdict to the
   call that produced it, so no further analysis of the committed files
   can resolve it, and the one thing that would, a per-response record
