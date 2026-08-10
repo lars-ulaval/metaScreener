@@ -163,6 +163,162 @@ def _parse_llm_json_array(text: str) -> List[Dict[str, Any]]:
 # `build_messages` keyword argument; each plugin passes its own.
 
 
+# --------------------------- error classification -----------------------------
+
+LLM_ERROR_CLASSES: Tuple[str, ...] = (
+    "rate_limit", "oversize", "bad_request", "auth", "not_found",
+    "transport", "unknown",
+)
+"""What went wrong with a call, as far as it can honestly be determined.
+
+Only ``rate_limit`` and ``oversize`` have remedies in this module. The rest
+exist so that a terminal failure is *named* rather than anonymous: today a
+down server, a rejected key, a model that was never pulled and a malformed
+request produce one indistinguishable record.
+"""
+
+# The oversize vocabulary of the servers this project actually targets, not
+# of OpenAI's JSON error bodies. Every alternative below is something
+# llama.cpp, Ollama, vLLM or the hosted API emits. F-94.
+_OVERSIZE_RE = re.compile(
+    r"n_ctx"
+    r"|context[\s_\-]*(?:length|window|size)"
+    r"|exceeds?[\s_\-]+the[\s_\-]+context"
+    r"|max(?:imum)?[\s_\-]*tokens?"
+    r"|token[\s_\-]*limit"
+    r"|too[\s_\-]+large"
+    r"|too[\s_\-]+long"
+    r"|reduce[\s_\-]+the[\s_\-]+length",
+    re.I,
+)
+
+# Anchored on word boundaries. The old predicate was
+# ``("rate" in msg and "limit" in msg)``, which fires on any message
+# containing `generate`, `moderate` or `separate` *and* the word `limit`
+# anywhere else in it -- "moderate token limit exceeded" classifies as a
+# rate limit today. F-94's finding cell states the substring half of this;
+# the conjunction is why it needs the second word to be live.
+_RATE_RE = re.compile(r"\b429\b|\btoo[\s_\-]+many[\s_\-]+requests\b"
+                      r"|\brate[\s_\-]*limit", re.I)
+
+
+def _openai_error_types() -> Dict[str, type]:
+    """The SDK's exception classes, or ``{}`` if the SDK is not importable.
+
+    Imported lazily, like ``_openai_client_for``'s ``from openai import
+    OpenAI``. Hoisting these to module scope would make every stage module
+    fail to import on a machine without the SDK, which is a strictly worse
+    failure than losing type-based classification on a machine that cannot
+    make an API call in the first place.
+    """
+    try:
+        import openai  # type: ignore
+    except Exception:
+        return {}
+    found: Dict[str, type] = {}
+    for name in ("RateLimitError", "BadRequestError", "AuthenticationError",
+                 "PermissionDeniedError", "NotFoundError",
+                 "APITimeoutError", "APIConnectionError"):
+        t = getattr(openai, name, None)
+        if isinstance(t, type):
+            found[name] = t
+    return found
+
+
+def _classify_llm_error(e: BaseException) -> Tuple[str, str]:
+    """Classify a failed call as ``(class, how)``.
+
+    F-94. Both salvage mechanisms used to be gated on substring sniffs over
+    ``str(e).lower()``, and ``is_big`` required ``context`` *and* ``length``
+    to co-occur. A server saying ``"n_ctx exceeded"`` or ``"prompt exceeds
+    the context window"`` matched neither term-pair, **so the batch-halving
+    and truncation step-down that exist precisely for a small context window
+    never fired** — and small context windows are the local case, which is
+    why this is correctness rather than robustness.
+
+    Three resorts, in order, and ``how`` names which one answered so the log
+    line can say. **The message sniff is the last of them and is labelled as
+    such**, because prose is the only signal a server is free to change.
+
+    ``type``
+        the SDK named the condition. The only signal that does not depend on
+        wording.
+    ``status``
+        an OpenAI-compatible server behind a proxy can surface a generic
+        ``APIStatusError``; the HTTP code still means what it means.
+    ``message``
+        last resort. Restricted to ``oversize`` and ``rate_limit``, the two
+        classes that have remedies — there is deliberately no message-level
+        transport sniff, because a bare string containing "timeout" is not
+        evidence of a transport failure (``"Internal server error (500) …
+        upstream timeout"`` is a server error), and every real transport
+        condition arrives as an SDK type or an HTTP status anyway.
+
+    Never raises: it runs inside an ``except`` block, and a classifier that
+    raised would replace the error being classified with its own.
+    """
+    try:
+        types = _openai_error_types()
+    except Exception:                                    # pragma: no cover
+        types = {}
+
+    try:
+        lowered = str(e).lower()
+    except Exception:
+        lowered = ""
+    oversize = bool(_OVERSIZE_RE.search(lowered))
+
+    def _is(name: str) -> bool:
+        t = types.get(name)
+        try:
+            return t is not None and isinstance(e, t)
+        except Exception:                                # pragma: no cover
+            return False
+
+    # 1 — by type
+    if _is("RateLimitError"):
+        return "rate_limit", "type"
+    if _is("BadRequestError"):
+        # A 400 is oversize only when its body says so. Treating every 400
+        # as oversize would halve the batch to one and step the truncation
+        # to its floor against a request the server will never accept.
+        return ("oversize", "type+message") if oversize else ("bad_request", "type")
+    if _is("AuthenticationError") or _is("PermissionDeniedError"):
+        return "auth", "type"
+    if _is("NotFoundError"):
+        return "not_found", "type"
+    # APITimeoutError subclasses APIConnectionError in the SDK, so the
+    # second test covers both; both are named for legibility.
+    if _is("APITimeoutError") or _is("APIConnectionError"):
+        return "transport", "type"
+
+    # 2 — by HTTP status
+    status: Optional[int] = None
+    try:
+        raw = getattr(e, "status_code", None)
+        status = int(raw) if raw is not None else None
+    except Exception:
+        status = None
+    if status is not None:
+        if status == 429:
+            return "rate_limit", "status"
+        if status in (401, 403):
+            return "auth", "status"
+        if status == 404:
+            return "not_found", "status"
+        if status in (400, 413):
+            return ("oversize", "status+message") if oversize else ("bad_request", "status")
+        if status in (408, 502, 503, 504):
+            return "transport", "status"
+
+    # 3 — by message. LAST RESORT.
+    if oversize:
+        return "oversize", "message"
+    if _RATE_RE.search(lowered):
+        return "rate_limit", "message"
+    return "unknown", "none"
+
+
 # --------------------------- answer vocabularies ------------------------------
 
 DECISION_VOCABULARY: Tuple[str, ...] = ("meet", "not_meet", "uncertain")
@@ -563,12 +719,34 @@ def run_m1_llm_for_criterion(
                     raise
 
                 except Exception as e:
-                    msg = str(e).lower()
-                    is_rate = ("429" in msg) or ("too many requests" in msg) or ("rate" in msg and "limit" in msg)
-                    is_big = ("too large" in msg) or ("context" in msg and "length" in msg) or ("max tokens" in msg)
+                    # F-94. This used to be two substring sniffs over
+                    # str(e).lower(), and `is_big` required `context` AND
+                    # `length` to co-occur — so "n_ctx exceeded" and "prompt
+                    # exceeds the context window" fired neither remedy, and
+                    # the two mechanisms that exist for a small context
+                    # window were unavailable in the configuration that most
+                    # needs them. Type first, HTTP status second, message
+                    # only as a labelled last resort.
+                    err_class, err_how = _classify_llm_error(e)
+
+                    # Only these two have a remedy here. `bad_request`,
+                    # `auth`, `not_found` and `transport` are terminal for
+                    # this batch by design: halving a malformed request, a
+                    # rejected key or a missing model just spends the same
+                    # failure twice.
+                    #
+                    # `transport` is terminal *deliberately*, and it is a
+                    # departure from a literal reading of F-94's "terminal on
+                    # first sight". The SDK defaults to max_retries=2, so a
+                    # transport error reaching this layer has already been
+                    # attempted three times (F-25); a ladder here would make
+                    # it six, and F-25 is explicit that the application's
+                    # ladder and the SDK's must be chosen together. What
+                    # changes is that the failure is now named.
+                    salvageable = err_class in ("rate_limit", "oversize")
 
                     # split WITHOUT losing items (requeue remainder right after this batch)
-                    if (is_rate or is_big) and len(cur_batch) > 1:
+                    if salvageable and len(cur_batch) > 1:
                         new_n = max(1, len(cur_batch) // 2)
                         remainder = cur_batch[new_n:]
                         cur_batch = cur_batch[:new_n]
@@ -580,25 +758,29 @@ def run_m1_llm_for_criterion(
 
                         if log:
                             log(
-                                f"{log_prefix} batch {bi+1}/{len(batches)} error ({e}); "
+                                f"{log_prefix} batch {bi+1}/{len(batches)} "
+                                f"{err_class} (by {err_how}): {e}; "
                                 f"split into {len(cur_batch)} + {len(remainder)}\n"
                             )
 
                         time.sleep(min(4.0, 0.4 * attempts))
                         continue
 
-                    # reduce truncation if still big/rate and trunc is high
-                    if (is_rate or is_big) and cur_trunc > 600:
+                    # reduce truncation if still oversize/rate-limited and trunc is high
+                    if salvageable and cur_trunc > 600:
                         new_trunc = max(600, int(cur_trunc * 0.75))
                         if log:
-                            log(f"{log_prefix} batch {bi+1}/{len(batches)} error ({e}); trunc {cur_trunc} -> {new_trunc}\n")
+                            log(f"{log_prefix} batch {bi+1}/{len(batches)} "
+                                f"{err_class} (by {err_how}): {e}; "
+                                f"trunc {cur_trunc} -> {new_trunc}\n")
                         cur_trunc = new_trunc
                         time.sleep(min(4.0, 0.4 * attempts))
                         continue
 
                     # final failure for this batch: mark all items in THIS cur_batch as uncertain
                     if log:
-                        log(f"{log_prefix} batch {bi+1}/{len(batches)} failed: {e}\n")
+                        log(f"{log_prefix} batch {bi+1}/{len(batches)} failed "
+                            f"[{err_class}, by {err_how}]: {e}\n")
 
                     for it in cur_batch:
                         a_id = _safe_str(it.get("a_id", "")).strip()
@@ -613,6 +795,13 @@ def run_m1_llm_for_criterion(
                             "span": None,
                             "valid_quote": False,
                             "error": str(e),
+                            # F-94: the class rides on the record, not only in
+                            # the log. A log line lives in a sub-tab that is
+                            # not the focused one; the record reaches whoever
+                            # asks why the run produced no answers. It cannot
+                            # reach a cache file — `error` already makes the
+                            # entry uncacheable (F-87).
+                            "error_class": err_class,
                         }
                     break  # stop retrying this batch
 
