@@ -597,3 +597,84 @@ class TestTheProviderCanBeReCheckedWithoutRelaunching:
         assert errors == [], errors
         ''')
         assert "errors=[]" in out
+
+
+class TestARunIsDescribedBeforeItStarts:
+    """F-151. ``_run_clicked`` began a long, sometimes billable operation
+    with no record count, no request count, no estimate and no
+    confirmation. The maintainer's run took hours."""
+
+    _PREAMBLE = '''
+        import tkinter.messagebox as MB
+        from plugins._common import provider_detect as pd
+        from plugins._common import run_estimate as RE
+        from plugins._common import settings as S
+        # The package name has a leading digit, so it cannot be
+        # imported with a statement; the class knows its own module.
+        ELUI = sys.modules[ELView.__module__]
+
+        asked = {}
+        def _fake_ask(title, text, **kw):
+            asked["title"] = title
+            asked["text"] = text
+            return asked.get("answer", False)
+        ELUI.messagebox.askyesno = _fake_ask
+        ELUI.messagebox.showerror = lambda *a, **k: None
+
+        # No network from the compute probe.
+        pd.compute_mode = lambda endpoint, **kw: pd.ComputeMode(
+            pd.COMPUTE_CPU, "This server is running the model on the CPU.")
+        ELUI.compute_mode = pd.compute_mode
+    '''
+
+    def test_it_states_the_counts_and_can_be_declined(self):
+        out = _smoke(self._PREAMBLE + '''
+        RE.forget_rates()
+        v = ELView(frame())
+
+        class _C:
+            enabled = True; operator = "llm"
+        class _Crits:
+            criteria = [_C(), _C()]
+        class _Parse:
+            rows = [{}] * 85
+        class _B:
+            criteria = _Crits(); parse = _Parse()
+        v.bundle = _B()
+
+        asked["answer"] = False
+        started = v._confirm_run("llama3.2", 5)
+        print("returned=" + repr(started))
+        print("text=" + repr(asked["text"]))
+        assert started is False, "declining must stop the run"
+        for fragment in ("85", "170", "34", "llama3.2"):
+            assert fragment in asked["text"], fragment
+        assert "CPU" in asked["text"], "the compute mode must reach the user"
+        assert "no basis for a time estimate" in asked["text"]
+        ''')
+        assert "returned=False" in out
+
+    def test_a_measured_rate_becomes_a_duration(self):
+        out = _smoke(self._PREAMBLE + '''
+        RE.forget_rates()
+        v = ELView(frame())
+
+        class _C:
+            enabled = True; operator = "llm"
+        class _Crits:
+            criteria = [_C(), _C()]
+        class _Parse:
+            rows = [{}] * 85
+        class _B:
+            criteria = _Crits(); parse = _Parse()
+        v.bundle = _B()
+
+        for _ in range(3):
+            RE.remember_call(v._effective_endpoint(), "llama3.2", 30.0)
+
+        asked["answer"] = True
+        assert v._confirm_run("llama3.2", 5) is True
+        print("text=" + repr(asked["text"]))
+        assert "17 minutes" in asked["text"], asked["text"]
+        ''')
+        assert "17 minutes" in out

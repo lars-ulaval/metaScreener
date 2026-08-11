@@ -47,7 +47,10 @@ import re
 import time
 from collections import Counter
 from hashlib import sha256
+from time import perf_counter
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+from plugins._common.run_estimate import remember_call
 
 
 # --------------------------- small utilities ----------------------------------
@@ -893,17 +896,34 @@ def run_m1_llm_for_criterion(
         if cancel_token is not None and bool(getattr(cancel_token, "is_set", lambda: False)()):
             raise _Cancelled()
 
+    # F-151. Where a *measured* rate comes from, so the pre-run
+    # confirmation can offer a duration instead of a guess. Resolved once
+    # here rather than per call: it is a settings read, and the endpoint
+    # cannot change mid-run.
+    _rate_endpoint = resolve_openai_base_url(stage)
+
     def _call_once(batch: List[Dict[str, Any]], cur_trunc: int):
         msgs = build_messages(criterion, batch, cur_trunc)
         # Counted here rather than at the call site so that every attempt is
         # counted once, including the ones a later salvage makes invisible in
         # the evidence map. See new_llm_call_stats.
         _bump(stats, "calls_made")
-        return client.chat.completions.create(
-            model=model,
-            messages=msgs,
-            temperature=temperature,
-        )
+        # `perf_counter` is imported by name at module scope, deliberately:
+        # several tests replace this module's `time` with a stub carrying
+        # only `sleep`, and routing the clock through that name would break
+        # them for a reason that has nothing to do with what they assert.
+        _t0 = perf_counter()
+        try:
+            return client.chat.completions.create(
+                model=model,
+                messages=msgs,
+                temperature=temperature,
+            )
+        finally:
+            # In `finally`, so a failed call still contributes its
+            # duration: a server that takes 30 seconds to refuse is
+            # exactly the one a user most needs warned about.
+            remember_call(_rate_endpoint, model, perf_counter() - _t0)
 
     out: Dict[Tuple[str, str], Dict[str, Any]] = {}
     cid = criterion["id"]

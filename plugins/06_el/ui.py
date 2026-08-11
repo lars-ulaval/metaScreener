@@ -55,6 +55,12 @@ from plugins._common.stage_state import (
     tk_state,
 )
 from plugins._common.widgets import RecheckButton, Tooltip
+from plugins._common.run_estimate import (
+    RunPlan,
+    confirm_text,
+    observed_rate,
+)
+from plugins._common.llm_client import llm_exclusion_allowed
 
 from plugins._common.settings import (
     apply_stage_fields,
@@ -66,6 +72,7 @@ from plugins._common.provider_detect import (
     last_known,
     model_choices,
     refresh as pd_refresh,
+    compute_mode,
 )
 from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
@@ -1145,6 +1152,41 @@ class ELView(ttk.Frame):
 
     # -------- run --------
 
+    def _confirm_run(self, model: str, batch_size: int) -> bool:
+        """Say what the run will cost, and ask. ``False`` means stop.
+
+        The numbers split in two, and the split is the point (F-151).
+        Records, criteria, pairs and requests are arithmetic over things
+        already loaded, so they are stated flatly. A duration is not, so
+        it appears only when a rate has actually been measured against
+        this endpoint and model — inventing a plausible seconds-per-request
+        constant is how F-125 came to describe a cost wrong by two to
+        three orders of magnitude.
+
+        The compute-mode probe runs here, on the GUI thread, and that is
+        a deliberate exception to this file's own rule. It is one request
+        to a server the user has already been told is reachable, it
+        carries `provider_detect`'s timeout, and it cannot raise. Doing it
+        on a worker would mean either blocking on a thread anyway or
+        showing the dialog and correcting it afterwards, and the whole
+        point is that the answer arrives BEFORE the decision.
+        """
+        crits = [c for c in self.bundle.criteria.criteria
+                 if c.enabled and c.operator == "llm"]
+        plan = RunPlan(records=len(self.bundle.parse.rows),
+                       criteria=len(crits), batch_size=batch_size)
+
+        endpoint = self._effective_endpoint()
+        compute = compute_mode(endpoint, model=model)
+        text = confirm_text(
+            plan, stage=self.STAGE, model=model,
+            rate=observed_rate(endpoint, model),
+            compute_detail=compute.detail if compute.known else "",
+            flag_only=not llm_exclusion_allowed(self.STAGE),
+        )
+        return bool(messagebox.askyesno(f"Start {self.STAGE}?", text,
+                                        parent=self))
+
     def _run_clicked(self):
         if not self.bundle or self._worker:
             return
@@ -1198,6 +1240,18 @@ class ELView(ttk.Frame):
             messagebox.showwarning("EL settings corrected",
                                    "\n\n".join(numeric.problems))
         use_cache = bool(self.var_use_cache.get())
+
+        # F-151. The last thing before a long, and on a paid provider a
+        # billable, operation. `_offer_pull` already ceremonially confirms
+        # a model download, and its docstring says outright that doing so
+        # with MORE ceremony than this path had was the imbalance to fix.
+        #
+        # After the readiness check, deliberately: there is no point
+        # asking a user to confirm a run that cannot start. Before any
+        # widget is put into its running state, so declining leaves the
+        # tab exactly as it was.
+        if not self._confirm_run(model, batch_size):
+            return
 
         self._cancel.clear()
         self.pbar.configure(value=0.0, maximum=100.0)

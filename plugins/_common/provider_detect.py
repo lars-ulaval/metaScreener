@@ -210,6 +210,146 @@ def refresh(endpoint: str, *, timeout: float = DEFAULT_TIMEOUT,
     return d
 
 
+# ----------------------------
+# Compute mode — VRAM or system RAM (F-150)
+# ----------------------------
+
+COMPUTE_GPU = "gpu"
+COMPUTE_CPU = "cpu"
+COMPUTE_PARTIAL = "partial"
+COMPUTE_UNKNOWN = "unknown"
+
+COMPUTE_MODES = (COMPUTE_GPU, COMPUTE_CPU, COMPUTE_PARTIAL, COMPUTE_UNKNOWN)
+"""Where the loaded model is actually running.
+
+``COMPUTE_UNKNOWN`` is not a failure state and must never be reported as
+``COMPUTE_CPU``. A server that is not Ollama has no ``/api/ps`` route at
+all, and Ollama unloads idle models, so "we cannot say" is the ordinary
+answer rather than the exceptional one. Telling a user with a working GPU
+that they are on the CPU would send them to reinstall drivers they never
+needed to touch — the same harm as conflating D5's three messages.
+"""
+
+
+@dataclass(frozen=True)
+class ComputeMode:
+    """What the server says about where it is running the model.
+
+    ``known`` is redundant with ``mode != COMPUTE_UNKNOWN`` and is kept
+    because the callers that matter are asking *"may I say anything at
+    all?"*, and a caller that has to know the vocabulary to ask that
+    question is a caller that can get it wrong.
+    """
+
+    mode: str
+    detail: str
+    model: str = ""
+
+    @property
+    def known(self) -> bool:
+        return self.mode != COMPUTE_UNKNOWN
+
+
+def compute_mode_url(endpoint: str) -> str:
+    """Ollama's native ``/api/ps``, derived from the compatible endpoint.
+
+    Same derivation as ``model_pull.pull_url``, and for the same reason:
+    ``/api/ps`` lives on Ollama's own surface, not on the
+    OpenAI-compatible ``/v1`` one.
+    """
+    base = (endpoint or "").rstrip("/")
+    if base.endswith("/v1"):
+        base = base[: -len("/v1")]
+    return base + "/api/ps"
+
+
+def compute_mode(endpoint: str, *, model: str = "",
+                 timeout: float = DEFAULT_TIMEOUT) -> ComputeMode:
+    """Whether the loaded model sits in VRAM or in system RAM.
+
+    F-150. The maintainer's run took hours and pegged his CPU, and his
+    own Ollama log explains it: ``inference compute id=cpu library=cpu``,
+    ``total_vram="0 B"`` — Ollama never found his RTX 3060. metaScreener
+    cannot fix that and does not try; GPU detection is Ollama's business
+    and the user's machine is not ours to configure. What it can do is
+    say so *before* a four-hour run instead of after, and Ollama already
+    publishes the fact.
+
+    Never raises, and never guesses. Every failure — unreachable, a
+    server with no such route, a shape this code does not recognise, an
+    absent ``size_vram`` on an older build, or simply no model loaded —
+    is ``COMPUTE_UNKNOWN``. Absent is not zero (F-68), and "no model
+    loaded" says nothing about where the next one will run.
+    """
+    try:
+        req = urllib.request.Request(
+            compute_mode_url(endpoint), headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if getattr(resp, "status", 200) != 200:
+                return _compute_unknown()
+            payload = json.loads(resp.read().decode("utf-8", "replace"))
+    except Exception:
+        return _compute_unknown()
+
+    if not isinstance(payload, dict):
+        return _compute_unknown()
+    entries = payload.get("models")
+    if not isinstance(entries, list) or not entries:
+        return _compute_unknown()
+
+    wanted = (model or "").strip()
+    chosen = None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or entry.get("model") or "").strip()
+        if wanted and name == wanted:
+            chosen = entry
+            break
+        if chosen is None:
+            chosen = entry
+    if not isinstance(chosen, dict):
+        return _compute_unknown()
+
+    size = chosen.get("size")
+    vram = chosen.get("size_vram")
+    # Both fields required, and required to be numbers. An older Ollama
+    # that does not publish `size_vram` must read as "cannot say" rather
+    # than as "zero bytes in VRAM", which would be a confident and wrong
+    # claim about someone's working GPU.
+    if not isinstance(size, (int, float)) or not isinstance(vram, (int, float)):
+        return _compute_unknown()
+    if size <= 0:
+        return _compute_unknown()
+
+    name = str(chosen.get("name") or chosen.get("model") or "").strip()
+    if vram <= 0:
+        return ComputeMode(
+            COMPUTE_CPU,
+            "This server is running the model on the CPU — no GPU memory "
+            "is in use. Screening will work, and it will be considerably "
+            "slower than on a GPU.",
+            name)
+    if vram >= size:
+        return ComputeMode(
+            COMPUTE_GPU,
+            "This server is running the model in GPU memory.", name)
+    pct = int(round(100.0 * float(vram) / float(size)))
+    return ComputeMode(
+        COMPUTE_PARTIAL,
+        f"This server is running about {pct}% of the model in GPU memory "
+        f"and the rest on the CPU. Expect speeds between the two.",
+        name)
+
+
+def _compute_unknown() -> ComputeMode:
+    return ComputeMode(
+        COMPUTE_UNKNOWN,
+        "This server does not report where it is running the model, so "
+        "the speed cannot be anticipated here.",
+        "")
+
+
 def _models_url(endpoint: str) -> str:
     return (endpoint or "").rstrip("/") + "/models"
 
