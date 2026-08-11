@@ -149,15 +149,37 @@ Established by sweeping the whole tree for `chat.completions`,
 `cohere`, `ollama`, `requests.post`, `httpx`, `urlopen`, `http.client`,
 `/v1/chat`, `/api/generate`, `11434`, `1234/v1`, `8080/v1`.
 
+> **Corrected by wave 12 (F-148). Two errors, both in this section.** Row 3
+> below said *"No — dead"*, and §A1.3 twenty lines further on says the
+> opposite and is right — the table contradicted this document's own prose,
+> and the table is what was carried forward. Row 3 was live on **every**
+> failure of row 2, and it is what the maintainer's install actually hit;
+> see F-146. Second, the heading's claim that *exactly three modules* send a
+> prompt is true of chat completions only: the sweep that produced it looked
+> for SDK call shapes, and two live routes reach an LLM server over raw
+> `urllib` with no SDK and no `.create(` anywhere in them. They are rows 5
+> and 6, added below. Neither is affected by the 0.x removal, but an
+> inventory that omits them is not an inventory of *routes to a model
+> server*.
+
 | # | Module | Symbol issuing the request | SDK surface | Live? |
 |---|---|---|---|---|
 | 1 | `plugins/_common/llm_client.py` | `run_m1_llm_for_criterion` (inner `_call_once`) | `client.chat.completions.create` | **Yes — EL/IL screening** |
-| 2 | `plugins/03_harmoniser/llm_refine.py` | `_call_openai_json` (branch 1) | `client.chat.completions.create` | Yes — opt-in refinement |
-| 3 | `plugins/03_harmoniser/llm_refine.py` | `_call_openai_json` (branch 2) | `openai.ChatCompletion.create` | **No — dead** (§A1.3) |
-| 4 | `plugins/01_reference_extractor/original/prisma_citations_ai_v3_1.py` | `ai_extract_included` | `client.chat.completions.create` + vision + forced tool call | Yes — experimental |
+| 2 | `plugins/03_harmoniser/llm_refine.py` | `_call_openai_json` (the only branch, since F-146) | `client.chat.completions.create` | Yes — opt-in refinement |
+| 3 | ~~`plugins/03_harmoniser/llm_refine.py`~~ | ~~`_call_openai_json` (branch 2)~~ | ~~`openai.ChatCompletion.create`~~ | **Was live, not dead — removed in F-146.** Reached on every branch-1 failure via a bare `except Exception: pass`, and it replaced the real error with a migration notice |
+| 4 | `plugins/01_reference_extractor/original/prisma_citations_ai_v3_1.py` | `ai_extract_included` | `client.chat.completions.create` + vision + forced tool call | Yes — experimental. **Current interface** (`tools=`/`tool_choice=`, not the removed `functions=`/`function_call=`), verified wave 12 |
+| 5 | `plugins/_common/model_pull.py` | `pull` | **raw `urllib`** POST to Ollama's native `/api/pull` | Yes — the dialog's "Download a model…" button |
+| 6 | `plugins/_common/provider_detect.py` | `_fetch_models` | **raw `urllib`** GET `{endpoint}/models`, sending the key as a Bearer token | Yes — the launch probe, for the app endpoint and every per-stage override |
 
 There are **no** embeddings, image, moderation, `responses.create`, streaming,
-Assistants or Batch calls anywhere, and no non-OpenAI SDK. The three client
+Assistants or Batch calls anywhere, and no non-OpenAI SDK. Wave 12 re-swept
+for `openai.ChatCompletion`, `openai.Completion`, `openai.Embedding`,
+`openai.Moderation`, `openai.api_key`, `openai.api_base`, `openai.api_type`
+and `openai.api_version` and found **none outside this document**; the sweep
+is now a test rather than a prose claim
+(`tests/test_harmoniser_llm_call.py::TestNoRemovedSdkInterfaceSurvivesAnywhere`),
+and it reads the AST rather than the text, because a text search matches the
+sentence that records the rule. The three client
 constructors are `plugins/_common/llm_client.py::_openai_client_for`
 (`OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))`),
 `prisma_citations_ai_v3_1.py::ai_extract_included`
