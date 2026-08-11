@@ -82,6 +82,8 @@ These stages execute without LLM inference, incur no token cost, and impose no l
 
 Both LLM stages implement **evidence gating**: a screening decision is accepted only when the model provides (1) a confidence score meeting or exceeding a configurable threshold (default 0.6) and (2) a verbatim quotation verifiable as a substring of the source record. Records failing either condition receive a `PASS_FLAGGED` outcome and are routed to the human review queue. All LLM responses are persisted in a local cache keyed by content hash, enabling exact re-runs without additional API cost.
 
+The gate verifies that a quote is **real**. It cannot verify that a quote is **relevant**, and that limit is load-bearing: measured against this repository's own 85-record corpus and criteria, `llama3.2:3b` produced 43 exclusions and `qwen2.5:7b` produced 4, every one of them unjustified and every one of them carrying a verbatim quote above threshold, where `gpt-4o-mini` produced a single correct exclusion. metaScreener therefore runs **flag-only** by default on a local or custom provider: an LLM verdict may flag a record for human review, but may not exclude it, and a suppressed exclusion is recorded as `EXCLUSION_SUPPRESSED` rather than as an ordinary flag. Exclusion is permitted by default only for OpenAI, the configuration the published validation study measured, and the setting is user-changeable for any provider. On this pipeline the cost is small — the deterministic stages account for 99.3% of all removals — and it is the same commitment as §8's, applied to the engine rather than to a failure path.
+
 ---
 
 ## Bundle format and audit trail

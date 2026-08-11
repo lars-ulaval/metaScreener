@@ -43,6 +43,7 @@ from plugins._common.stage_state import (
     ENDPOINT_UNREACHABLE,
     NO_MODELS_PULLED,
     OUTCOME_CANCELLED,
+    OUTCOME_EXCLUSIONS_SUPPRESSED,
     OUTCOME_NOTHING_SEPARATED,
     OUTCOME_NO_ANSWERS,
     OUTCOME_NOT_SCREENED,
@@ -307,14 +308,22 @@ class TestTheModelIsExtensible:
         """Wave 11 session B added `endpoint unreachable`, `endpoint set but no model
         pulled` and `keyless server` to the pre-run arm. They are new
         members of READINESS_CODES, reached by new inputs — not changes to
-        the existing branches."""
+        the existing branches.
+
+        Wave 12 adds `exclusions_suppressed` to the post-run arm the same
+        way (F-145): a new member reached by a new input, with every
+        existing branch keeping its meaning. That this assertion had to be
+        edited is the point of writing it as an exact set — the vocabulary
+        cannot grow by accident, and a wave that grows it says so here.
+        """
         assert set(READINESS_CODES) == {
             READY, NO_BUNDLE, NO_KEY, NO_MODEL,
             NOT_CONFIGURED, NOT_CHECKED, ENDPOINT_UNREACHABLE,
             NO_MODELS_PULLED}
         assert set(OUTCOME_CODES) == {
             OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_NO_ANSWERS,
-            OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK}
+            OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK,
+            OUTCOME_EXCLUSIONS_SUPPRESSED}
 
     def test_readiness_takes_its_inputs_by_keyword_only(self):
         """So wave 10 can add an `endpoint=` and a `probe=` without

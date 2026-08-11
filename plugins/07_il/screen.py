@@ -66,15 +66,23 @@ from plugins._common.llm_client import (
     _dump_cache_to_jsonl,
     _render_prompt_for_key,
     resolve_openai_base_url,
+    llm_exclusion_allowed,
     OPENAI_BASE_URL_ENV,
 )
 from plugins._common.llm_client import _cache_key as _shared_cache_key
-from plugins._common.bundle import NOT_SCREENED, _verify_sha256_map
+from plugins._common.bundle import (
+    EXCLUSION_SUPPRESSED,
+    NOT_SCREENED,
+    POLICY_EXCLUSION_PERMITTED,
+    POLICY_FLAG_ONLY,
+    _verify_sha256_map,
+)
 from plugins._common.parser import _decode_bytes as _decode_bytes_common
 
 from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
-OUTCOMES = ("OUT", "PASS_CLEAN", "REVIEW", NOT_SCREENED)
+OUTCOMES = ("OUT", "PASS_CLEAN", "REVIEW", EXCLUSION_SUPPRESSED,
+            NOT_SCREENED)
 
 # ------------------------------ dataclasses -----------------------------------
 
@@ -505,12 +513,19 @@ def run_il_screen(
     # consulted no model must not name one — the same rule the run report
     # itself follows.
     provenance: Dict[str, Any] = {}
+    # F-145. A mutable holder set at the same point as `provenance` and
+    # obeying the same omission rule: a stage that consulted no model
+    # records no policy, because a policy that governed no verdict is not
+    # a fact about this run. The zero-criteria path returns before either
+    # is filled, which is what makes that true.
+    policy: Dict[str, Any] = {}
 
     def _run_report(evidence: Dict[Tuple[str, str], Dict[str, Any]]) -> Dict[str, Any]:
         report: Dict[str, Any] = dict(summarize_llm_evidence(evidence))
         report.update(call_stats)
         if provenance:
             report["provenance"] = dict(provenance)
+        report.update(policy)
         return report
 
     if not crits:
@@ -536,7 +551,7 @@ def run_il_screen(
             fr["il_evidence_json"] = "{}"
             full_rows.append(fr)
             survivors.append(dict(r))
-            row_eval_lists.append({"failed": [], "missing": [], "met": [], "uncertain": []})
+            row_eval_lists.append({"failed": [], "missing": [], "met": [], "uncertain": [], "suppressed": []})
         counts[NOT_SCREENED] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
@@ -632,6 +647,17 @@ def run_il_screen(
         prompt_version=PROMPT_VERSION, trunc_chars=trunc_chars,
         batch_size=batch_size,
     ))
+
+    # F-145. Resolved once per run, beside the endpoint, for the same
+    # reason: the row loop below must not ask this question per record and
+    # get two answers if the store changes mid-run.
+    allow_exclusion = llm_exclusion_allowed("IL")
+    policy["exclusion_policy"] = (POLICY_EXCLUSION_PERMITTED if allow_exclusion
+                                  else POLICY_FLAG_ONLY)
+    if log_cb and not allow_exclusion:
+        log_cb("[IL] flag-only: an LLM verdict may flag a record for review "
+               "but may not exclude it. Change this in the provider "
+               "settings if the model has been validated for this corpus.\n")
 
     if log_cb:
         # F-119's lesson: say what the code observed. Whether the variable
@@ -749,6 +775,11 @@ def run_il_screen(
         missing: List[str] = []
         met: List[str] = []
         uncertain: List[str] = []
+        #: Criteria on which the model returned a gate-passing excluding
+        #: verdict that flag-only did not act on (F-145). Separate from
+        #: `uncertain`, which is what the gate REFUSING produces - the two
+        #: are different facts about the record.
+        suppressed: List[str] = []
         evidence: Dict[str, Any] = {}
 
         for c in crits:
@@ -781,11 +812,23 @@ def run_il_screen(
 
             status = "UNCERTAIN"
             if usable:
+                # F-145. Both arms below can remove a record, so both are
+                # gated. `_excluded_by` routes an excluding verdict to
+                # `failed` (acted on) or to `suppressed` (recorded, not
+                # acted on) - never to both, because `failed` is what
+                # drives OUT and two representations of one fact is
+                # F-69's shape.
+                #
+                # IL's own arm is the second one: its criteria are
+                # include-typed, so "the model said exclude" is
+                # `decision == "not_meet"` here where it is `"meet"` in
+                # EL. The verdict polarity differs; the ACTION is the same
+                # removal, which is why one rule covers both stages and
+                # neither needs a special case.
                 if c.ctype == "exclude":
                     if decision == "meet":
-                        status = "FAILED"
-                        failed.append(c.id)
-                        crit_impacts[c.id]["failed"] += 1
+                        status = _excluded_by(c.id, failed, suppressed,
+                                              crit_impacts, allow_exclusion)
                     elif decision == "not_meet":
                         status = "MET"
                         met.append(c.id)
@@ -797,9 +840,8 @@ def run_il_screen(
                         met.append(c.id)
                         crit_impacts[c.id]["met"] += 1
                     elif decision == "not_meet":
-                        status = "FAILED"
-                        failed.append(c.id)
-                        crit_impacts[c.id]["failed"] += 1
+                        status = _excluded_by(c.id, failed, suppressed,
+                                              crit_impacts, allow_exclusion)
             else:
                 uncertain.append(c.id)
                 crit_impacts[c.id]["uncertain"] += 1
@@ -818,6 +860,13 @@ def run_il_screen(
 
         if failed:
             outcome = "OUT"
+        elif suppressed:
+            # F-145. Above PASS_CLEAN and REVIEW both, because it is the
+            # more specific fact: this record was not merely unresolved,
+            # the model asked for its removal and the removal was declined.
+            # Below OUT because `failed` can only be non-empty when
+            # exclusion is permitted, in which case no suppression happened.
+            outcome = EXCLUSION_SUPPRESSED
         elif (len(met) == len(crits)) and not missing and not uncertain:
             outcome = "PASS_CLEAN"
         else:
@@ -830,10 +879,12 @@ def run_il_screen(
         fr["il_met_ids"] = ",".join(met)
         fr["il_uncertain_ids"] = ",".join(uncertain)
         fr["il_evidence_json"] = json.dumps(evidence, ensure_ascii=False)
-        fr["il_reason_summary"] = _summarize_el_reason(outcome, failed, missing, uncertain)
+        fr["il_reason_summary"] = _summarize_el_reason(
+            outcome, failed, missing, uncertain, suppressed)
 
         full_rows.append(fr)
-        row_eval_lists.append({"failed": failed, "missing": missing, "met": met, "uncertain": uncertain})
+        row_eval_lists.append({"failed": failed, "missing": missing, "met": met,
+                               "uncertain": uncertain, "suppressed": suppressed})
 
         if outcome != "OUT":
             survivors.append(dict(r))
@@ -849,11 +900,51 @@ def run_il_screen(
 
     return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled, _run_report(llm_results)
 
-def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str], uncertain: List[str]) -> str:
+def _excluded_by(cid: str, failed: List[str], suppressed: List[str],
+                 crit_impacts: Dict[str, Dict[str, int]],
+                 allow_exclusion: bool) -> str:
+    """Route a gate-passing excluding verdict, and return its status.
+
+    F-145. One place decides, so the two polarity arms above cannot
+    disagree, and the criterion lands in exactly one list - `failed`
+    drives the OUT branch, so a suppressed verdict appearing there too
+    would be two representations of one fact (F-69's shape).
+
+    The twin of this function is `plugins/06_el/screen.py::_excluded_by`.
+    These two modules are the deliberate near-duplicates F-14 tracks and
+    the byte-identity goldens lock; de-duplicating the engines is that
+    row's L-effort migration and is not attempted here.
+    """
+    if allow_exclusion:
+        failed.append(cid)
+        crit_impacts[cid]["failed"] += 1
+        return "FAILED"
+    suppressed.append(cid)
+    # Counted under `failed` in the criterion-impact table on purpose: that
+    # table answers "what is this criterion doing to my corpus?", and the
+    # answer is that it is the criterion the model wants to exclude on.
+    # Where the record ended up is the record's fact, carried by the
+    # outcome; what the criterion asserted is the criterion's, and
+    # suppressing the action does not change what was asserted.
+    crit_impacts[cid]["failed"] += 1
+    return "SUPPRESSED"
+
+
+def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str],
+                         uncertain: List[str],
+                         suppressed: Optional[List[str]] = None) -> str:
     if outcome == "OUT":
         return f"OUT: failed {', '.join(failed)}"
     if outcome == "PASS_CLEAN":
         return "PASS_CLEAN: all IL criteria MET."
+    if outcome == EXCLUSION_SUPPRESSED:
+        # Spelled out rather than left to the reader, because this is the
+        # line a human reviewer reads when deciding what to do with the
+        # record, and "the model wanted this out" is the actionable half.
+        return (f"{EXCLUSION_SUPPRESSED}: the model returned an excluding "
+                f"verdict on {', '.join(suppressed or [])} which passed the "
+                f"evidence gate. Flag-only is in force for this provider, so "
+                f"the record was NOT excluded and needs human review.")
     bits: List[str] = ["REVIEW:"]
     if missing:
         bits.append(f"missing {', '.join(missing)}")

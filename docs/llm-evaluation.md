@@ -415,14 +415,36 @@ The findings reported above are bounded by several conditions:
 
   The evidence gate bounds the harm without removing it. A verdict
   whose quote cannot be found in the text the model was shown is
-  refused (`plugins/06_el/screen.py`, `run_el_screen`), so a degenerate run cannot
-  silently exclude records; in the archived run 38 such verdicts were
-  forced to `PASS_FLAGGED` and none affected an exclusion. What the
-  gate cannot do is prevent the opposite failure — a uniform, confident
-  pass that examines nothing and sends the whole corpus forward
-  unscreened. Reviewers should treat per-run decision and confidence
-  variance as something to inspect rather than assume, particularly
-  when a stage excludes nothing.
+  refused (`plugins/06_el/screen.py`, `run_el_screen`); in the archived
+  run 38 such verdicts were forced to `PASS_FLAGGED` and none affected
+  an exclusion.
+
+  **This passage previously continued "so a degenerate run cannot
+  silently exclude records", and wave 12 measured that claim false.**
+  Over this repository's own 85-record corpus and criteria,
+  `llama3.2:3b` produced 43 exclusions and `qwen2.5:7b` produced 4, all
+  unjustified — and every one of them *passed* the gate, with a
+  verbatim quote and a confidence above threshold. The gate verifies
+  that a quote is real; it cannot verify that a quote is relevant, and
+  nothing short of another model could. Nor was it a format failure:
+  llama3.2 answered 170 of 170 in perfect JSON with zero vocabulary
+  rejections. It simply asserted matches that were not there. A run can
+  therefore look entirely healthy by every counter this pipeline keeps
+  and still be removing correct studies.
+
+  What follows is that a local model may annotate but may not exclude,
+  which is what flag-only mode enforces (F-145): on a local or custom
+  provider an excluding verdict is recorded as `EXCLUSION_SUPPRESSED`
+  and the record survives to human review. The gate remains useful — it
+  is what makes a *malformed* verdict harmless — but it is not what
+  makes a *confident and wrong* one harmless, and only the second of
+  those was ever the interesting case.
+
+  The other failure the gate cannot prevent is unchanged: a uniform,
+  confident pass that examines nothing and sends the whole corpus
+  forward unscreened. Reviewers should treat per-run decision and
+  confidence variance as something to inspect rather than assume,
+  particularly when a stage excludes nothing.
 
   Two further failure modes are **not** instances of this one, and
   watching for this one will not catch them. A **JSON-shape failure** —

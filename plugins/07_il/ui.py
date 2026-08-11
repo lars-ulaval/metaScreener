@@ -1195,7 +1195,7 @@ class ILView(ttk.Frame):
             cid = self.active_criterion_id
             filtered = []
             for i, r in enumerate(self.full_rows):
-                ev = self.row_eval_lists[i] if i < len(self.row_eval_lists) else {"failed": [], "missing": [], "met": [], "uncertain": []}
+                ev = self.row_eval_lists[i] if i < len(self.row_eval_lists) else {"failed": [], "missing": [], "met": [], "uncertain": [], "suppressed": []}
                 if (cid in ev.get("failed", [])) or (cid in ev.get("missing", [])) or (cid in ev.get("met", [])) or (cid in ev.get("uncertain", [])):
                     filtered.append(r)
             full_view = filtered

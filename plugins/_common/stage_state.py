@@ -41,6 +41,7 @@ from typing import Any, List, Mapping, Optional, Tuple
 
 from plugins._common.bundle import (
     CANCELLED_EXPORT_REASON,
+    EXCLUSION_SUPPRESSED,
     NOT_SCREENED,
     _run_summary_counts_text,
 )
@@ -57,9 +58,14 @@ OUTCOME_NOTHING_SEPARATED = "nothing_separated"
 OUTCOME_PARTIAL_FAILURE = "partial_failure"
 OUTCOME_OK = "ok"
 
+#: Wave 12, F-145. Added as a new member per this vocabulary's extension
+#: contract — no existing state changed meaning.
+OUTCOME_EXCLUSIONS_SUPPRESSED = "exclusions_suppressed"
+
 OUTCOME_CODES = (
     OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_NO_ANSWERS,
     OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK,
+    OUTCOME_EXCLUSIONS_SUPPRESSED,
 )
 """The closed set of states a finished run can be in.
 
@@ -143,6 +149,11 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
     rejected = int(llm_report.get("decisions_rejected", 0) or 0)
     calls_failed = int(llm_report.get("calls_failed", 0) or 0)
     separated = int(counts.get("OUT", 0) or 0) + int(counts.get("PASS_CLEAN", 0) or 0)
+    # From the outcome histogram the engine already built, not re-derived
+    # by re-scanning the rows: two representations of one fact with nothing
+    # forcing them to agree is F-69's shape, which this project has shipped
+    # four times.
+    suppressed = int(counts.get(EXCLUSION_SUPPRESSED, 0) or 0)
 
     if records and answered == 0:
         return Outcome(
@@ -163,6 +174,23 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"call.\n\n"
                 f"Export anyway?"
             ),
+        )
+
+    if suppressed:
+        return Outcome(
+            code=OUTCOME_EXCLUSIONS_SUPPRESSED,
+            label=(f"{stage} done, flag-only — {suppressed} record(s) carry "
+                   f"a model exclusion that was not acted on."),
+            # None, deliberately. **This branch exists to stop a second
+            # F-34.** Suppressing every exclusion drives OUT to zero, so
+            # without it the branch below would fire on a run that was
+            # correctly configured, fully successful and doing exactly what
+            # the user asked — reporting "nothing separated — every record
+            # flagged" and demanding an acknowledgement to export. F-34 was
+            # a stage using a label that asserted the opposite of the
+            # truth; asking a user to acknowledge a working safety gate as
+            # damage would be the same error with the sign flipped.
+            ack_reason=None,
         )
 
     if total_rows and separated == 0:
@@ -249,6 +277,57 @@ def key_required(provider: str) -> bool:
     provider, not about the string.
     """
     return (provider or "").strip().lower() not in _KEYLESS_PROVIDERS
+
+
+def exclusion_allowed(*, provider: str, setting: Any = None) -> bool:
+    """Whether an LLM verdict from this provider may REMOVE a record.
+
+    Wave 12, F-145. A local model can read and annotate; it cannot be
+    trusted to remove a paper from a systematic review. The measurement
+    that establishes this is quoted in full in
+    ``tests/test_flag_only.py``: over the same 85-record corpus and the
+    same criteria as the committed goldens, gpt-4o-mini produced one
+    exclusion (audited, correct), llama3.2:3b produced 43 (all
+    unjustified) and qwen2.5:7b produced 4 (all unjustified, confirmed by
+    the author). Every one of the wrong exclusions **passed the evidence
+    gate**, with a verbatim quote above threshold — ``_quote_in_text``
+    verifies that a quote is real, and nothing here can verify that a
+    quote is relevant.
+
+    ``setting`` is the user's explicit choice and wins outright when it is
+    a genuine boolean. Anything else — ``None``, an absent key, or the
+    ``"no"`` a hand-edited settings file might carry — means *nobody has
+    chosen*, and the provider answers. The type guard is deliberate and is
+    the direction of harm that matters: ``bool("no")`` is ``True``, so
+    coercing would silently PERMIT a local model to exclude.
+
+    **The default is computed here rather than stored**, for the reason
+    ``defaults()`` gives about ``provider`` and ``batch_size``: a boolean
+    written to disk at install time is wrong the moment the provider
+    changes, and a module that cannot see the input a decision depends on
+    must not assert a value.
+
+    The provider question is ``key_required``'s, not a second predicate of
+    this module's own. That is F-117's rule — one predicate per question,
+    because two that answer the same question drift — and it is not a
+    coincidence being exploited: a keyless provider *is* a local or
+    self-hosted engine, which is exactly the population the measurement
+    covers. ``UNCHOSEN`` is not keyless and therefore is not restricted,
+    which also keeps the golden replays byte-identical, since
+    ``tests/conftest.py`` isolates the settings directory and every replay
+    resolves ``provider=""``.
+
+    Note what this deliberately does **not** ask. ``key_required_for``'s
+    (provider, endpoint) pair is the right question for *money*, and
+    INV-1b must keep asking it. Here the provider alone is the right
+    question, and where the two disagree this one errs toward flagging —
+    a "local" provider aimed at the vendor is over-restricted, which costs
+    a reviewer five more abstracts, while the reverse error costs a
+    silently missing study.
+    """
+    if isinstance(setting, bool):
+        return setting
+    return key_required(provider)
 
 
 #: Hosts that bill. Held as bare strings rather than derived from

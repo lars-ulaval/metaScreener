@@ -47,7 +47,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from plugins._common.parser import (
     _decode_bytes,
@@ -95,6 +95,77 @@ is no reason to drop them, and emptying the corpus would be a worse failure
 than the one being fixed. What changes is that they are no longer described
 as having passed anything.
 """
+
+
+EXCLUSION_SUPPRESSED = "EXCLUSION_SUPPRESSED"
+"""Outcome for a record the model asked to remove while flag-only was on.
+
+Wave 12, F-145. The model produced a confident, well-quoted excluding
+verdict; the evidence gate **passed** it; and the configured provider is
+not permitted to act on it, so the record survives and is routed to human
+review instead.
+
+**This is deliberately not ``PASS_FLAGGED`` / ``REVIEW``, and the
+distinction is the point.** Those mean the gate refused the verdict — the
+quote did not validate, the confidence sat below threshold, or the model
+said "uncertain". This one means the gate accepted the verdict and policy
+declined to act on it. "The model said exclude and we did not act on it"
+and "the model could not decide" are different facts about the record, and
+a reader of the report has to be able to tell them apart. Reusing a label
+that asserts something other than what happened is precisely the error
+``NOT_SCREENED`` above exists to correct.
+
+What the model said is not discarded: the per-criterion evidence entry
+keeps ``status: "SUPPRESSED"`` alongside the decision, the confidence and
+the quote, and ``{stage}_reason_summary`` names the criteria in prose. The
+fact is carried there rather than in a new report column because a new
+column moves ``tests/golden/{el,il}_filtered_v3.1.0.csv``.
+"""
+
+
+#: How a run's exclusion policy is spelled in the manifest. Two words
+#: rather than a boolean, because ``"flag_only": false`` reads as a denial
+#: of something and ``"exclusion_policy": "exclusion_permitted"`` reads as
+#: a statement of what was done.
+POLICY_FLAG_ONLY = "flag_only"
+POLICY_EXCLUSION_PERMITTED = "exclusion_permitted"
+
+_EXCLUSION_POLICIES = (POLICY_FLAG_ONLY, POLICY_EXCLUSION_PERMITTED)
+
+
+def history_exclusion_policy(entry: Mapping[str, Any]) -> Optional[bool]:
+    """Was this history entry's run flag-only? ``None`` if unrecorded.
+
+    Tri-state on purpose, and the third state is the one that matters.
+    Every bundle written before wave 12 lacks the key entirely, and
+    ``bool(entry.get("exclusion_policy", False))`` would read those as
+    "exclusion was permitted" — putting a positive claim about a real
+    screening decision into a reviewer's hands on the strength of a key
+    that was never written.
+
+    That is F-68's rule, whose statement in this codebase is
+    ``InputError.observed_len``'s: values "stay None for stages that do
+    not compute them rather than being invented, so an empty cell means
+    'not measured' and not 'measured as zero'." It is also
+    ``llm_readiness``'s ``NOT_CHECKED``: being told nothing is its own
+    state rather than silent optimism.
+
+    Recognised values only. A stray ``null``, a bare boolean from a
+    hand-edited manifest, or a spelling this build does not know reads as
+    unrecorded rather than being guessed at — F-70's half of the same
+    rule, where an old artefact keeps a documented degraded behaviour
+    instead of having a value inferred for it.
+
+    This lives here, beside the writer, rather than in ``stage_state``:
+    that module imports this one and the dependency runs one way only. A
+    user-facing *label* for this fact belongs there, next to ``Outcome``.
+    """
+    value = entry.get("exclusion_policy")
+    if value == POLICY_FLAG_ONLY:
+        return True
+    if value == POLICY_EXCLUSION_PERMITTED:
+        return False
+    return None
 
 
 # ----------------------------
@@ -637,9 +708,28 @@ def _write_llm_stage_bundle(
         # Same omission rule as `llm` itself: absent when the stage
         # consulted no model, never zero-filled or inferred.
         provenance = report.pop("provenance", None)
+        # F-145, and the same lift for the same reason. A bundle produced
+        # under flag-only and one produced with exclusion permitted are
+        # different artefacts, and a later reader must be able to tell
+        # which is which without re-running the GUI.
+        #
+        # A **sibling** of `provenance`, not a seventh field inside it —
+        # this is a deliberate disagreement with the brief. Wave 10's
+        # contract is that a cached entry cannot be served into a run whose
+        # provenance differs in any recorded field except `batch_size`.
+        # This policy cannot affect a verdict: it acts strictly downstream
+        # of one, on what the pipeline DOES with an answer the model has
+        # already given. Recording it inside provenance would therefore
+        # force one of two wrong things — invalidating 254 perfectly valid
+        # cached verdicts every time the policy is toggled, or adding a
+        # second unexplained exception to a contract a test pins. As a
+        # sibling it states the fact and touches neither.
+        policy = report.pop("exclusion_policy", None)
         entry["llm"] = report
         if isinstance(provenance, dict) and provenance:
             entry["provenance"] = dict(provenance)
+        if policy in _EXCLUSION_POLICIES:
+            entry["exclusion_policy"] = policy
     history.append(entry)
     pipeline["stages"] = stages
     pipeline["history"] = history

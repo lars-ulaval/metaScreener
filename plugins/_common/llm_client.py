@@ -198,6 +198,30 @@ def resolve_openai_base_url(stage: str = "") -> str:
     return _stage_config(stage).endpoint
 
 
+def llm_exclusion_allowed(stage: str = "") -> bool:
+    """Whether this stage's verdicts may REMOVE a record (F-145).
+
+    ``False`` means flag-only: the model may mark a record for human
+    review, and may not take it out of the review. Off by default for the
+    keyless providers — local and custom — because a local model was
+    measured producing 43 and 4 unjustified exclusions on a corpus where
+    the vendor model produced one correct one, every wrong exclusion
+    carrying a verbatim quote above threshold. See
+    ``stage_state.exclusion_allowed`` for the measurement and the rule.
+
+    Resolved through ``_stage_config`` for the same reason
+    ``resolve_openai_base_url`` is: one place decides, and a second
+    derivation would be two representations of one fact. It degrades with
+    the store — an unreadable settings file resolves to ``provider=""``,
+    which is not a keyless provider and so is not restricted. That is the
+    honest reading rather than a hole: a store in that state also fails
+    ``llm_readiness`` at ``NOT_CONFIGURED``, so no run reaches this
+    question, and treating an unknown provider as a local model would move
+    the golden replays, which resolve exactly that provider.
+    """
+    return _stage_config(stage).allow_llm_exclusion
+
+
 def _stage_config(stage: str = ""):
     """The resolved configuration of ``stage``, or of the application.
 

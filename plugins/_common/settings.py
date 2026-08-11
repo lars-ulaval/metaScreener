@@ -187,6 +187,20 @@ def defaults() -> Dict[str, Any]:
         # concrete number here is a choice this file is not entitled to
         # make, because it cannot see which provider is selected.
         "batch_size": None,
+        # **Not chosen**, and deliberately not a boolean (F-145, wave 12).
+        # Whether an LLM verdict may REMOVE a record defaults to the
+        # provider — off for local and custom, on for OpenAI, which is the
+        # configuration the published validation study measured — and the
+        # provider is not visible from here. Writing a concrete boolean at
+        # install time would be wrong the moment the user switches
+        # provider, which is the same mistake as the ``provider="local"``
+        # and ``batch_size=5`` defaults above, both of which shipped.
+        #
+        # ``None`` means *nobody has chosen*, which lets
+        # ``stage_state.exclusion_allowed`` answer from the provider. A
+        # genuine ``True``/``False`` here is an explicit user choice and
+        # wins outright.
+        "allow_llm_exclusion": None,
         "stages": {},
     }
 
@@ -471,6 +485,11 @@ class StageConfig:
     model: str
     batch_size: Optional[int]
     endpoint_source: str
+    #: Whether an LLM verdict from this configuration may remove a record
+    #: (F-145). Resolved, never raw: the store holds a tri-state and this
+    #: is the answer. Defaulted so that anything constructing a
+    #: ``StageConfig`` without it keeps the pre-wave-12 behaviour.
+    allow_llm_exclusion: bool = True
 
 
 def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
@@ -542,6 +561,17 @@ def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
     except (TypeError, ValueError):
         batch = None
 
+    # F-145. Read from the application level only — never per stage — for
+    # the same reason ``provider`` is read from the top-level dict a few
+    # lines above: this is a trust decision about the *engine*, and wave
+    # 11's invariant 2 made the engine's identity an application-level
+    # fact that a stage may not vary. A policy whose cause cannot differ
+    # per stage should not itself differ per stage. ``STAGE_OVERRIDABLE``
+    # stays the closed set it is.
+    from plugins._common.stage_state import exclusion_allowed
+    allow_exclusion = exclusion_allowed(
+        provider=provider, setting=settings.get("allow_llm_exclusion"))
+
     return StageConfig(
         stage=stage,
         provider=provider,
@@ -551,6 +581,7 @@ def resolve_stage(settings: Mapping[str, Any], stage: str = "", *,
         model=effective_model(settings, stage),
         batch_size=batch,
         endpoint_source=endpoint_source,
+        allow_llm_exclusion=allow_exclusion,
     )
 
 
