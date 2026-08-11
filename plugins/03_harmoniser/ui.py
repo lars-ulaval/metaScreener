@@ -37,7 +37,12 @@ from .bundle import export_screen_a_bundle
 # Wave 11 session C. The harmoniser's LLM path gets the same provider
 # treatment as EL and IL: session A's unified key predicate and session
 # B's readiness gate, rather than a third answer of its own.
-from plugins._common.provider_detect import last_known, model_choices
+from plugins._common.provider_detect import (
+    last_known,
+    model_choices,
+    refresh as pd_refresh,
+)
+from plugins._common.widgets import RecheckButton, Tooltip
 from plugins._common.settings import (
     apply_stage_fields,
     load_settings,
@@ -165,6 +170,17 @@ class HarmoniserView(ttk.Frame):
         # from the same function.
         self.lbl_key = ttk.Label(left_top, text="")
         self.lbl_key.grid(row=0, column=3, padx=(10, 0), sticky="w")
+
+        # F-149. Beside the indicator that says "Unreachable", because
+        # that is where the user is looking when they need it.
+        self.btn_recheck = RecheckButton(
+            left_top, prepare=self._reprobe_job,
+            on_done=self.on_provider_changed)
+        self.btn_recheck.grid(row=0, column=4, padx=(10, 0), sticky="w")
+        Tooltip(self.btn_recheck,
+                "Ask this stage's endpoint again. The provider is checked "
+                "once at startup, so a server started, restarted or woken "
+                "since then is not noticed until you ask.")
 
         # wraplength, because D4/D5's messages are sentences, not
         # labels. Without it the review measured 46% of the text
@@ -308,6 +324,18 @@ class HarmoniserView(ttk.Frame):
         except Exception as e:
             self._log(f"Model not saved: {e}")
         self._refresh_buttons()
+
+    def _reprobe_job(self):
+        """Build the probe to run off the GUI thread (F-149).
+
+        Reads `cfg.endpoint` rather than a live widget, because this View
+        has no endpoint box -- the same source `_readiness` uses, so the
+        tab re-probes exactly the server it reports on.
+        """
+        cfg = self._stored_config()
+        endpoint, api_key, provider = cfg.endpoint, cfg.api_key, cfg.provider
+        return lambda: pd_refresh(endpoint, api_key=api_key,
+                                  provider=provider)
 
     def _readiness(self) -> Readiness:
         """Whether this stage's LLM path may run — **the same function EL

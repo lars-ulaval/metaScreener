@@ -22,6 +22,7 @@ Consumed by:
 When EL and IL undergo their own decomposition, they will import the
 same DataTable rather than carrying private copies.
 """
+import threading
 import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Dict, List, Optional, Sequence
@@ -104,6 +105,101 @@ class Tooltip:
             except Exception:
                 pass
             self._window = None
+
+
+class RecheckButton(ttk.Button):
+    """A button that runs one slow thing off the GUI thread, then refreshes.
+
+    F-149. The application probed the provider once, at launch, and never
+    again: a server that went away and came back left every LLM tab
+    reading "Unreachable" with its Run button dead until the whole
+    application was restarted. A server restarting is ordinary — Ollama
+    restarts, Windows sleeps, a laptop lid closes — so there has to be a
+    way to ask again.
+
+    Written once here rather than three times in the Views, for two
+    reasons. The obvious one is F-14: EL, IL and the harmoniser would
+    otherwise each carry a copy. The sharper one is that the risky part
+    is not the button, it is **the thread and its teardown** — the class
+    F-147 had just been fixed for in ``ProviderDialog``, where a worker
+    outliving its widget wrote to a destroyed label. The Views carry no
+    destroyed-widget guard anywhere, and ``Plugin.on_close`` destroys a
+    View without stopping its workers, so putting a third unguarded
+    background thread in three tabs would have re-opened that defect in
+    triplicate. Here it is guarded in one place, and
+    ``tests/test_view_smoke.py`` drives it against a real Tk.
+
+    The three callbacks are split by **which thread they run on**, which
+    is the whole reason this class exists:
+
+    ``prepare``
+        GUI thread, at click. Reads whatever widget state the work needs
+        and returns a zero-argument callable that closes over it. This
+        step is not ceremony: EL and IL resolve their endpoint from
+        ``var_endpoint.get()``, a Tk call, and reading it on the worker
+        would be the very violation the worker exists to avoid.
+    the callable ``prepare`` returns
+        worker thread. Must touch no widget.
+    ``on_done``
+        GUI thread, and only if the button is still alive.
+
+    Deliberately **not** a repeating timer. ``provider_detect.forget()``
+    with no argument clears the whole probe cache, so a poll would drop
+    every tab to ``NOT_CHECKED`` — label "Checking…", Run disabled — on
+    a heartbeat, which is a worse interface than the one being fixed. It
+    would also probe a server the user is not asking about, on a machine
+    that may be metered or asleep. This asks once, when asked to.
+    """
+
+    #: Rebound while a check is in flight, so a slow or unreachable
+    #: endpoint looks like work rather than like a dead button. The probe
+    #: carries its own timeout, so this state always ends.
+    BUSY_TEXT = "Checking…"
+
+    def __init__(self, parent, *, prepare: Callable[[], Callable[[], None]],
+                 on_done: Callable[[], None], text: str = "Re-check",
+                 **kw):
+        super().__init__(parent, text=text, command=self._clicked, **kw)
+        self._prepare = prepare
+        self._on_done = on_done
+        self._idle_text = text
+        self._busy = False
+
+    def _clicked(self):
+        if self._busy:
+            return                  # one probe in flight is enough
+        job = self._prepare()       # GUI thread: read the widgets here
+        self._busy = True
+        self.configure(text=self.BUSY_TEXT, state="disabled")
+
+        def _run():
+            try:
+                job()
+            except Exception:
+                # A probe that raises is a probe that found nothing, and
+                # `provider_detect` already reports "nothing" as a state
+                # the labels can render. Swallowed here so the button
+                # cannot be left permanently disabled by an exception on
+                # a daemon thread nobody is watching.
+                pass
+            self._post(self._finished)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _post(self, fn):
+        """F-147's guard, in the one place this class needs it."""
+        try:
+            if self.winfo_exists():
+                self.after(0, fn)
+        except tk.TclError:
+            pass                    # the tab closed while the probe ran
+
+    def _finished(self):
+        self._busy = False
+        if not self.winfo_exists():
+            return                  # destroyed between the post and here
+        self.configure(text=self._idle_text, state="normal")
+        self._on_done()
 
 
 class DataTable(ttk.Frame):

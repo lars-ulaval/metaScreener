@@ -57,7 +57,7 @@ from plugins._common.stage_state import (
     run_outcome,
     tk_state,
 )
-from plugins._common.widgets import Tooltip
+from plugins._common.widgets import RecheckButton, Tooltip
 
 from plugins._common.settings import (
     apply_stage_fields,
@@ -65,7 +65,11 @@ from plugins._common.settings import (
     resolve_stage,
 )
 from plugins._common import provider_detect as _pd
-from plugins._common.provider_detect import last_known, model_choices
+from plugins._common.provider_detect import (
+    last_known,
+    model_choices,
+    refresh as pd_refresh,
+)
 from plugins._common.exporters import _export_input_errors_csv_from_dicts
 from plugins._common.input_errors import (
     from_dict_skipped,
@@ -601,6 +605,17 @@ class ILView(ttk.Frame):
         # API key indicator (IL requires OpenAI)
         self.lbl_key = ttk.Label(actions, text="")
         self.lbl_key.grid(row=1, column=3, padx=4, pady=2, sticky="e")
+
+        # F-149. Beside the indicator that says "Unreachable", because
+        # that is where the user is looking when they need it.
+        self.btn_recheck = RecheckButton(
+            actions, prepare=self._reprobe_job,
+            on_done=self.on_provider_changed)
+        self.btn_recheck.grid(row=1, column=2, padx=4, pady=2, sticky="e")
+        Tooltip(self.btn_recheck,
+                "Ask this stage's endpoint again. The provider is checked "
+                "once at startup, so a server started, restarted or woken "
+                "since then is not noticed until you ask.")
         self._refresh_readiness_label()
         # The indicator is only honest if it keeps up with the fields it
         # reports on; without this it would go stale the moment the user
@@ -770,6 +785,26 @@ class ILView(ttk.Frame):
         return resolve_stage(cfg, self.STAGE,
                              env_endpoint=os.environ.get("OPENAI_BASE_URL", ""),
                              env_api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+    def _reprobe_job(self):
+        """Build the probe to run off the GUI thread (F-149).
+
+        Every widget read happens **here**, on the GUI thread, and the
+        returned closure touches nothing but the network. `RecheckButton`
+        calls this at click and the closure on its worker.
+
+        `provider_detect.refresh` files its answer under the endpoint it
+        asked about, so this re-probes only the server this tab points
+        at. That is deliberate: the application-wide
+        `_refresh_provider_status` begins with `pd.forget()`, which drops
+        every probe and would send the other tabs to NOT_CHECKED -- label
+        "Checking...", Run disabled -- because this one asked a question.
+        """
+        cfg = self._stored_config()
+        endpoint = self._effective_endpoint()
+        api_key, provider = cfg.api_key, cfg.provider
+        return lambda: pd_refresh(endpoint, api_key=api_key,
+                                  provider=provider)
 
     def _effective_endpoint(self) -> str:
         """Where this stage would send a request right now.

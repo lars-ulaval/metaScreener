@@ -431,3 +431,169 @@ class TestTheProviderDialogSurvivesItsOwnTeardown:
         dlg.destroy()
         ''')
         assert "no server was contacted" in out
+
+
+class TestTheProviderCanBeReCheckedWithoutRelaunching:
+    """F-149. The probe ran once at launch and never again.
+
+    The maintainer's Ollama server stopped; every LLM tab read
+    "Unreachable" with its Run button dead; he restarted the server and
+    the tabs still read "Unreachable" until he restarted the whole
+    application. ``_refresh_provider_status`` has exactly two call sites,
+    both one-shot, and ``metascreener/main.py`` contains no repeating
+    ``after``, no polling loop and no re-check control of any kind.
+    """
+
+    _PREAMBLE = '''
+        import types, threading as real_threading
+        import tkinter as tk
+        from plugins._common import provider_detect as pd
+        from plugins._common import widgets as W
+        from plugins._common import settings as S
+
+        errors = []
+        _root.report_callback_exception = (
+            lambda exc, val, tb: errors.append(f"{exc.__name__}: {val}"))
+
+        ENDPOINT = "http://127.0.0.1:9/v1"
+        S.update_settings(provider="local", endpoint=ENDPOINT)
+
+        # The server's answer, swapped between calls by the test.
+        answers = {"state": pd.NOT_RUNNING}
+        calls = []
+
+        class _Det:
+            def __init__(self, state):
+                self.state = state
+                self.models = ("m1",) if state == pd.READY else ()
+                self.detail = "stub-" + state
+                self.endpoint = ENDPOINT
+                self.can_use = state == pd.READY
+
+        def _fake_detect(endpoint, **kw):
+            calls.append(endpoint)
+            return _Det(answers["state"])
+
+        pd.detect = _fake_detect
+
+        # Run the "thread" inline so the test controls ordering. start()
+        # is what RecheckButton calls; running the target there keeps the
+        # button's own state machine honest.
+        class _FakeThread:
+            def __init__(self, target=None, daemon=None, **kw):
+                self._target = target
+            def start(self):
+                self._target()
+        W.threading = types.SimpleNamespace(
+            Thread=_FakeThread, Event=real_threading.Event)
+    '''
+
+    def test_a_server_that_comes_back_is_noticed(self):
+        """The maintainer's sequence, end to end, in the tab he was in.
+
+        The server is down at launch, the launch probe records that, the
+        server comes back, and the tab must be able to notice without the
+        application being restarted.
+
+        ``bundle_zip_path`` is set because ``llm_readiness`` checks ``has_bundle``
+        ahead of everything else, so an unloaded tab reports "No bundle
+        loaded" whatever the provider is doing. He had a bundle loaded;
+        what was dead was the provider.
+        """
+        out = _smoke(self._PREAMBLE + '''
+        S.update_settings(model="m1")
+
+        # Launch: the server is not running, and the probe says so.
+        answers["state"] = pd.NOT_RUNNING
+        pd.forget()
+        pd.refresh(ENDPOINT, api_key="", provider="local")
+
+        v = ELView(frame())
+        v.bundle_zip_path = "pretend.zip"
+        v._refresh_readiness_label()
+        before = v.lbl_key.cget("text")
+        print("before=" + repr(before))
+        assert not v._readiness().can_run, before
+
+        # The user starts the server again. Before F-149 this state was
+        # unreachable without relaunching the application.
+        answers["state"] = pd.READY
+        v.btn_recheck.invoke()
+        _root.update()
+
+        after = v.lbl_key.cget("text")
+        print("after=" + repr(after))
+        print("probes=" + repr(calls))
+        assert v._readiness().can_run, after
+        assert ENDPOINT in calls, calls
+        assert errors == [], errors
+        ''')
+        assert "before='Unreachable'" in out
+        assert "after='Ready to run'" in out
+
+    def test_it_probes_only_this_tab_s_endpoint(self):
+        """It must not call ``forget()``.
+
+        The application-wide refresh drops the whole probe cache before
+        re-probing, so reusing it here would send every other tab to
+        NOT_CHECKED -- "Checking...", Run disabled -- because this one
+        asked a question.
+        """
+        out = _smoke(self._PREAMBLE + '''
+        pd.forget()
+        pd.remember(_Det(pd.READY), "http://other.invalid/v1")
+
+        v = ELView(frame())
+        v.btn_recheck.invoke()
+        _root.update()
+
+        other = pd.last_known("http://other.invalid/v1")
+        print("other_survived=" + repr(other is not None))
+        assert other is not None, "another tab's probe was discarded"
+        assert errors == [], errors
+        ''')
+        assert "other_survived=True" in out
+
+    def test_all_three_tabs_have_one(self):
+        out = _smoke('''
+        for name, V in (("EL", ELView), ("IL", ILView),
+                        ("harmoniser", HarmoniserView)):
+            v = V(frame())
+            assert hasattr(v, "btn_recheck"), name
+            print(name + "_text=" + repr(v.btn_recheck.cget("text")))
+        ''')
+        assert out.count("_text='Re-check'") == 3
+
+    def test_the_button_survives_the_tab_closing_under_it(self):
+        """F-147's class, which this button could have re-opened.
+
+        ``Plugin.on_close`` destroys a View without stopping its workers,
+        and the Views carry no destroyed-widget guard of their own. A
+        probe still in flight when the tab goes away must not write to a
+        dead widget.
+        """
+        out = _smoke(self._PREAMBLE + '''
+        # A thread that does NOT run inline, so the test can destroy the
+        # View between the click and the worker finishing.
+        held = []
+        class _HeldThread:
+            def __init__(self, target=None, daemon=None, **kw):
+                held.append(target)
+            def start(self):
+                pass
+        W.threading = types.SimpleNamespace(
+            Thread=_HeldThread, Event=real_threading.Event)
+
+        pd.forget()
+        v = ELView(frame())
+        v.btn_recheck.invoke()
+        assert held, "the click should have started a worker"
+
+        v.destroy()          # the tab closes while the probe is in flight
+        held[-1]()           # the worker returns to a destroyed widget
+        _root.update()
+
+        print("errors=" + repr(errors))
+        assert errors == [], errors
+        ''')
+        assert "errors=[]" in out
