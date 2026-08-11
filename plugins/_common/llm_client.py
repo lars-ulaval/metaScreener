@@ -361,6 +361,59 @@ def chunked(seq: Sequence[Any], n: int):
 
 # --------------------------- LLM utilities ------------------------------------
 
+def _strip_code_fence(text: str) -> str:
+    """Remove a Markdown code fence, if the reply is wrapped in one.
+
+    Local models emit fenced JSON routinely, and this is the one place
+    that knowledge is written down. Extracted from
+    ``_parse_llm_json_array`` in wave 12 so that
+    ``_parse_llm_json_object`` shares it rather than restating it: two
+    fence-stripping rules that could drift is F-69's shape, and the
+    harmoniser having no fence handling *at all* is the defect F-146
+    closes.
+    """
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z0-9]*\s*", "", t)
+        t = re.sub(r"\s*```$", "", t).strip()
+    return t
+
+
+def _parse_llm_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """Robust parse of a JSON **object**. ``None`` when there is none.
+
+    The object-shaped sibling of ``_parse_llm_json_array``: the harmoniser
+    asks for ``{"rows": [...]}`` where EL and IL ask for a bare list, so
+    the two response contracts need two parsers but only one set of
+    tolerances.
+
+    Returns ``None`` rather than ``{}`` on failure, so that the caller can
+    tell "the model sent no object" from "the model sent an empty one" and
+    raise an error naming the real problem. Returning a falsy dict here is
+    how the defect this was written for stayed invisible.
+    """
+    t = _strip_code_fence(text)
+
+    try:
+        val = json.loads(t)
+        if isinstance(val, dict):
+            return val
+    except Exception:
+        pass
+
+    # Extract the first balanced-looking object, for a model that wrapped
+    # its answer in prose.
+    m = re.search(r"\{.*\}", t, flags=re.S)
+    if m:
+        try:
+            val = json.loads(m.group(0))
+            if isinstance(val, dict):
+                return val
+        except Exception:
+            pass
+    return None
+
+
 def _parse_llm_json_array(text: str) -> List[Dict[str, Any]]:
     """
     Robust parse of a JSON array. Accepts:
@@ -368,11 +421,7 @@ def _parse_llm_json_array(text: str) -> List[Dict[str, Any]]:
       - fenced code block
       - extra text before/after (extract first [...] block)
     """
-    t = (text or "").strip()
-    # strip fenced code blocks
-    if t.startswith("```"):
-        t = re.sub(r"^```[a-zA-Z0-9]*\s*", "", t)
-        t = re.sub(r"\s*```$", "", t).strip()
+    t = _strip_code_fence(text)
 
     # direct
     try:

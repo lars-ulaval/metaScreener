@@ -51,47 +51,76 @@ STAGE = "harmoniser"
 
 def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120,
                       stage: str = STAGE) -> Dict[str, Any]:
-    """Best-effort OpenAI call returning JSON."""
-    try:
-        # F-117, review of this session. This was a bare ``OpenAI()`` —
-        # no api_key, no base_url. Once ``_llm_available`` admitted a
-        # keyless local provider, the predicate said yes for exactly the
-        # configuration this constructor cannot build for: the button
-        # went live and the call then failed into the ``except`` below,
-        # which falls through to the removed 0.x API and reports a
-        # meaningless error. It also meant this stage ignored the
-        # endpoint EL and IL honour, so a "local" run refined criteria
-        # against the vendor. One client builder for all three stages.
-        #
-        # Session C passes the stage, so this call honours the same
-        # per-stage resolution EL and IL do — and, more importantly, the
-        # same invariant: `_openai_client_for` decides the credential on
-        # the resolved (provider, endpoint) pair, so this stage cannot be
-        # handed the placeholder string while pointed at a billing host.
-        from plugins._common.llm_client import _openai_client_for
-        client = _openai_client_for(stage)
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            temperature=0,
-        )
-        txt = resp.choices[0].message.content or ""
-        return json.loads(txt)
-    except Exception:
-        pass
+    """One OpenAI-compatible call, returning the JSON object it replied with.
 
-    try:
-        import openai  # type: ignore
-        resp = openai.ChatCompletion.create(  # type: ignore[attr-defined]
-            model=model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            temperature=0,
-            request_timeout=timeout_s,
+    **This function had two call routes and only one of them existed**
+    (F-146, wave 12). The second called ``openai.ChatCompletion``, removed
+    from the SDK in version 1.0, against a project that declares
+    ``openai>=1.40.0`` — so "Harmonise + LLM" could not have succeeded on
+    any install for over two years. It was reached from a bare
+    ``except Exception: pass`` on the route below, which meant that
+    **every** failure of the real call — a refused connection, a rejected
+    key, a model name with a typo, a fenced reply — was discarded and
+    re-reported as::
+
+        LLM call failed: You tried to access openai.ChatCompletion, but
+        this is no longer supported in openai>=1.0.0
+
+    a migration notice about a code path the user never invoked. The
+    diagnostic's own §A1.3 says exactly this and its summary table says
+    "No — dead"; the table is what was carried forward (F-148).
+
+    Three things follow, and all three matter:
+
+    * the removed route is **deleted**, not repaired. There is nothing to
+      repair — it is an interface that no longer exists;
+    * the surviving route **does not swallow its exception**. What the
+      user sees is now the cause they can act on, which is a visible
+      behaviour change in ``ui.py``'s message box and the point of the
+      fix;
+    * ``timeout_s`` is **forwarded** rather than orphaned. It was consumed
+      only by the removed branch, so deleting that branch alone would have
+      left this path with no timeout expression at all — the diagnostic's
+      C-19, a regression hiding inside a repair.
+
+    Parsing goes through ``_parse_llm_json_object`` rather than a bare
+    ``json.loads`` for the same reason EL and IL use
+    ``_parse_llm_json_array``: local models fence their JSON, and the
+    maintainer's failing run was against ``llama3.2:latest``. A bare
+    ``json.loads`` on a fenced reply is the most likely thing the removed
+    branch was hiding.
+
+    F-117's property is unchanged and load-bearing: the client comes from
+    ``_openai_client_for(stage)``, the one sanctioned builder, which
+    decides the credential on the resolved (provider, endpoint) pair — so
+    this stage cannot be handed the placeholder string while pointed at a
+    billing host, and it honours the same per-stage endpoint EL and IL do.
+    """
+    from plugins._common.llm_client import (
+        _openai_client_for,
+        _parse_llm_json_object,
+    )
+
+    client = _openai_client_for(stage)
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+        temperature=0,
+        timeout=timeout_s,
+    )
+    txt = resp.choices[0].message.content or ""
+
+    parsed = _parse_llm_json_object(txt)
+    if parsed is None:
+        # Quote what arrived, bounded. "The model did not return JSON" is
+        # not actionable on its own; the first 200 characters of what it
+        # did return usually are — a refusal, a prose preamble or an error
+        # page all look quite different at a glance.
+        raise RuntimeError(
+            f"The model did not return a JSON object. First 200 characters "
+            f"of the reply: {txt[:200]!r}"
         )
-        txt = resp["choices"][0]["message"]["content"] or ""
-        return json.loads(txt)
-    except Exception as e:
-        raise RuntimeError(f"LLM call failed: {e}")
+    return parsed
 
 
 def _sdk_importable() -> bool:
