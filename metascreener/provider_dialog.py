@@ -161,6 +161,22 @@ class ProviderDialog(tk.Toplevel):
             self.ent_key.state(["!disabled"])
         self._probe()
 
+    def _post(self, fn):
+        """Marshal a worker-thread result back onto the GUI thread.
+
+        F-147. ``self.after`` on a destroyed widget raises ``TclError``,
+        and this call happens on a daemon thread, where the exception
+        surfaces as a traceback on stderr and nothing else — the run
+        continues, the user sees nothing, and the process exit code is
+        untouched. A dialog that has been dismissed while a probe is in
+        flight is ordinary, not exceptional: the probe has a 2-second
+        timeout and "Not now" is one click away.
+        """
+        try:
+            self.after(0, fn)
+        except tk.TclError:
+            pass                    # dismissed while the probe was in flight
+
     def _probe(self):
         """Detect on a worker thread; never on the GUI thread."""
         endpoint = self.var_endpoint.get().strip()
@@ -171,12 +187,43 @@ class ProviderDialog(tk.Toplevel):
 
         def _work():
             found = pd.detect(endpoint, api_key=api_key, provider=provider)
-            self.after(0, lambda: self._status_arrived(found))
+            self._post(lambda: self._status_arrived(found))
 
         threading.Thread(target=_work, daemon=True).start()
 
     def _status_arrived(self, found):
+        """F-147. Guarded, because the widget may be gone by now.
+
+        The maintainer's traceback, on every launch::
+
+            File "provider_dialog.py", line 174, in <lambda>
+              self.after(0, lambda: self._status_arrived(found))
+            File "provider_dialog.py", line 180, in _status_arrived
+              self.lbl_status.configure(text=found.detail or "Ready.")
+            _tkinter.TclError: invalid command name
+                ".!providerdialog.!frame.!label2"
+
+        Detection runs on a daemon thread with a 2-second timeout and the
+        dialog can be dismissed at any moment, so the callback outliving
+        the widget is the normal case rather than a rare race. Guarding
+        at ``_post`` alone is not enough: a dialog destroyed *between*
+        the successful ``after`` and the callback firing lands here with
+        an already-dead label, which is exactly the traceback above.
+
+        The guard is on ``lbl_status`` rather than on ``self`` because a
+        widget can be destroyed while its toplevel is still alive, and
+        the label is what this method actually touches. That follows the
+        shape of the only other ``winfo_exists`` guard in the repository,
+        in ``_offer_pull`` below, which checks the outermost widget whose
+        children it is about to write to.
+
+        ``self._status`` is still recorded first: it costs nothing, it
+        cannot fail, and a caller reading the dialog's result after it
+        closes should see what the probe actually found.
+        """
         self._status = found
+        if not self.lbl_status.winfo_exists():
+            return
         self.lbl_status.configure(text=found.detail or "Ready.")
         # D3: a server that is running with nothing pulled is the one state
         # where metaScreener can help directly. Offered, never automatic.
@@ -225,22 +272,37 @@ class ProviderDialog(tk.Toplevel):
                 shown = f"{p.status} — {p.fraction * 100:.0f}%" if p.total \
                     else p.status
                 lbl.configure(text=shown)
-            self.after(0, _apply)
+            self._post(_apply)
 
         def _work():
             result = mp.pull(self.var_endpoint.get().strip(), model.name,
                              on_progress=_progress, cancel=self._cancel)
-            self.after(0, lambda: self._pull_finished(win, model, result))
+            self._post(lambda: self._pull_finished(win, model, result))
 
         threading.Thread(target=_work, daemon=True).start()
 
     def _pull_finished(self, win, model, result):
+        """F-147, the same class as ``_status_arrived`` and found with it.
+
+        A pull is measured in gigabytes and minutes, so the dialog being
+        gone by the time it finishes is *more* likely here than on the
+        probe, not less. Every statement below touches a widget: the
+        status label directly, ``messagebox(parent=self)`` through its
+        parent, and ``_probe`` through the label again.
+
+        The progress window is destroyed before the guard, deliberately —
+        it is a child of a dialog that may already be gone, and leaving a
+        stranded progress window on screen would be a worse failure than
+        the one being fixed.
+        """
         from tkinter import messagebox
 
         try:
             win.destroy()
         except Exception:
             pass
+        if not self.lbl_status.winfo_exists():
+            return
         if result.cancelled:
             self.lbl_status.configure(text="Download cancelled. Nothing kept.")
         elif result.ok:

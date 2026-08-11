@@ -305,3 +305,129 @@ class TestTheLabelsFitAndTheControlsStayUsable:
             print("labels=" + repr(seen))
         ''')
         assert "labels=" in out
+
+
+class TestTheProviderDialogSurvivesItsOwnTeardown:
+    """F-147. The smoke covered Views; this defect was in a dialog.
+
+    The maintainer's traceback, every launch::
+
+        File "metascreener/provider_dialog.py", line 174, in <lambda>
+          self.after(0, lambda: self._status_arrived(found))
+        File "metascreener/provider_dialog.py", line 180, in _status_arrived
+          self.lbl_status.configure(text=found.detail or "Ready.")
+        _tkinter.TclError: invalid command name ".!providerdialog.!frame.!label2"
+
+    The detection thread completes after the dialog is destroyed and
+    writes to a widget that no longer exists. This is the class the
+    review passes have been hunting — a background thread touching Tk
+    after teardown — and no existing test could see it: the normal suite
+    replaces ``tkinter`` with a ``MagicMock``, under which
+    ``configure`` on a destroyed widget is a no-op that returns a mock.
+    Only a real Tk can fail here, so the answer to "should the smoke
+    cover dialogs?" is yes, and this is it.
+
+    **Tk swallows the failure**, which is why this needs care: an
+    exception raised inside an ``after`` callback goes to
+    ``report_callback_exception``, which prints a traceback and returns.
+    The process still exits 0. A test that merely ran the callback would
+    pass green while the defect fired in front of it, so the recorder
+    below is not decoration — without it this test asserts nothing.
+    """
+
+    #: Both orderings, because they fail in different places. The first
+    #: is the maintainer's: the callback is queued while the dialog is
+    #: alive and runs after it is gone. The second is the race one step
+    #: earlier: the dialog is already destroyed when the worker calls
+    #: ``after`` at all, which raises in the worker thread.
+    _PREAMBLE = '''
+        import types, threading as real_threading
+        import tkinter as tk
+        import metascreener.provider_dialog as PD
+        from plugins._common import provider_detect as pd
+
+        errors = []
+        _root.report_callback_exception = (
+            lambda exc, val, tb: errors.append(f"{exc.__name__}: {val}"))
+
+        class _Det:
+            state = pd.NOT_RUNNING
+            detail = "stubbed - no server was contacted"
+            models = ()
+            endpoint = "http://127.0.0.1:9/v1"
+            can_use = False
+
+        # No network. PD.pd is the shared module object, so this also
+        # covers the `_offer_pull` path if it is ever reached.
+        PD.pd.detect = lambda *a, **k: _Det()
+
+        # Capture worker targets instead of running them, so the test
+        # decides when the "thread" finishes relative to teardown.
+        targets = []
+        class _FakeThread:
+            def __init__(self, target=None, daemon=None, **kw):
+                targets.append(target)
+            def start(self):
+                pass
+
+        # Event must survive: _offer_pull does threading.Event().
+        PD.threading = types.SimpleNamespace(
+            Thread=_FakeThread, Event=real_threading.Event)
+
+        # grab_set raises on a window that is not yet viewable on some
+        # machines, which would fail this test for an unrelated reason.
+        tk.Misc.grab_set = lambda self: None
+
+        def new_dialog():
+            targets.clear()
+            return PD.ProviderDialog(
+                _root, settings={"provider": "local",
+                                 "endpoint": "http://127.0.0.1:9/v1"})
+    '''
+
+    def test_a_probe_that_lands_after_destroy_does_not_raise(self):
+        out = _smoke(self._PREAMBLE + '''
+        dlg = new_dialog()
+        assert targets, "constructing the dialog should start a detection worker"
+
+        work = targets[-1]
+        work()              # the worker finishes and queues its callback
+        dlg.destroy()       # the user closes the dialog
+        _root.update()      # Tk runs the queued callback on a dead widget
+
+        print("errors=" + repr(errors))
+        assert errors == [], errors
+        ''')
+        assert "errors=[]" in out
+
+    def test_a_worker_returning_after_destroy_does_not_raise(self):
+        out = _smoke(self._PREAMBLE + '''
+        dlg = new_dialog()
+        work = targets[-1]
+        dlg.destroy()       # gone before the worker even calls after()
+        work()              # must not raise in the worker thread
+        _root.update()
+
+        print("errors=" + repr(errors))
+        assert errors == [], errors
+        ''')
+        assert "errors=[]" in out
+
+    def test_the_dialog_still_reports_a_status_while_it_is_alive(self):
+        """The guard must not be a mute button.
+
+        A fix that swallowed everything would pass both tests above and
+        leave the dialog permanently reading "Checking…".
+        """
+        out = _smoke(self._PREAMBLE + '''
+        dlg = new_dialog()
+        work = targets[-1]
+        work()
+        _root.update()
+        text = dlg.lbl_status.cget("text")
+        print("status=" + repr(text))
+        assert "stubbed" in text, text
+        assert errors == [], errors
+        dlg.destroy()
+        ''')
+        assert "no server was contacted" in out
