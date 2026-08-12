@@ -599,9 +599,38 @@ attributed by the provenance block wave 10 added. **The baseline was
 captured at `trunc_chars 4000`** (`tools/capture_el_il_goldens.py`), and
 that difference is treated as a limitation below rather than glossed.
 
-Every figure in this section was re-derived from the bundles themselves
-rather than transcribed from a report; where a figure and a bundle
-disagreed, the bundle was taken as correct.
+Every figure in this section was re-derived from the run artefacts
+themselves rather than transcribed from a report; where a figure and an
+artefact disagreed, the artefact was taken as correct.
+
+**Where this evidence is, and how to check a figure.** The artefacts are
+committed under **`docs/data/wave12_local_runs/`** — for each run, the
+bundle manifest (carrying its six-field provenance block and its LLM
+counters), the 85 EL records with their per-criterion evidence, and the
+raw per-judgment model answers. Every number in this section is
+recomputed from those bytes on each test run by
+`tests/test_wave12_measurement_freeze.py`, which fails if the prose and
+the artefacts disagree; the artefacts are the source of truth and this
+text has to match them. Integrity is held twice over — by
+`docs/data/wave12_local_runs/SHA256SUMS`, and by the `sha256` block
+inside each run's own manifest, which also records digests for the
+bundle members that were *not* committed, so an original bundle can
+still be matched member by member. `wave12_local_runs.meta.txt` explains
+what was omitted and why.
+
+Two of the inputs were already in the repository and are asserted rather
+than duplicated: the 85 records the EL stage screened are byte-identical
+in all three runs and to `docs/data/study_input/el_input_v3.1.0.csv`, and
+run A's criteria table is byte-identical to
+`docs/data/study_input/criteria_harmonized_v3.1.0.csv`. Runs B and C ran
+against a criteria table differing in one row — **IC-5, an `IL`
+criterion, which the EL stage does not read**; `EC-2` and `EC-3` are
+identical across all three runs, field by field, and the test asserts it.
+That difference is called out here rather than buried because it is a
+concrete instance of the point *The same model, the same input, a
+different answer* makes below: the provenance block records six fields,
+the criteria table is not one of them, and something did differ between
+runs A and B that no artefact of either run would have reported.
 
 ### The distributions behind the counts
 
@@ -698,8 +727,12 @@ provenance block records is identical:
 | `trunc_chars` | `1500` | `1500` |
 | `batch_size` | `5` | `5` |
 
-They differ only in when they ran — 21:47 and 22:10 UTC on the same
-machine, twenty-three minutes apart.
+Of everything either run records about itself, they differ only in when
+they ran — 21:47 and 22:10 UTC on the same machine, twenty-three minutes
+apart. (They also ran against criteria tables differing in one `IL` row,
+which the EL stage does not read and which neither run's provenance
+block would have told you about; see *Where this evidence is* above. The
+85 records screened and both `EL` criteria are byte-identical.)
 
 They excluded **40** and **43** records respectively:
 
@@ -710,6 +743,34 @@ They excluded **40** and **43** records respectively:
 - **8 of 170 judgments (4.7%) changed decision** between the runs;
 - even the internal counters differ: `fields_rejected` was 1 in A and 3
   in B.
+
+**The decision field is the least of it.** Counting only the verdicts
+understates how much moved between the two runs, and the understatement
+is large. Comparing every judgment on the evidence the model actually
+supplied — decision, confidence, cited field, quoted span, and the
+resulting gate status — **37 of 170 judgments (21.8%) differ in at least
+one of them**: confidence on 23, the quotation on 22, the field cited on
+13. Roughly one judgment in five is not the same judgment twice, against
+the one in twenty-one you get by looking only at the verdict.
+
+**A570 is why that distinction is not pedantry.** Of the three records
+that moved from flagged to excluded, it is the one whose *decisions did
+not change at all*: `meet` on EC-2 in both runs, at confidence 1.0 and
+0.95. What changed is that in run A the model cited the abstract and
+supplied **no quotation**, so the evidence gate had nothing to verify and
+the record was flagged for a human; in run B it cited the keywords and
+supplied `"Virtual reality"`, which is present verbatim, so the gate
+passed and the record was removed from the review. Same model, same
+input, same verdict, same confidence to within 0.05 — and the difference
+between *a human reads this* and *this is gone* was which words the model
+chose to quote.
+
+This sharpens what the gate is and is not. It is the mechanism that
+converts a verdict into an action, so **whatever varies in the quotation
+varies in the outcome**, entirely independently of whether the model
+changed its mind. A reader comparing two runs on their verdicts alone
+would find A570 identical in both and have no way to explain why one run
+excluded it.
 
 **Practitioners routinely treat `temperature = 0` as a reproducibility
 guarantee. On this server and this hardware, it is not one.** Greedy

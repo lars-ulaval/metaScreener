@@ -10,3 +10,15 @@ tests/golden/** binary
 # line endings would fail the integrity check and look like tampering.
 # Three of the four are pure-LF and one is pure-CRLF.
 docs/data/study_input/*.csv binary
+
+# The evidence behind docs/llm-evaluation.md § "Local models on this corpus"
+# (F-159). Pinned by docs/data/wave12_local_runs/SHA256SUMS *and* by the
+# sha256 block inside each run's own manifest.json, so these bytes have to
+# survive checkout unaltered or both checks fail at once. The EL_FULL.csv
+# files are the sharp case: they use CRLF row terminators with bare LFs
+# inside quoted abstracts, which is exactly the mixed content `* text=auto`
+# normalises — without this rule a fresh clone rewrites them and every
+# digest in the directory breaks.
+docs/data/wave12_local_runs/*.csv binary
+docs/data/wave12_local_runs/*.jsonl binary
+docs/data/wave12_local_runs/*.json binary

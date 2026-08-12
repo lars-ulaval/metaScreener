@@ -1,0 +1,150 @@
+# The evidence behind docs/llm-evaluation.md
+# § "Local models on this corpus: a direct measurement".
+#
+# This is a frozen, citable dataset, NOT a test fixture: it must never be
+# re-captured, re-generated or "synced" with anything. Integrity is held by
+# SHA256SUMS beside this file and asserted on every suite run by
+# tests/test_wave12_measurement_freeze.py, which also RE-DERIVES the figures
+# the document publishes from these bytes and fails if the document and the
+# artefacts disagree.
+#
+# Until 2026-08-12 the published section derived from three bundle zips in a
+# sibling directory outside version control (_archive_bundles/). Every figure
+# in it therefore traced to one machine, and nothing in the repository said
+# where those files were. That is F-98's defect on a different artefact, and
+# it is what this directory closes (F-159).
+
+role=published_evidence
+study=docs/llm-evaluation.md § "Local models on this corpus: a direct measurement"
+captured_at=2026-08-11
+frozen_at=2026-08-12
+corpus_records=776
+el_input_records=85
+
+
+# ---------------------------------------------------------------------------
+# The three runs
+# ---------------------------------------------------------------------------
+# Each run's six-field provenance block is carried verbatim inside its own
+# manifest.json at pipeline.history[stage=EL].provenance, and its counters at
+# .llm. The values below are a reader's convenience, not a second source of
+# truth: the test asserts the manifests, not this file.
+
+runA=runA_llama32_*   model=llama3.2:latest  ran_at=2026-08-11T21:47:27Z  OUT=40
+runB=runB_llama32_*   model=llama3.2:latest  ran_at=2026-08-11T22:10:11Z  OUT=43
+runC=runC_qwen25_*    model=qwen2.5:7b       ran_at=2026-08-11T22:41:37Z  OUT=4
+
+# Identical across all three runs:
+endpoint=http://localhost:11434/v1
+temperature=0.0
+prompt_version=EL_v1_jsonlist
+trunc_chars=1500
+batch_size=5
+
+
+# ---------------------------------------------------------------------------
+# What each file is
+# ---------------------------------------------------------------------------
+# *_manifest.json    the bundle manifest, verbatim. Carries the provenance
+#                    block, the LLM counters, and a sha256 block covering
+#                    every member of the original bundle — including the
+#                    members NOT committed here (see below).
+# *_EL_FULL.csv      the 85 EL records with their outcome and the per-criterion
+#                    evidence in el_evidence_json. Verbatim, all 41 columns.
+# *_EL_cache.jsonl   the raw per-judgment model answers. Committed rather than
+#                    dropped as derivable, because it is the ONLY source of
+#                    valid_quote: EL_FULL.csv's el_evidence_json does not
+#                    carry that field, and the document's quote-validity
+#                    figures (81/170, 80/170, 117/170) cannot be checked
+#                    without it. Note run C has 137 lines, not 170 — the 33
+#                    unanswered judgments have no cache entry, which is itself
+#                    the evidence for that run's no_answer count.
+# runBC_criteria_harmonized.csv
+#                    the criteria table runs B and C ran against. See the
+#                    discrepancy note below.
+
+
+# ---------------------------------------------------------------------------
+# What was NOT committed, and why that is safe
+# ---------------------------------------------------------------------------
+# The three bundles are 4.16 MB; this directory is 0.78 MB. The difference is
+# not evidence — it is the same bytes three times over, plus a corpus the
+# repository already ships:
+#
+#   reports/EH_FULL.csv, reports/EH_SURVIVORS.csv, reports/IH_FULL.csv,
+#   reports/IH_SURVIVORS.csv
+#       byte-identical in all three bundles. That identity IS the document's
+#       "the deterministic stages reproduce exactly" claim, and a digest
+#       proves it as well as a copy would. IH_SURVIVORS.csv is additionally
+#       byte-identical to docs/data/study_input/el_input_v3.1.0.csv, which is
+#       already committed — so EL's input is in the repository already, and
+#       the test asserts that equality rather than assuming it.
+#
+#   data/original.csv
+#       byte-identical to samples/20260122_1654_aggregate.csv, already
+#       committed. (Absent from run A's bundle entirely.)
+#
+#   data/current.csv, reports/EL_SURVIVORS.csv
+#       Verified: within each run these two are byte-identical to each other,
+#       and their record set is exactly EL_FULL.csv's non-OUT rows. They carry
+#       the 34 corpus columns and none of the seven el_* columns, so
+#       EL_FULL.csv is strictly the richer artefact and is the one committed.
+#
+#   data/input_errors.csv, criteria/criteria_harmonized.txt,
+#   criteria/criteria_source.txt
+#       cited by no figure. criteria_source.txt is byte-identical in all
+#       three runs and to samples/ic_ec_12.txt.
+#
+# None of these is lost: every one has its SHA-256 recorded in the sha256
+# block of each run's committed manifest.json. If an original bundle
+# resurfaces, it can be matched member by member against what is here.
+
+# The three bundles this directory was reduced from:
+bundle_runA_sha256=9d4715a9a1876e766e6c2262f10d3496884aabed996423db30f597979aa5f6b8  20260811_174726_post_EL_bundle.zip
+bundle_runB_sha256=f659ce36d278e8d2f38233cd27b25ba74e55eecd886756628a1a372b0f9e55b6  20260811_181009_post_EL_bundle.zip
+bundle_runC_sha256=e73da3ada4b3fd354324271f2c087cd7372ec50347b0769a4fd3a4a17a5bf615  20260811_184118_post_EL_bundle.zip
+
+
+# ---------------------------------------------------------------------------
+# The criteria discrepancy — read this before citing runs A and B as "the
+# same input"
+# ---------------------------------------------------------------------------
+# Run A's criteria table is byte-identical to the already-frozen
+# docs/data/study_input/criteria_harmonized_v3.1.0.csv
+# (a01ccc73056a987c5459da9c9ec373e08d44803ba9b67c2d48b3bf818e11f73d) and is
+# therefore asserted by digest rather than duplicated here.
+#
+# Runs B and C ran against a DIFFERENT table, committed here as
+# runBC_criteria_harmonized.csv. The difference is one row, IC-5, in two
+# cells: `operator` is `contains` in run A and `llm` in runs B and C, and
+# `what` changes correspondingly from the keyword list
+# `training;vocational;workplace` to the criterion sentence.
+#
+# IC-5 is an **IL** criterion. The EL stage reads only EC-2 and EC-3, and
+# those two rows are byte-identical across all three runs — the test asserts
+# this field by field rather than leaving it to the reader. EL's 85-record
+# input is likewise byte-identical across all three runs. So the A-vs-B
+# comparison the document draws is sound.
+#
+# It is recorded anyway, prominently, because it is a concrete instance of
+# exactly what F-155 says about the provenance block: the block records six
+# fields, the criteria table is not one of them, and something DID differ
+# between runs A and B that no artefact of either run would have told you.
+# The document's wording — "every field the provenance block records is
+# identical" — is literally true and is now also demonstrably incomplete.
+
+
+# ---------------------------------------------------------------------------
+# Not recorded, and therefore not asserted
+# ---------------------------------------------------------------------------
+# quantisation      absent from the provenance block. Ollama serves quantised
+#                   weights by default, so these runs are near-certainly not
+#                   the models at full precision, but which quantisation was
+#                   used is not recoverable from any artefact here (F-154).
+# model identity    `llama3.2:latest` is a MUTABLE tag. It names whatever
+#                   weights that tag pointed at on 2026-08-11 and may point
+#                   elsewhere later (F-154).
+# num_ctx           never set by metaScreener; these runs inherited the
+#                   server's default, measured at 4096 on the capture
+#                   machine. tools/measure_prompt_size.py shows the prompts
+#                   fit at batch_size 5 and overflow at 10 (F-154).

@@ -727,19 +727,23 @@ row, per the brief's rule.
 
 Four things, none of them currently written down anywhere else.
 
-**1. The published measurement depends on three files that are not in this
-repository.** `docs/llm-evaluation.md` § *Local models on this corpus* is
-derived from three bundles in `_archive_bundles/` — a sibling directory of the
-repo, not under version control:
+**1. The published measurement depended on three files that were not in this
+repository — this is now closed (F-159), and the closing is §B7.** As
+published, `docs/llm-evaluation.md` § *Local models on this corpus* derived
+from three bundles in `_archive_bundles/`, a sibling directory of the repo
+outside version control:
 
     20260811_174726_post_EL_bundle.zip    run A, llama3.2:latest, 40 OUT
     20260811_181009_post_EL_bundle.zip    run B, llama3.2:latest, 43 OUT
     20260811_184118_post_EL_bundle.zip    run C, qwen2.5:7b,       4 OUT
 
-**If those are lost, every figure in that section becomes unverifiable**, and
-nothing in the repository says where they went. Archive them somewhere durable
-and cite the location from the section. This is the single highest-value
-follow-up in this document.
+Every figure in that section traced to one machine, and nothing in the
+repository said where those files were. The evidence is now frozen under
+`docs/data/wave12_local_runs/` and every published figure is recomputed from
+it on each suite run. **What remains worth doing:** archive the three original
+zips somewhere durable anyway — their digests are recorded in
+`wave12_local_runs.meta.txt`, so a resurfaced bundle can still be matched
+member by member against what was kept.
 
 **2. This codebase's characteristic defect is a vocabulary that grows on one
 side only.** F-145 added an outcome; F-153 and F-156 are the two places that
