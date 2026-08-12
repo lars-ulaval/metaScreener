@@ -68,6 +68,7 @@ import shutil
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from time import monotonic
 from typing import Callable, Optional, Tuple
 
 READY = "ready"
@@ -250,6 +251,56 @@ class ComputeMode:
         return self.mode != COMPUTE_UNKNOWN
 
 
+#: Ollama's `/api/ps` answer lists loaded models and nothing else; it is
+#: a few hundred bytes. A cap three orders of magnitude above that is not
+#: a limit anyone can reach honestly, and it bounds the damage a
+#: misconfigured endpoint can do to a GUI thread.
+_MAX_PS_BYTES = 512 * 1024
+
+
+def _read_bounded(resp, timeout: float,
+                  max_bytes: int = _MAX_PS_BYTES) -> bytes:
+    """Read a response body under a **total** time and size bound.
+
+    F-157. ``urlopen(..., timeout=t)`` bounds each socket operation, not
+    the whole transfer. A server that sends its headers promptly and then
+    dribbles the body never trips that timeout — every individual read
+    arrives inside it — while the call as a whole takes as long as the
+    server likes. Measured before this existed: a 4 KB body in 20 chunks
+    held a 1.0-second call for 6.0 seconds.
+
+    That is a GUI defect rather than a networking one, because
+    ``compute_mode``'s caller runs on the GUI thread deliberately: the
+    pre-run confirmation has to have the answer before the user decides,
+    so the alternative to blocking briefly is showing the dialog and
+    correcting it afterwards. Blocking briefly is the right trade; the
+    bound is what keeps "briefly" true.
+
+    Deliberately returns what it has rather than raising when the budget
+    runs out. The caller parses the result and every failure there is
+    already ``COMPUTE_UNKNOWN``, which is the honest answer for a server
+    that would not finish a sentence.
+    """
+    deadline = monotonic() + max(0.0, float(timeout))
+    # `read1` returns what has already arrived; `read(n)` blocks until it
+    # has all n bytes or the stream ends, which would swallow an entire
+    # slow transfer in ONE call and leave the deadline below checked
+    # exactly once. That distinction is the whole fix: with `read` the
+    # measured overrun stayed at 6.0s against a 1.0s budget.
+    read = getattr(resp, "read1", None) or resp.read
+    chunks = []
+    total = 0
+    while total < max_bytes:
+        if monotonic() > deadline:
+            break
+        chunk = read(8192)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    return b"".join(chunks)
+
+
 def compute_mode_url(endpoint: str) -> str:
     """Ollama's native ``/api/ps``, derived from the compatible endpoint.
 
@@ -287,7 +338,8 @@ def compute_mode(endpoint: str, *, model: str = "",
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if getattr(resp, "status", 200) != 200:
                 return _compute_unknown()
-            payload = json.loads(resp.read().decode("utf-8", "replace"))
+            payload = json.loads(
+                _read_bounded(resp, timeout).decode("utf-8", "replace"))
     except Exception:
         return _compute_unknown()
 

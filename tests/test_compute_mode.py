@@ -216,3 +216,116 @@ class TestTheVocabularyIsClosed:
             stop()
         for word in ("driver", "cuda", "reinstall", "nvidia", "install"):
             assert word not in detail, (word, detail)
+
+
+class TestItCannotBlockTheInterfaceIndefinitely:
+    """F-157, found by reproducing a session A claim.
+
+    ``urlopen(..., timeout=t)`` bounds each socket operation, not the
+    total. A server that sends its headers promptly and then dribbles the
+    body never trips the timeout — every individual read arrives inside
+    it — while the whole call takes as long as the server likes.
+
+    That matters here specifically because ``_confirm_run``
+    (``plugins/06_el/ui.py``) calls ``compute_mode`` **on the GUI
+    thread**, deliberately: the whole point is that the answer arrives
+    before the user decides. So an unbounded read is a frozen application
+    at the moment the user presses Run. Measured before the fix, against
+    a server dribbling a 4 KB body in 20 chunks::
+
+        timeout=2.0s  ->  elapsed 8.02s   *** NOT BOUNDED ***
+
+    The bound below is generous — three times the timeout — because this
+    is a wall-clock assertion on a loaded CI box and the defect it guards
+    is a factor-of-four overrun, not a 10% one.
+    """
+
+    @staticmethod
+    def _dribbler(chunk_sleep=0.3, chunks=20):
+        """Headers at once, body in slow pieces. Returns (url, stop)."""
+        import threading
+        import time as _t
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        # Padding FIRST, so a bounded read is cut mid-object. With the
+        # JSON first a truncated read would still parse, which tests the
+        # bound but not what the bound does to the answer.
+        payload = (" " * 4000
+                   + json.dumps({"models": [_model(size=10, size_vram=10)]})
+                   ).encode()
+
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                step = max(1, len(payload) // chunks)
+                for i in range(0, len(payload), step):
+                    try:
+                        self.wfile.write(payload[i:i + step])
+                        self.wfile.flush()
+                    except Exception:
+                        return
+                    _t.sleep(chunk_sleep)
+
+            def log_message(self, *a):
+                pass
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        t = threading.Thread(
+            target=lambda: srv.serve_forever(poll_interval=0.01), daemon=True)
+        t.start()
+        host, port = srv.server_address[:2]
+
+        def stop():
+            srv.shutdown()
+            srv.server_close()
+
+        return f"http://{host}:{port}/v1", stop
+
+    def test_a_dribbling_server_does_not_hold_the_gui(self):
+        import time as _t
+
+        url, stop = self._dribbler()
+        try:
+            t0 = _t.perf_counter()
+            got = pd.compute_mode(url, timeout=1.0)
+            elapsed = _t.perf_counter() - t0
+        finally:
+            stop()
+
+        assert elapsed < 3.0, (
+            f"compute_mode blocked for {elapsed:.2f}s against a 1.0s "
+            f"timeout; _confirm_run calls this on the GUI thread"
+        )
+        # Giving up is reported as not knowing, never as CPU.
+        assert got.mode == pd.COMPUTE_UNKNOWN
+
+    def test_a_silent_server_is_still_bounded(self):
+        """The case urlopen's own timeout already handled; kept so the
+        repair cannot regress it."""
+        import time as _t
+
+        url, stop = serve(lambda path: None)
+        try:
+            t0 = _t.perf_counter()
+            pd.compute_mode(url, timeout=1.0)
+            elapsed = _t.perf_counter() - t0
+        finally:
+            stop()
+        assert elapsed < 3.0, elapsed
+
+    def test_a_prompt_server_is_unaffected(self):
+        """The bound must not cost anything in the normal case."""
+        import time as _t
+
+        url, stop = serve(_ps_body([_model(size=10, size_vram=10)]))
+        try:
+            t0 = _t.perf_counter()
+            got = pd.compute_mode(url)
+            elapsed = _t.perf_counter() - t0
+        finally:
+            stop()
+        assert got.mode == pd.COMPUTE_GPU
+        assert elapsed < 1.0, elapsed

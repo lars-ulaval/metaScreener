@@ -48,6 +48,7 @@ from plugins._common.bundle import (
 )
 
 from plugins._common.stage_state import (
+    criterion_touched,
     Outcome,
     Readiness,
     batch_size_tooltip,
@@ -1248,8 +1249,13 @@ class ILView(ttk.Frame):
             cid = self.active_criterion_id
             filtered = []
             for i, r in enumerate(self.full_rows):
-                ev = self.row_eval_lists[i] if i < len(self.row_eval_lists) else {"failed": [], "missing": [], "met": [], "uncertain": [], "suppressed": []}
-                if (cid in ev.get("failed", [])) or (cid in ev.get("missing", [])) or (cid in ev.get("met", [])) or (cid in ev.get("uncertain", [])):
+                ev = self.row_eval_lists[i] if i < len(self.row_eval_lists) else {}
+                # F-156. Was four list names spelled out here and again
+                # below; F-145 added a fifth to the engine and neither
+                # site heard about it, so a suppressed record vanished
+                # from the drill-down of the very criterion that
+                # suppressed it. One predicate, one vocabulary.
+                if criterion_touched(ev, cid):
                     filtered.append(r)
             full_view = filtered
 
@@ -1261,7 +1267,7 @@ class ILView(ttk.Frame):
                 if r.get("il_outcome") == "OUT":
                     continue
                 ev = self.row_eval_lists[i]
-                if (cid in ev.get("failed", [])) or (cid in ev.get("missing", [])) or (cid in ev.get("met", [])) or (cid in ev.get("uncertain", [])):
+                if criterion_touched(ev, cid):
                     touched_survivor_ids.add(_safe_str(r.get("local_id", "")).strip())
             surv_view = [r for r in self.survivors if _safe_str(r.get("local_id", "")).strip() in touched_survivor_ids]
 

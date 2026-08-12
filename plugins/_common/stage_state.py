@@ -307,6 +307,32 @@ def key_required(provider: str) -> bool:
     return (provider or "").strip().lower() not in _KEYLESS_PROVIDERS
 
 
+#: The per-record lists an engine fills for each criterion, named once.
+#: F-156: the Views enumerated four of these inline, in four places, and
+#: F-145 added a fifth to the engine without the Views hearing about it —
+#: so the drill-down hid exactly the records flag-only exists to surface.
+#: Enumerated here so a sixth cannot be added on one side only.
+CRITERION_ROW_LISTS = ("failed", "missing", "met", "uncertain", "suppressed")
+
+
+def criterion_touched(ev: Mapping[str, Any], cid: str) -> bool:
+    """Whether this criterion had anything to say about this record.
+
+    The predicate behind the criteria table's drill-down: click a
+    criterion, see the records it acted on. "Acted on" means *any* of
+    :data:`CRITERION_ROW_LISTS`, including ``suppressed`` — a verdict the
+    model reached and policy declined to act on is still something the
+    criterion said, and it is the case a reviewer most needs to read.
+
+    Tolerant of a missing or ``None`` list, because the Views pass a
+    default dict when ``row_eval_lists`` is shorter than ``full_rows``.
+    """
+    for key in CRITERION_ROW_LISTS:
+        if cid in (ev.get(key) or ()):
+            return True
+    return False
+
+
 def exclusion_allowed(*, provider: str, setting: Any = None) -> bool:
     """Whether an LLM verdict from this provider may REMOVE a record.
 

@@ -649,3 +649,70 @@ class TestTheRunSummaryCountsTheNewOutcome:
             {"OUT": 1, "PASS_CLEAN": 2, "PASS_FLAGGED": 3},
             stage="EL", total_rows=6)
         assert text == "OUT: 1 | PASS_CLEAN: 2 | PASS_FLAGGED: 3"
+
+
+# ---------------------------------------------------------------------------
+# 8. what session B's reproduction found — F-156
+# ---------------------------------------------------------------------------
+
+class TestTheCriterionDrillDownShowsSuppressedRecords:
+    """F-156. The drill-down hid exactly the records flag-only exists for.
+
+    ``_refresh_reports_view`` filters the FULL and SURVIVORS tables to the
+    records a clicked criterion touched, by testing four lists: ``failed``,
+    ``missing``, ``met``, ``uncertain``. F-145 added a fifth, ``suppressed``,
+    and did not add it here — and by design a suppressed criterion goes into
+    that list *instead of* ``failed``, because putting it in both is the
+    two-representations defect ``_excluded_by`` exists to avoid.
+
+    So the records the model asked to remove, which survive precisely so a
+    human will read them, were absent from the view a human uses to read
+    them. Measured before the fix, on a four-record flag-only run::
+
+        crit_impacts                            : {'EC-1': {'failed': 4, ...}}
+        records suppressed on EC-1              : 4
+        records the EC-1 drill-down would show  : 0
+
+    The criteria table said the criterion had acted on four records and the
+    drill-down beside it showed none of them. Flag-only's whole value is
+    that somebody reads the record; losing it at the point of reading gives
+    back everything F-145 bought.
+    """
+
+    LISTS = ("failed", "missing", "met", "uncertain", "suppressed")
+
+    def test_every_list_counts_as_touched(self):
+        for key in self.LISTS:
+            ev = {k: ([] if k != key else ["EC-1"]) for k in self.LISTS}
+            assert st.criterion_touched(ev, "EC-1") is True, key
+
+    def test_an_untouched_criterion_is_not_shown(self):
+        ev = {k: [] for k in self.LISTS}
+        assert st.criterion_touched(ev, "EC-1") is False
+
+    def test_a_missing_key_does_not_raise(self):
+        """The Views pass a default dict on a short ``row_eval_lists``."""
+        assert st.criterion_touched({}, "EC-1") is False
+        assert st.criterion_touched({"failed": None}, "EC-1") is False
+
+    def test_the_vocabulary_is_the_engine_s(self):
+        """The list names are the engine's, so a sixth added there without
+        being added here would repeat this defect."""
+        assert set(st.CRITERION_ROW_LISTS) == set(self.LISTS)
+
+    @pytest.mark.parametrize("getter,stage,ctype,decision", EXCLUDING)
+    def test_a_suppressed_record_is_reachable_from_its_criterion(
+            self, monkeypatch, getter, stage, ctype, decision):
+        """End to end against the real engine: run flag-only, then apply
+        the predicate the View applies."""
+        full, _surv, _counts, impacts, evals, _c, _cx, _rep = _run(
+            monkeypatch, getter(), stage, ctype, decision, allow=False)
+
+        shown = [r for i, r in enumerate(full)
+                 if st.criterion_touched(evals[i], CID)]
+        assert len(shown) == len(full) == 4, (
+            "the criterion's own drill-down must show the records it "
+            "suppressed"
+        )
+        # and the count beside it must not contradict the table
+        assert impacts[CID]["failed"] == len(shown)
