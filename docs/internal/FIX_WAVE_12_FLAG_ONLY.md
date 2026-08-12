@@ -1,7 +1,9 @@
-# Fix wave 12 — flag-only, and three defects found by using the software
+# Fix wave 12 — flag-only, three defects found by using the software,
+# and what the measurement actually showed
 
 **Session A (code).** Branch `fix/wave-12-flag-only`, off `main` at `8b5a972`.
-Session B owns the measurement write-up; nothing here is that document.
+**Session B (the measurement).** Branch `docs/wave-12-measurement`, off `main`
+at `7a39eda`; see the second half of this document.
 
 This is the last wave. It exists because the maintainer built the software and
 ran it, which produced two things no amount of reading would have: a
@@ -581,3 +583,186 @@ and every documentation change except the two claims a code fix falsified —
 `README.md`'s evidence-gating paragraph and `docs/llm-evaluation.md`'s
 *"a degenerate run cannot silently exclude records"*, which the measurement in §1
 disproves directly.
+
+---
+
+# Session B — publish the measurement
+
+**Branch `docs/wave-12-measurement`**, off `main` at `7a39eda` (session A
+merged and tagged `post-wave-12a`). Scope: the measurement write-up, the
+context-window finding, two of session A's eight unverified claims, and the
+documentation session A's code falsified.
+
+## B1. The brief was wrong five times, and the rule caught all five
+
+The session-B brief supplied figures and instructed that every one be treated
+as a hypothesis until re-measured against the artefacts. That rule earned its
+place:
+
+| # | The brief said | The artefacts say |
+|---|---|---|
+| 1 | two local runs | **three** — two `llama3.2:latest`, one `qwen2.5:7b` |
+| 2 | 43 exclusions | **40 and 43**, from two runs of one configuration |
+| 3 | `llama3.2:3b` | **`llama3.2:latest`** — a *mutable tag* |
+| 4 | "quantised at 4 bits" | **not recorded anywhere**; the provenance block has six fields and none is quantisation |
+| 5 | all three runs at `trunc_chars 1500` | the **baseline** was captured at **4000**; only the local runs used 1500 |
+
+A sixth was found without prompting and is this session's own: the write-up as
+first committed described the 40 and 43 `llama3.2` exclusions as "all
+unjustified". **Nobody audited them.** The brief asserted it, and the tell is
+that the same brief marked the qwen four as "confirmed by the author" and did
+not mark the llama sets. No audit of them exists in this repository. That had
+reached the README before it was caught, which is precisely the wave 10 error
+the rule exists to prevent — and it was caught by asking the question the
+review pass was going to ask, one commit before the review answered.
+
+The replacement is traceable and nearly as strong: **39 of run A's 40 and 42 of
+run B's 43 excluded records were kept by the audited baseline**, the single
+overlap in each case being `A499`, the one exclusion the author examined and
+found correct.
+
+## B2. The context window: settled, and it cuts both ways
+
+`num_ctx` appears **nowhere** in the tree, so every local run inherits the
+server's default — 4096 on the maintainer's machine. An OpenAI-compatible
+server truncates rather than errors when a prompt exceeds its window, so this
+had to be settled before anything was published: if the prompts overflowed,
+every causal claim about model comprehension in this wave was confounded.
+
+`tools/measure_prompt_size.py` renders the real prompt through the real
+builder. It is validated against the artefacts rather than trusted — it
+produces 17 prompts per criterion × 2 criteria = **34**, exactly the
+`calls_made: 34` all three bundles record.
+
+**They did not overflow.** Worst batch-5 prompt plus reply is 2,679–4,020
+tokens against 4,096, depending on the tokenizer assumption. The truncation
+hypothesis is dead and the measurement stands.
+
+**But the recommended range is already unsafe.** At batch 10 — inside
+`LOCAL_BATCH_RANGE = (5, 10)`, the range D6's tooltip offers a local user —
+seven of nine prompts exceed the window, and `standalone.py:108` seeds its box
+from `DEFAULT_BATCH_SIZE = 50` directly, at 4–6× the window. F-154 therefore
+**blocks any future increase to the local batch range** and records that the
+present upper bound is unsafe. Not fixed, by instruction.
+
+## B3. The finding the wave did not go looking for
+
+Runs A and B are the same model on the same input, **identical in all six
+fields the provenance block records**, twenty-three minutes apart. They
+excluded 40 and 43 records. The 40 are a strict subset of the 43; three
+records moved `PASS_FLAGGED → OUT`; 8 of 170 judgments (4.7%) changed
+decision; even `fields_rejected` differs, 1 versus 3.
+
+`temperature = 0` is widely treated as a reproducibility guarantee. It is not
+one here, and this is a direct measurement rather than an inference. The
+project's own code has said so in a docstring since wave 7; this attaches an
+effect size to it.
+
+Three consequences, recorded as **F-155**:
+
+1. a bundle's provenance identifies a run's *configuration*, not its *result*
+   — two bundles agreeing in every recorded field can disagree about which
+   papers are in the review;
+2. the replay goldens pin **recorded** answers, not **reproducible** ones.
+   Asked whether `llm-evaluation.md` or `02_quality.md` implied otherwise:
+   **they did not** — both already drew the distinction correctly. But both
+   argued it from a docstring, so §6.5's LLM-sampling row and its Verdict now
+   cite the measurement;
+3. it is a **stronger argument for flag-only than accuracy is**, and the
+   write-up makes it that way. Not "the model is wrong" but "the same model,
+   in the same recorded configuration, excludes a different set of papers each
+   time". Removal is the pipeline's one irreversible act.
+
+What it does **not** undermine, stated because it matters: the deterministic
+stages reproduced exactly across all three runs — 776 → 125 → 651 → 566 → 85,
+the same records every time. The variability is confined to the LLM half.
+
+## B4. Two claims reproduced, both real
+
+Session A left eight unverified claims. Two were examined, with a repro
+required before acting. **Both reproduced.**
+
+**F-156 — the criterion drill-down hid suppressed records.** The filter tested
+four lists and F-145 had added a fifth, `suppressed`, which by design receives
+the criterion *instead of* `failed`. Measured on a four-record flag-only run:
+the criteria table reported `EC-1: failed 4`, and clicking `EC-1` showed
+**zero** records. Flag-only's entire value is that a human reads the record;
+this lost it at the point of reading. Fixed with one predicate over a
+vocabulary enumerated once — the enumeration being the fix, since the defect
+is precisely a set that grew on the engine side and not the View side.
+
+**F-157 — `compute_mode` could freeze the interface.** `urlopen`'s timeout
+bounds each socket operation, not the transfer: **8.02 s against a 2.0 s
+timeout** against a server that dribbles its body. `_confirm_run` calls it on
+the GUI thread deliberately, so that is a frozen application at the moment the
+user presses Run. The first repair did not work, and why is the instructive
+part: `read(8192)` blocks until it has 8192 bytes, so it swallowed the whole
+slow transfer in one call and the deadline was checked once. `read1` fixes it.
+**8.02 s → 2.42 s.**
+
+Two for two is a reason to take the remaining six seriously, not a reason to
+assume them. They stay tabulated and unactioned.
+
+## B5. Documentation, and one thing the sweep exposed
+
+Corrected: `usage.md`'s "require an OpenAI API key in `.env`" (two waves
+false); its description of the evidence gate as *the* condition for exclusion;
+the per-criterion status vocabulary, which gained `SUPPRESSED`; IL's summary,
+with the polarity spelled out because it is easy to reverse;
+`installation.md`'s local smoke test, which will now show **zero** records
+marked `OUT` and would otherwise be filed as a bug; and its provenance list,
+which gains `exclusion_policy` and — more usefully — **what is not recorded**.
+
+**F-158** was false before this wave and exposed by it. `usage.md` claimed the
+harmoniser's LLM refinement "is annotated with the original and refined
+assignments so the researcher can audit any changes". It is not:
+`_harmonise_llm` does `self.state.rows = refined`, replacing the table
+wholesale. Nobody could notice, because until F-146 the pass could not run at
+all. Session A's repair turns a dormant documentation error into a live one. A
+criteria table decides which papers a review considers; a pass that rewrites it
+without a diff is not auditable. Documentation corrected; the code fix opens a
+row, per the brief's rule.
+
+## B6. What a maintainer picking this up in six months most needs to know
+
+Four things, none of them currently written down anywhere else.
+
+**1. The published measurement depends on three files that are not in this
+repository.** `docs/llm-evaluation.md` § *Local models on this corpus* is
+derived from three bundles in `_archive_bundles/` — a sibling directory of the
+repo, not under version control:
+
+    20260811_174726_post_EL_bundle.zip    run A, llama3.2:latest, 40 OUT
+    20260811_181009_post_EL_bundle.zip    run B, llama3.2:latest, 43 OUT
+    20260811_184118_post_EL_bundle.zip    run C, qwen2.5:7b,       4 OUT
+
+**If those are lost, every figure in that section becomes unverifiable**, and
+nothing in the repository says where they went. Archive them somewhere durable
+and cite the location from the section. This is the single highest-value
+follow-up in this document.
+
+**2. This codebase's characteristic defect is a vocabulary that grows on one
+side only.** F-145 added an outcome; F-153 and F-156 are the two places that
+outcome failed to reach. F-109 records that the per-criterion status vocabulary
+has no constant at all, and F-69 records that this project has shipped the
+same shape four times. So: **when you add a member to any enumerated set, grep
+for every place the set is spelled out**, because there are many and almost
+nothing checks them against each other. `stage_state.CRITERION_ROW_LISTS` is
+the pattern to copy — name the set once, in the module both sides import.
+
+**3. A green CI is compatible with a broken GUI, and always has been.**
+`tests/conftest.py` replaces `tkinter` with a `MagicMock`, so Views and dialogs
+cannot be constructed under the normal suite. `tests/test_view_smoke.py` is the
+only real-Tk cover and it **skips without a display**, which most CI cells are.
+Three live GUI defects shipped past a green suite in two waves. If you change a
+View or a dialog, run the smoke locally; nothing else will tell you.
+
+**4. INV-1 has now broken five times, and never once in a way a reader
+noticed.** A keyless provider reaching the paid vendor has been closed by a
+default, a blank field, a per-stage override, an ASCII trailing dot and — in
+F-152 — a Unicode full stop. Every closure was of a *spelling*. The tests that
+found the last two were written to attack the invariant rather than to confirm
+it. Keep doing that, and keep
+`tests/test_review_repairs.py::TestEveryFullStopDnsHonoursIsTheSameHost`'s
+habit of asserting the *premise* (that IDNA really folds those code points)
+rather than only the conclusion.
