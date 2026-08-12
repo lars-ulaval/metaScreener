@@ -164,19 +164,25 @@ def _norm_row(row: Mapping[str, Any]) -> Dict[str, Any]:
 # --------------------------------------------------------------------------
 
 def _concept_map(a_columns: Sequence[str]) -> Dict[str, str]:
+    """Which corpus column, if any, does a given word name?
+
+    IDENTITY ONLY — a word names a column when it *is* that column's name.
+
+    An earlier version also read `TARGET_ALIASES` backwards, mapping
+    "conference" onto `venue` because the inference uses that alias to pick a
+    column from a word. Measured on harder prose, that produced a false
+    positive: in *"Exclude robotics conference proceedings"* the word names a
+    document type, and the `equals doc_type conference` rule that reads it is
+    right. An alias is a hint about which column the ENGINE should read; it is
+    not evidence about what the USER meant, and using it in that direction
+    over-reaches. F-166's own row still fires, because its label literally
+    contains "venue".
+    """
     concepts: Dict[str, str] = {}
     for col in a_columns:
         c = _safe_str(col).strip().lower()
         if c:
             concepts[c] = c
-    for alias, canon in TARGET_ALIASES.items():
-        a = _safe_str(alias).strip().lower()
-        c = _safe_str(canon).strip().lower()
-        # Only map an alias onto a column the corpus actually has, so a label
-        # mentioning "journal" against a corpus with no venue column is not
-        # reported as naming something.
-        if a and c in concepts:
-            concepts[a] = c
     return concepts
 
 
@@ -201,6 +207,15 @@ TARGET_MISMATCH = "target-mismatch"
 
 
 def _check_target_mismatch(row: Dict[str, Any], concepts: Mapping[str, str]) -> Optional[Finding]:
+    # An `llm` row's target cell is NOT honoured. `06_el/prompt.py::
+    # _build_llm_messages_for_criterion` packs title/abstract/keywords whatever
+    # the cell says, and `_common/llm_client.py::FIELD_VOCABULARY` is those
+    # three — which is F-175. So "it will be applied to keywords and will never
+    # look at status" is false for such a row, and saying it is noise. Measured:
+    # without this, three of eleven harder criteria false-positive.
+    if row["operator"] == "llm":
+        return None
+
     named = _concepts_named_by(row["label"], concepts)
     if not named:
         return None

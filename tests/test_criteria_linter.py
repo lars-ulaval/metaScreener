@@ -606,3 +606,111 @@ class TestItNeverRaises:
         shape = lambda rep: [(f.criterion_id, f.check, f.message) for f in rep]
         assert shape(lint.lint_criteria(rows, a_columns)) == \
                shape(lint.lint_criteria(rows, a_columns))
+
+
+# ---------------------------------------------------------------------------
+# A second, harder criteria file. The eight rows of `ic_ec_12.txt` are clean,
+# one-per-line, well-punctuated sentences — which `07_criteria_parsing.md` §7.1
+# notes are the OPPOSITE of the input this feature exists for. These eleven are
+# written to break the linter, and four of them did: they are the reason
+# target-mismatch skips `llm` rows and no longer reads TARGET_ALIASES backwards.
+# Harmonised through the same real path, so every row is one the producer can
+# actually emit.
+# ---------------------------------------------------------------------------
+
+ADVERSARIAL_CRITERIA = """\
+IC-1 - The study reports quantitative outcomes for at least two or three sessions.
+IC-2 - Papers whose confidence in the reported effect size is stated explicitly.
+IC-3 - The publication year is 2015 or later.
+IC-4 - The record has a status of published, whether or not it is open access.
+IC-5 - The title or abstract mentions collaboration.
+IC-6 - Studies published in a journal indexed in Scopus and/or Web of Science.
+EC-1 - The paper is written in French, Spanish, or Portuguese.
+EC-2 - Exclude robotics conference proceedings.
+EC-3 - Exclude papers with fewer than 10 pages.
+EC-4 - The venue is IEEE VR or ISMAR.
+EC-5 - Exclude editorials, commentaries and letters to the editor.
+"""
+
+
+def _harmonise_text(text):
+    """The same production path as `_harmonised_rows`, over arbitrary prose."""
+    h = get_harmoniser()
+    a_columns, text_stats = h._load_a_header_and_stats(str(AGGREGATE_CSV))
+    default_text_target = h._get_best_text_targets(a_columns, text_stats)
+    default_text_target, _ = h._canonicalize_targets(default_text_target, a_columns)
+
+    rows = []
+    for crit_id, crit_type, label, source_line in h._parse_free_text_criteria(text):
+        inferred = h._infer_criterion_details(
+            crit_id=crit_id, crit_type=crit_type, label=label,
+            a_columns=list(a_columns), default_text_target=default_text_target,
+        )
+        stage = inferred["stage"]
+        rows.append({
+            "stage": stage, "id": crit_id, "type": crit_type, "scope": "metadata",
+            "label": label, "operator": inferred["operator"],
+            "target": inferred["target"], "what": inferred["what"],
+            "threshold": f"{h.DEFAULT_THRESHOLD:.2f}" if stage in {"EL", "IL"} else "",
+            "enabled": True, "source_text": source_line,
+        })
+    return rows, list(a_columns)
+
+
+@pytest.fixture(scope="module")
+def adversarial():
+    return _harmonise_text(ADVERSARIAL_CRITERIA)
+
+
+class TestItStaysQuietOnHarderProse:
+    """Four false positives, found by this session's own adversarial pass.
+
+    A noisy linter gets ignored, which is the failure mode that matters most
+    here, so each of these is pinned individually rather than as one aggregate.
+    """
+
+    def test_it_does_not_flag_an_llm_row_for_naming_a_column(self, adversarial):
+        """At EL/IL the `target` cell is NOT honoured — the prompt packs
+        title/abstract/keywords regardless (F-175), so "it will be applied to
+        keywords and never look at status" is simply false for an `llm` row."""
+        rows, cols = adversarial
+        found = _by_check(_linter().lint_criteria(rows, cols), "target-mismatch")
+        llm_ids = {r["id"] for r in rows if r["operator"] == "llm"}
+        assert not (llm_ids & set(_ids(found))), (
+            "target-mismatch fired on an llm row. IC-2 ('confidence in the "
+            "reported effect size'), IC-4 ('a status of published') and EC-3 "
+            "('fewer than 10 pages') all name a corpus column incidentally."
+        )
+
+    def test_it_does_not_read_the_alias_map_backwards(self, adversarial):
+        """`TARGET_ALIASES` maps conference->venue so the INFERENCE can pick a
+        column from a word. Using it in reverse to infer the user's intent is
+        over-reach: in "Exclude robotics conference proceedings" the word names
+        a document type, and the rule that reads doc_type is right."""
+        rows, cols = adversarial
+        found = _by_check(_linter().lint_criteria(rows, cols), "target-mismatch")
+        assert "EC-2" not in _ids(found)
+
+    def test_target_mismatch_is_silent_on_the_whole_harder_file(self, adversarial):
+        rows, cols = adversarial
+        found = _by_check(_linter().lint_criteria(rows, cols), "target-mismatch")
+        assert _ids(found) == [], (
+            "None of these eleven is mistranslated in a way this check can "
+            "legitimately see; anything it reports here is noise."
+        )
+
+    def test_the_real_defect_still_fires_after_both_narrowings(self, rows, a_columns):
+        """The narrowings must not cost the finding the check exists for."""
+        found = _by_check(_linter().lint_criteria(rows, a_columns), "target-mismatch")
+        assert _ids(found) == ["EC-4"]
+
+    def test_the_harder_file_still_produces_its_true_findings(self, adversarial):
+        """Quieting one check must not silence the others."""
+        rows, cols = adversarial
+        report = _linter().lint_criteria(rows, cols)
+        assert "EC-1" in _ids(_by_check(report, "dropped-operand")), (
+            "EC-1 is 'French, Spanish, or Portuguese' rendered as one operand."
+        )
+        assert "IC-5" in _ids(_by_check(report, "inert-at-stage")), (
+            "IC-5 is `contains` at IL — F-65's class on new input."
+        )
