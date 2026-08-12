@@ -218,14 +218,19 @@ drifted is that nobody ran it. Nothing checks it, which is still F-131.
 **Wave 13a opens two rows and closes one.** **F-164** (High — an undeclared `httpx` stops the
 suite collecting under `openai` 3.0.0) and **F-165** (Medium — nothing in the wave process
 reads CI's answer) are the two of the red CI's three causes that were not already on the
-register. The third, **cause 2**, is **F-99**, open since wave 9, whose suggested fix already
-named the mechanism; wave 13a corrects the glob that row proposes and fixes one third of it.
-No duplicate row was opened for it — the duplication sweep is recorded in F-99's fix cell.
+register. The **third** cause — the demonstration corpus, which the `httpx` fix unmasked on
+all twelve non-Windows cells — is also **F-99**, open since wave 9. No duplicate row was
+opened for either; the duplication sweep is recorded in F-99's fix cell, and so is the fact
+that **both** `binary` halves of that row's proposed remedy are now measured wrong, in
+opposite directions.
 
-**F-164 closes in `238e380`. F-99 and F-165 do not close, and the reasons differ.** F-99
-keeps an empty Effort marker under the partial-closure convention: `samples/** binary` and the
-`core.autocrlf` provenance field are outside wave 13a's scope fence, and the `samples/` half
-is the one that governs cache-key reproducibility, which is what the row was filed for.
+**F-164 closes across `238e380` and `fac7cfe`. F-99 and F-165 do not close, and the reasons
+differ.** F-164's first closure was incomplete — the declaration reached CI but not the
+Docker path, which is the one the project frames as JORS evidence — and `fac7cfe` is what
+finished it; its row records both. F-99 keeps an empty Effort marker under the
+partial-closure convention with **two of its three halves now done** (`docs/data/*.csv` in
+`9640652`, `samples/` in `f83a088`); what is outstanding is recording `core.autocrlf` in the
+capture tool's `_invocation`, the provenance half, which is outside this wave's scope fence.
 F-165 is a change to the wrap-up convention rather than a mechanical edit, which is the
 coordinator's call — the same reason F-141 was opened rather than fixed in wave 8. **A wave
 that fixes a red CI and leaves open the row explaining why nobody noticed it is the honest
