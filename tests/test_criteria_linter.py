@@ -22,10 +22,14 @@ still defective at this commit **on purpose**: `inference.py` is not fixed in th
 wave, so the linter can be proven against the defect rather than against its memory.
 """
 
-import importlib
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 from conftest import (
     AGGREGATE_CSV,
@@ -456,4 +460,94 @@ class TestTheExecutableSetIsNotJustRetyped:
             "Every operator in parser.py::OPERATORS must be executable "
             "somewhere, or the linter cannot tell 'inert here' from "
             "'unimplemented everywhere'."
+        )
+
+
+class TestItDoesNotDragInAGui:
+    """The linter must be importable without Tk.
+
+    This CANNOT be tested in-process: `tests/conftest.py` installs a MagicMock
+    for `tkinter` before any plugin import, so `tkinter` is in `sys.modules`
+    here no matter what the linter does. The check therefore runs in a clean
+    subprocess with no conftest and no mock — the same reason
+    `tests/test_view_smoke.py::_run` shells out, in the opposite direction.
+
+    It matters because `plugins/03_harmoniser/plugin.py` does
+    `from tkinter import ttk` at module scope. A linter reached through it would
+    make every consumer — a CLI, a dry run, a test — depend on a GUI toolkit.
+    """
+
+    SCRIPT = textwrap.dedent(
+        '''
+        import importlib.util, os, sys, types
+
+        root = sys.argv[1]
+        sys.path.insert(0, root)
+
+        for name, path in (
+            ("plugins", os.path.join(root, "plugins")),
+            ("plugins.03_harmoniser", os.path.join(root, "plugins", "03_harmoniser")),
+        ):
+            mod = types.ModuleType(name)
+            mod.__path__ = [path]
+            sys.modules[name] = mod
+
+        spec = importlib.util.spec_from_file_location(
+            "plugins.03_harmoniser.linter",
+            os.path.join(root, "plugins", "03_harmoniser", "linter.py"),
+        )
+        linter = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = linter
+        spec.loader.exec_module(linter)
+
+        leaked = sorted(m for m in sys.modules if m == "tkinter" or m.startswith("tkinter."))
+        if leaked:
+            print("TK_LEAKED:" + ",".join(leaked))
+            raise SystemExit(1)
+
+        # and it must actually work, not merely import
+        report = linter.lint_criteria(
+            [{"id": "EC-4", "stage": "EH", "type": "exclude", "operator": "equals",
+              "target": "doc_type", "what": "conference", "enabled": "1",
+              "label": "The publication venue contains ICRA OR IROS.",
+              "threshold": "", "source_text": ""}],
+            ["lang", "venue", "doc_type", "year"],
+        )
+        assert [f.check for f in report if f.criterion_id == "EC-4"], report
+        print("NO_TK_OK")
+        '''
+    )
+
+    def test_importing_and_running_it_pulls_in_no_tkinter(self, tmp_path):
+        script = tmp_path / "no_tk_probe.py"
+        script.write_text(self.SCRIPT, encoding="utf-8")
+        proc = subprocess.run(
+            [sys.executable, "-S", str(script), str(PROJECT_ROOT)],
+            capture_output=True, text=True, timeout=120,
+        )
+        assert "TK_LEAKED:" not in proc.stdout, (
+            "The linter dragged in tkinter: %s" % proc.stdout.strip()
+        )
+        assert proc.returncode == 0, (
+            "exit %s\n--- stdout ---\n%s\n--- stderr ---\n%s"
+            % (proc.returncode, proc.stdout, proc.stderr)
+        )
+        assert "NO_TK_OK" in proc.stdout, proc.stdout
+
+    def test_the_csv_shape_is_accepted_as_well_as_the_in_memory_shape(self, rows, a_columns):
+        """The subprocess above lints a CSV-shaped row (`what` a string,
+        `enabled` "1"). This pins the same property against the real rows."""
+        lint = _linter()
+        as_csv = []
+        for r in rows:
+            r = dict(r)
+            r["what"] = ";".join(r["what"])
+            r["enabled"] = "1" if r["enabled"] else "0"
+            as_csv.append(r)
+        from_memory = lint.lint_criteria(rows, a_columns)
+        from_csv = lint.lint_criteria(as_csv, a_columns)
+        assert [(f.criterion_id, f.check) for f in from_memory] == \
+               [(f.criterion_id, f.check) for f in from_csv], (
+            "The two shapes the linter's two callers hand it must produce the "
+            "same findings, or the check depends on who called it."
         )
