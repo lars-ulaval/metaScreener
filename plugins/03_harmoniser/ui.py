@@ -33,6 +33,15 @@ from .inference import DEFAULT_THRESHOLD, _infer_criterion_details, _validate_ro
 from .llm_refine import STAGE as LLM_STAGE, _llm_refine, _sdk_importable
 from .exporters import BUNDLE_ROOT_NAME
 from .bundle import export_screen_a_bundle
+from .validate_report import build_validation_report
+
+#: Dispatch for `validate_report.Dialog.kind`. A dict rather than an if/elif so
+#: an unknown kind raises here instead of silently showing nothing.
+_SHOW = {
+    "error": messagebox.showerror,
+    "info": messagebox.showinfo,
+    "warning": messagebox.showwarning,
+}
 
 # Wave 11 session C. The harmoniser's LLM path gets the same provider
 # treatment as EL and IL: session A's unified key predicate and session
@@ -692,34 +701,27 @@ class HarmoniserView(ttk.Frame):
         self._refresh_buttons()
 
     def _validate(self, show_ok: bool = True) -> bool:
+        # The decision lives in `validate_report.build_validation_report`, which
+        # is pure and therefore testable; this method is the part that needs a
+        # widget. Extracted unchanged in wave 13c B — see
+        # `tests/test_harmoniser_validate_wiring.py` for the characterisation.
         if not self.state.rows:
             return False
         if not self.state.a_columns:
             messagebox.showwarning("Missing A", "Load A vector first.")
             return False
 
-        n_err = 0
-        n_warn = 0
-
-        for r in self.state.rows:
-            errs, warns = _validate_row(r, self.state.a_columns)
-            if errs:
-                n_err += 1
-            if warns:
-                n_warn += 1
+        report = build_validation_report(
+            self.state.rows, self.state.a_columns, show_ok=show_ok
+        )
 
         self._render_rows(with_validation=True)
+        self._log(report.log_line)
 
-        self._log(f"Validate: {len(self.state.rows)} rows, errors={n_err}, warnings={n_warn}")
+        if report.dialog is not None:
+            _SHOW[report.dialog.kind](report.dialog.title, report.dialog.body)
 
-        if n_err > 0:
-            if show_ok:
-                messagebox.showerror("Validation failed", f"{n_err} row(s) have errors. Fix them before export.")
-            return False
-
-        if show_ok:
-            messagebox.showinfo("Validation OK", f"All good. Warnings: {n_warn}")
-        return True
+        return report.ok
 
     def _export_bundle(self) -> None:
         if not self.state.rows:

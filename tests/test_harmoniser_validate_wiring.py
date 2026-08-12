@@ -245,3 +245,134 @@ class TestTheLinterReadsAllThreeShapesIdentically:
             "IC-1, IC-3, IC-4, EC-2 and EC-3 are correctly translated and must "
             "produce nothing: %s" % sorted(noisy)
         )
+
+
+def _report():
+    return _import_plugin("03_harmoniser", "validate_report")
+
+
+class TestValidateAsItStandsToday:
+    """CHARACTERISATION. These assert the CURRENT behaviour, defects included.
+
+    Extracted from `ui.py::HarmoniserView::_validate` without changing it, so the
+    commit that changes it has to flip these in the open rather than quietly.
+    Every assertion here that is a defect says so.
+    """
+
+    def test_the_reference_contract_validates_completely_clean(self, rows, a_columns):
+        """THE DEFECT THIS WHOLE WAVE IS ABOUT. Three of these eight rows do not
+        do what their labels say — F-166, F-167 and F-65 — and Validate reports
+        nothing at all."""
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        assert report.n_rows == 8
+        assert report.n_error_rows == 0
+        assert report.n_warning_rows == 0
+        assert report.ok is True
+
+    def test_it_says_all_good(self, rows, a_columns):
+        vr = _report()
+        dialog = vr.build_validation_report(rows, a_columns).dialog
+        assert dialog.kind == "info"
+        assert dialog.title == "Validation OK"
+        assert dialog.body == "All good. Warnings: 0"
+
+    def test_the_dialog_names_no_criterion(self, rows, a_columns):
+        """DEFECT (F-173): counts, never identities."""
+        vr = _report()
+        dialog = vr.build_validation_report(rows, a_columns).dialog
+        for row in rows:
+            assert row["id"] not in dialog.body
+
+    def test_the_per_check_strings_are_computed_and_never_reach_the_dialog(
+            self, rows, a_columns):
+        """DEFECT (F-173): `_validate_row`'s findings are built and thrown away.
+
+        The extraction keeps them on the marks so a later commit can surface
+        them; today nothing reads them.
+        """
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        assert all(isinstance(m.errors, tuple) for m in report.marks)
+        assert all(isinstance(m.warnings, tuple) for m in report.marks)
+        assert report.dialog.body == "All good. Warnings: 0"
+
+    def test_all_good_is_shown_even_with_warnings_outstanding(self, rows, a_columns):
+        """DEFECT (F-173): the pass message does not depend on the warning count."""
+        vr = _report()
+        noisy = [dict(r) for r in rows]
+        noisy[1]["what"] = ["English", "French"]     # equals with >1 value -> warning
+        report = vr.build_validation_report(noisy, a_columns)
+        assert report.n_warning_rows >= 1
+        assert report.ok is True
+        assert report.dialog.title == "Validation OK"
+        assert report.dialog.body.startswith("All good.")
+
+    def test_an_error_blocks_and_still_names_nothing(self, a_columns):
+        vr = _report()
+        broken = [{
+            "stage": "EH", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "x", "operator": "not_an_operator", "target": "lang",
+            "what": ["x"], "threshold": "", "enabled": True, "source_text": "",
+        }]
+        report = vr.build_validation_report(broken, a_columns)
+        assert report.n_error_rows == 1
+        assert report.ok is False
+        assert report.dialog.kind == "error"
+        assert report.dialog.body == "1 row(s) have errors. Fix them before export."
+        assert "EC-9" not in report.dialog.body
+
+    def test_no_rows_says_nothing_at_all(self, a_columns):
+        vr = _report()
+        report = vr.build_validation_report([], a_columns)
+        assert report.ok is False
+        assert report.dialog is None
+
+    def test_no_corpus_asks_for_the_a_vector(self, rows):
+        vr = _report()
+        report = vr.build_validation_report(rows, [])
+        assert report.ok is False
+        assert report.dialog == vr.Dialog("warning", "Missing A", "Load A vector first.")
+
+    def test_show_ok_false_suppresses_the_dialog_but_not_the_verdict(
+            self, rows, a_columns):
+        """The export path. `ok` must not depend on whether a dialog was asked for."""
+        vr = _report()
+        loud = vr.build_validation_report(rows, a_columns, show_ok=True)
+        quiet = vr.build_validation_report(rows, a_columns, show_ok=False)
+        assert quiet.dialog is None
+        assert loud.ok == quiet.ok is True
+
+    def test_row_tints_are_exclusive_and_error_wins(self, a_columns):
+        vr = _report()
+        both = [{
+            "stage": "EL", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "x", "operator": "equals", "target": "lang",
+            "what": ["a", "b"], "threshold": "nope", "enabled": True,
+            "source_text": "",
+        }]
+        report = vr.build_validation_report(both, a_columns)
+        mark = report.marks[0]
+        assert mark.errors and mark.warnings
+        assert mark.tag == vr.TAG_ERROR
+
+    def test_the_warning_count_and_the_tints_disagree(self, a_columns):
+        """DEFECT, faithfully reproduced: a row with BOTH errors and warnings is
+        tinted `error` but still counted into the warning total, because the
+        original used two independent `if`s over one call."""
+        vr = _report()
+        both = [{
+            "stage": "EL", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "x", "operator": "equals", "target": "lang",
+            "what": ["a", "b"], "threshold": "nope", "enabled": True,
+            "source_text": "",
+        }]
+        report = vr.build_validation_report(both, a_columns)
+        assert report.n_error_rows == 1
+        assert report.n_warning_rows == 1
+        assert sum(1 for m in report.marks if m.tag == vr.TAG_WARN) == 0
+
+    def test_the_log_line_is_unchanged(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        assert report.log_line == "Validate: 8 rows, errors=0, warnings=0"
