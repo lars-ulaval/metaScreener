@@ -422,9 +422,9 @@ The findings reported above are bounded by several conditions:
   **This passage previously continued "so a degenerate run cannot
   silently exclude records", and wave 12 measured that claim false.**
   Over this repository's own 85-record corpus and criteria, local models
-  produced 40, 43 and 4 exclusions across three runs, every one of them
-  unjustified — and every one of them *passed* the gate, with a verbatim
-  quote and a confidence above threshold. The gate verifies that a quote
+  produced 40, 43 and 4 exclusions across three runs where the audited
+  baseline produced 1 — and every one of them *passed* the gate, with a
+  verbatim quote and a confidence above threshold. The gate verifies that a quote
   is real; it cannot verify that a quote is relevant, and nothing short
   of another model could. Nor was it a format failure: `llama3.2`
   answered 170 of 170 in well-formed JSON with zero vocabulary
@@ -576,9 +576,22 @@ same identity for the archived study runs.
 | | model | prompt | exclusions | notes |
 |---|---|---|---|---|
 | baseline | `gpt-4o-mini` | `EL_v1_jsonlist` | **1** | the committed golden capture; audited by the author, correct |
-| run A | `llama3.2:latest` | `EL_v1_jsonlist` | **40** | all unjustified |
-| run B | `llama3.2:latest` | `EL_v1_jsonlist` | **43** | all unjustified |
-| run C | `qwen2.5:7b` | `EL_v1_jsonlist` | **4** | all unjustified, author-confirmed |
+| run A | `llama3.2:latest` | `EL_v1_jsonlist` | **40** | 39 of them kept by the audited baseline |
+| run B | `llama3.2:latest` | `EL_v1_jsonlist` | **43** | 42 of them kept by the audited baseline |
+| run C | `qwen2.5:7b` | `EL_v1_jsonlist` | **4** | all four kept by the baseline; all four individually confirmed wrong by the author |
+
+**On "wrong", and what was actually checked.** The four `qwen2.5`
+exclusions were examined individually by the author and are wrong. The
+40 and 43 `llama3.2` exclusions were **not** individually audited, and
+no audit of them exists in this repository; describing them as
+"unjustified" would be repeating an assertion as a finding, which is the
+error this section exists to avoid. What the artefacts *do* support is
+stated instead, and it is nearly as strong: **39 of run A's 40 and 42 of
+run B's 43 excluded records were kept by the audited baseline.** The
+single overlap in each case is `A499` — the one exclusion the author
+examined and found correct. A stage that removes half the corpus where an
+audited run removed one record is not making the same distinction,
+whatever the verdict on each individual paper.
 
 Runs A, B and C were taken at `temperature 0.0`, `trunc_chars 1500`,
 `batch_size 5`, against `http://localhost:11434/v1`, and each is fully
@@ -753,7 +766,8 @@ answered:
   for comparison, and nothing here demonstrates that `gpt-4o-mini` is
   *generally* more accurate on this task. It demonstrates that on this
   corpus it excluded one record and was right, while the local models
-  excluded 40–43 and 4 and were wrong every time.
+  excluded 40–43 and 4, of which the four examined individually were
+  wrong and all but one per run were records this baseline kept.
 - **The comparison is not like-for-like.** The baseline was captured at
   `trunc_chars = 4000` and the local runs at `1500`. Measured on this
   corpus: no abstract exceeds 4000 characters, so the baseline saw every
@@ -815,9 +829,9 @@ measurement is restated.
 section.** Suppose the criterion wording is at fault; suppose
 quantisation is; suppose it is model size. The observation stands
 regardless: *a default configuration, reachable by following this
-project's own documentation, produced 40 to 43 false exclusions that
-passed every check the software performs, and produced a different set of
-them on each run.* Whatever the cause, that is not a component that
+project's own documentation, removed roughly half the corpus at a stage
+where an audited run removed one record, passed every check the software
+performs while doing it, and removed a different half on each run.* Whatever the cause, that is not a component that
 should be permitted to delete studies from a review unattended.
 
 The cost is small on this pipeline, and it is worth stating precisely
