@@ -76,4 +76,18 @@ docs/data/*.csv binary
 # sample ever becomes hash-pinned it needs its own line here — and the
 # guard in tests/test_wave12_measurement_freeze.py derives the pinned set
 # from the manifests rather than repeating it, so it will say so.
+#
+# MIGRATION, for an existing clone rather than a fresh one. An attribute
+# change only takes effect when git rewrites the file, and this commit
+# changes no blob — so a Linux or macOS working tree that predates it keeps
+# its LF copy, `git status` stays clean (the dirty check normalises before
+# comparing), and the two freeze tests fail while blaming the manifests.
+# One `git checkout -- samples/` fixes it; it rewrites the working-tree
+# file and changes no blob. CI is unaffected: actions/checkout is always a
+# fresh checkout.
+#
+# KEEP A TRAILING NEWLINE AFTER THE LAST RULE. Without one, `>>` merges the
+# next rule into this line and git reads the result as
+# `eol=crlfsamples/*.txt binary` — which sets text=unset, i.e. exactly the
+# `binary` inversion this comment exists to warn against. Measured.
 samples/20260122_1654_aggregate.csv text eol=crlf
