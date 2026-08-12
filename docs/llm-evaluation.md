@@ -427,10 +427,11 @@ The findings reported above are bounded by several conditions:
   verbatim quote and a confidence above threshold. The gate verifies that a quote
   is real; it cannot verify that a quote is relevant, and nothing short
   of another model could. Nor was it a format failure: `llama3.2`
-  answered 170 of 170 in well-formed JSON with zero vocabulary
+  answered 170 of 170 in well-formed JSON with zero *decision*-vocabulary
   rejections. It asserted matches that were not there. A run can
-  therefore look entirely healthy by every counter this pipeline keeps
-  and still be removing correct studies. The measurement, its
+  therefore look almost entirely healthy by this pipeline's counters —
+  the two runs did reject 1 and 3 *field* values — and still be removing
+  correct studies. The measurement, its
   distributions and its limits are reported in full under *Local models
   on this corpus: a direct measurement* below, and are not restated
   here.
@@ -647,6 +648,19 @@ EC-3):
 criteria, so a record "meets" them by being the kind of study the review
 excludes.
 
+**Two cautions about run C's row, because its denominators do not mean
+what runs A and B's mean.** The 33 judgments `qwen2.5` did not answer are
+back-filled by the pipeline as `uncertain` with `valid_quote: false`, and
+they are absent from the committed cache entirely (137 lines, not 170).
+So (1) its `uncertain` column merges *the model said uncertain* with *the
+model said nothing* — two states the engine keeps apart everywhere else;
+and (2) `117/170` divides a numerator counted over 137 answered
+judgments by 170. Among judgments the model actually answered the rate is
+**117/137 = 85.4%**, which is the figure comparable to runs A and B's
+47.6% and 47.1% — those two answered 170/170, so their denominators are
+real. Run C's 68.8% is reported as-is for consistency with the manifest
+counters and should not be read as a better quote-validity rate.
+
 Two features are worth naming. The `llama3.2` runs produced **zero**
 records with a clean pass — every one of the 85 was either excluded or
 flagged — where the baseline produced 77 clean passes out of 85. And
@@ -706,9 +720,20 @@ sound has mistaken the first for the second.
 The failure is **not** a formatting failure, which is worth stating
 because that is the comfortable explanation. Wave 8's counters record
 `llama3.2` answering **170 of 170** judgments in well-formed JSON with
-**zero** vocabulary rejections, zero failed calls and zero failed
+**zero** rejected *decisions*, zero failed calls and zero failed
 batches. The model was not confused about what to emit. It asserted
 matches that were not there.
+
+*Not quite zero, and the exception is worth naming rather than
+smoothing over.* The pipeline keeps two rejection counters, and only one
+of them is zero. `decisions_rejected` is 0 in both runs; `fields_rejected`
+is **1 in run A and 3 in run B** — values outside `{title, abstract,
+keywords}`, silently replaced with `abstract`. An earlier draft of this
+section said "zero vocabulary rejections", which the run-A/run-B
+comparison below then contradicted with its own `1 vs 3`. The claim that
+survives is the one that matters for the argument: the model emitted
+well-formed JSON and a legal verdict on every one of the 170 judgments,
+so the wrong exclusions are not a parsing failure.
 
 ### The same model, the same input, a different answer
 
@@ -828,7 +853,8 @@ answered:
   *generally* more accurate on this task. It demonstrates that on this
   corpus it excluded one record and was right, while the local models
   excluded 40–43 and 4, of which the four examined individually were
-  wrong and all but one per run were records this baseline kept.
+  wrong, and 39 of run A's 40, 42 of run B's 43 and all four of run C's
+  were records this baseline kept.
 - **The comparison is not like-for-like.** The baseline was captured at
   `trunc_chars = 4000` and the local runs at `1500`. Measured on this
   corpus: no abstract exceeds 4000 characters, so the baseline saw every
@@ -855,11 +881,18 @@ answered:
   that the models were answering about records they had been only partly
   shown. **It did not happen.** Rendering the real prompt for this corpus
   at `batch_size 5` gives a worst case of 2,170–3,256 tokens depending on
-  the tokenizer assumption, and a worst observed reply of 509–764, for a
-  worst total of 2,679–4,020 against 4,096. The prompts fit. The
-  explanation below is therefore not confounded by truncation.
-  (`tools/measure_prompt_size.py` re-derives these; at `batch_size 10` the
-  same corpus *does* overflow, which is F-154's open half.)
+  the tokenizer assumption, and a worst observed reply of **327–491**, for
+  a worst total of **2,497–3,747** against 4,096. The prompts fit, with
+  more headroom than first published. The explanation below is therefore
+  not confounded by truncation. (`tools/measure_prompt_size.py` re-derives
+  the *prompt* half and says so on every run; the *reply* half is measured
+  from the run evidence, which since F-159 is committed under
+  `docs/data/wave12_local_runs/` — the worst reply is 1,471 characters,
+  run A, EC-3, the seventh batch of five. An earlier draft published
+  509–764 for the reply and 2,679–4,020 for the total; those were not
+  re-derivable from anything and are overstatements, corrected here from
+  the frozen artefacts. At `batch_size 10` the same corpus *does*
+  overflow, which is F-154's open half.)
 - **EC-2's own wording has not been tested.** Its parenthetical — *"(no
   social interaction or collaboration)"* — is plausibly readable as an
   independent second condition rather than as a gloss on the primary
@@ -896,13 +929,27 @@ performs while doing it, and removed a different half on each run.* Whatever the
 should be permitted to delete studies from a review unattended.
 
 The cost is small on this pipeline, and it is worth stating precisely
-rather than reassuringly. Of 703 exclusions in the demonstration funnel,
-the deterministic stages account for 691 — EH 125 and IH 566 — and the
-LLM stages for the remainder; in the committed goldens EL removes 1 and
-IL removes 4. Flag-only therefore changes the reviewer's workload from
-80 records to 85: **five more abstracts**, in exchange for removing the
-false-exclusion class entirely while keeping everything the model is good
-at — the reasons, the quotes, and the ordering of what to read first.
+rather than reassuringly — which means not mixing two runs inside one
+sentence, as an earlier draft of this paragraph did.
+
+**In the committed goldens**, the funnel removes 696 records: EH 125 and
+IH 566 deterministically, EL 1 and IL 4 by LLM verdict. Flag-only changes
+the reviewer's workload from 80 records to 85 — **five more abstracts** —
+and the deterministic share is 691/696 = **99.3%**.
+
+**In the manuscript run**, the funnel removes 703, of which the
+deterministic stages account for the same 691 and the LLM stages for
+**12**; there the cost would be twelve more abstracts and the
+deterministic share is 691/703 = **98.3%**. Both ratios are published in
+this repository and they are not the same measurement: 99.3% is the
+goldens, 98.3% is the manuscript run. The earlier draft set the scale
+with 703 and supplied the numerator from the goldens, which makes 691 + 5
+= 696 ≠ 703 and leaves a reader unable to reconcile the two figures.
+
+Either way the trade is the same in kind: a handful of abstracts, in
+exchange for removing the false-exclusion class entirely while keeping
+everything the model is good at — the reasons, the quotes, and the
+ordering of what to read first.
 
 A user who has validated a local model on their own corpus can turn
 exclusion on. The default is chosen for the user who has not.

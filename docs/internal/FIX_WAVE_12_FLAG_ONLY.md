@@ -14,16 +14,24 @@ defects** that 1330 green tests were fully compatible with.
 
 ## 1. The measurement, and what follows from it
 
-Two bundles, produced by the maintainer against two local models. EL stage, 85
-records, the same corpus and the same criteria as the committed goldens, both
-runs fully attributed by wave 10's provenance block:
+Three bundles, produced by the maintainer against two local models — two runs
+of `llama3.2:latest` and one of `qwen2.5:7b`. EL stage, 85 records, the same
+corpus and the same `EL` criteria as the committed goldens, all three runs
+fully attributed by wave 10's provenance block:
 
 | Model | Exclusions | Audit |
 |---|---|---|
-| `gpt-4o-mini` (the golden) | **1** | correct |
-| `llama3.2:latest` (run A) | **40** | all unjustified |
-| `llama3.2:latest` (run B) | **43** | all unjustified; same recorded configuration as run A |
-| `qwen2.5:7b` | **4** | all 4 unjustified, confirmed by the author |
+| `gpt-4o-mini` (the golden) | **1** | audited, correct |
+| `llama3.2:latest` (run A) | **40** | not individually audited; **39 kept by the audited baseline** |
+| `llama3.2:latest` (run B) | **43** | not individually audited; **42 kept by the audited baseline**; same recorded configuration as run A |
+| `qwen2.5:7b` | **4** | all 4 examined individually and wrong, confirmed by the author |
+
+*This table was written from the session-B brief and said "all unjustified"
+for the llama runs. **Nobody audited them** — see §B1, which caught it, and
+`d5ad13e`, which corrected `docs/llm-evaluation.md` and `README.md`. That
+correction did not reach this table, `docs/usage.md` or F-145's register row
+until §B8's review pass swept for it; all three are repaired now. The wording
+above is what the artefacts support.*
 
 qwen's four were A286 and A301 (brain–computer interface), A310 (neuromotor
 rehabilitation) and A423 (a report on teenagers and social media), all excluded
@@ -39,8 +47,10 @@ That is the finding, and it is not a bug in the gate. `_quote_in_text` verifies
 that a quote is *real*. Nothing in this pipeline can verify that a quote is
 *relevant*, and nothing short of another model could. Wave 8's counters rule out
 the comfortable explanation: llama3.2 answered **170 of 170** record-criterion
-pairs in perfect JSON with **zero** vocabulary rejections. It did not fail to
-follow the format. It asserted matches that were not there.
+pairs in perfect JSON with **zero** rejected *decisions*. It did not fail to
+follow the format. It asserted matches that were not there. (Not zero *field*
+rejections: 1 in run A and 3 in run B, corrected in §B8 — the two counters are
+separate and only `decisions_rejected` is zero.)
 
 qwen answered 137 of 170 and left 33 unanswered, which correctly became flagged —
 the fail-safe path works exactly as designed. The failure being closed here is
@@ -770,3 +780,220 @@ it. Keep doing that, and keep
 `tests/test_review_repairs.py::TestEveryFullStopDnsHonoursIsTheSameHost`'s
 habit of asserting the *premise* (that IDNA really folds those code points)
 rather than only the conclusion.
+
+## B7. The evidence, committed — F-159
+
+§B6's first item was published as the highest-value follow-up in this
+document. It is closed here, and the work turned up two things the
+measurement itself had missed, which is the argument for doing it rather
+than filing it.
+
+**The defect.** § *Local models on this corpus* published exclusion counts,
+per-judgment distributions, quote-validity fractions and a named-record
+comparison, all of it derived from three bundle zips in `_archive_bundles/` —
+a sibling directory of the repository, outside version control. A reader could
+not check one figure against anything committed. That is F-98's defect on a
+different artefact: **a published document depending on evidence nothing
+protects.** The overnight restart is the argument for why "they are on the
+disk" was not an answer.
+
+**Reduced, not dumped: 4.16 MB → 0.78 MB.** Committing the three zips as-is
+would have triplicated 3.8 MB of byte-identical deterministic output and
+re-committed a corpus the repository already ships. Hash-only would have
+failed the requirement that matters — a digest of a file you do not have lets
+you confirm you have the same file, not check a figure. So the set was reduced
+to what no committed file already carried, and **every omission is asserted
+rather than assumed**:
+
+| Omitted | Why it is safe |
+|---|---|
+| `EH_FULL`, `EH_SURVIVORS`, `IH_FULL`, `IH_SURVIVORS` | byte-identical across all three bundles — that identity **is** the "deterministic stages reproduce exactly" claim, and a digest proves it as well as a copy |
+| `IH_SURVIVORS` again | byte-identical to the already-frozen `docs/data/study_input/el_input_v3.1.0.csv`, so **EL's input was in the repository all along** |
+| `data/original.csv` | byte-identical to `samples/20260122_1654_aggregate.csv` |
+| run A's criteria table | byte-identical to `docs/data/study_input/criteria_harmonized_v3.1.0.csv` |
+| `current.csv`, `EL_SURVIVORS` | EL_FULL's non-OUT rows, minus the seven `el_*` columns |
+
+What is committed: three manifests, three `EL_FULL.csv`, three
+`EL_cache.jsonl`, the criteria variant B and C used. **The caches are
+committed rather than dropped as derivable because they are the only source of
+`valid_quote`** — `EL_FULL.csv`'s evidence JSON does not carry that field, and
+the document's `81/170`, `80/170` and `117/170` cannot be checked without them.
+That was found by trying to derive them and failing, not by inspection.
+
+**The artefacts self-authenticate.** Every committed file is matched against
+the digest recorded for it inside its own run's `manifest.json` — which is
+itself committed, and which also carries digests for the members left out. So
+the reduction loses nothing recoverable: a resurfaced bundle can be matched
+member by member. The three zips' own digests are in the meta sidecar.
+
+`tests/test_wave12_measurement_freeze.py`, 43 tests, and — following
+`test_study_input_freeze.py` — **not one of them a hand-maintained list**:
+coverage read off the directory and `SHA256SUMS` in both directions;
+self-authentication mapped by basename; the anchoring equalities above; and
+*fidelity*, which is the one that matters — **every published figure is
+recomputed from the frozen bytes and the document is required to state it.**
+The artefacts are the source of truth; the prose has to agree with them. Edit
+a number in the document and it fails.
+
+### What the freeze exposed
+
+**1. `4.7%` understates the run-to-run variation by 4.6×.** It counts only the
+verdict. Comparing every judgment on the evidence the model actually supplied —
+decision, confidence, cited field, quoted span, gate status — **37 of 170
+(21.8%) differ in at least one**: confidence on 23, the quotation on 22, the
+cited field on 13. Roughly one judgment in five is not the same judgment twice.
+
+**2. `A570` moved from flagged to excluded with both decisions unchanged.** Of
+the three records that moved between runs A and B, it is the one no verdict
+comparison can explain: `meet` on EC-2 in both runs, confidence 1.0 and 0.95.
+In run A the model cited the abstract and supplied **no quotation**, so the
+evidence gate had nothing to verify and a human got the record; in run B it
+cited the keywords and supplied `"Virtual reality"`, present verbatim, so the
+gate passed and the record left the review. **Whatever varies in the quotation
+varies in the outcome, independently of whether the model changed its mind.**
+This sharpens the section's central finding rather than contradicting it: the
+gate is the mechanism that converts a verdict into an action, and it is the
+half that was varying.
+
+**3. A difference between runs A and B that no artefact records.** They ran
+against criteria tables differing in `IC-5` — an `IL` row the EL stage does not
+read. `EC-2` and `EC-3` are byte-identical across all three runs, asserted
+field by field, so the comparison stands. It is recorded prominently anyway,
+because it is F-155's own point made concrete: the provenance block records six
+fields, the criteria table is not one of them, and **something did differ
+between runs A and B that neither run's artefacts would have told you.**
+
+### The trap that was avoided
+
+`.gitattributes` exempts the directory from `* text=auto`. The `EL_FULL.csv`
+files carry CRLF row terminators with bare LFs inside quoted abstracts — the
+exact mixed content that gets normalised — so without the rule a fresh clone
+rewrites them and **every digest in the directory breaks at once**, looking
+like tampering rather than like checkout. F-128's trap, one directory over, and
+`test_study_input_freeze.py`'s comment is what flagged it in advance.
+Verified after staging: the index blobs are byte-identical to the working tree
+for all twelve files.
+
+## B8. The review pass
+
+**It did not run when it was supposed to, and nothing recorded that.**
+
+Session B ended on 2026-08-11 with `ff23b40`. A review pass was scoped and
+was never recorded as having run: there is no review section, no findings it
+produced, and no statement that it produced none. The only trace anywhere in
+the repository is `d5ad13e`'s message — *"found by asking the question the
+review pass was told to ask, before the review answered"* — and §B1 repeating
+it. That sentence describes a review that had not yet answered, and the
+document then went to press as though it had. **An unrecorded review is worse
+than an absent one**, because a reader cannot tell the two apart, and session
+A set the precedent of reporting what its agents did and did not do rather
+than counting unverified as refuted.
+
+So it was run on **2026-08-12**, over the six session-B commits, as five
+independent dimensions with every finding then handed to an adversarial
+verifier instructed to refute it by execution and to default to *refuted*
+when it could not.
+
+| | |
+|---|---|
+| Raised | 24 |
+| **Confirmed** | **21** |
+| Refuted | 3 |
+
+The three refuted are recorded because refuting them cost as much as
+confirming the others: a claim that the stage sheet has no cell able to name
+a suppressed criterion (it does — `el_evidence_json` and `el_reason_summary`
+both carry it); a claim that `CRITERION_ROW_LISTS` omits the deterministic
+engine's own lists (it does not, and the omission is a decision written at
+the point the vocabulary was extended); and a claim that
+`measure_prompt_size.py`'s under-estimate runs in the unsafe direction, which
+direct measurement with the real tokenizer falsified.
+
+### What the 21 were, and what happened to each
+
+**Nine were false claims in documentation, and are fixed here** — session B's
+scope is documentation, so these are Part 4 work the sweep missed:
+
+1. **`d5ad13e`'s retraction reached two files and stopped.** It corrected
+   `README.md` and `docs/llm-evaluation.md`; **nine other sites went on
+   publishing "all unjustified"** — including `docs/usage.md`, F-145's own
+   register row, this document's §1 table (contradicting §B1 eleven hundred
+   lines below it), and, worst, **the shipped label in
+   `metascreener/provider_dialog.py`**, which told every user about to change
+   a safety setting that all 83 exclusions were unjustified when nobody had
+   audited them. A smoke test asserted the word was present. All nine are
+   corrected and the smoke test now asserts the word is **absent**.
+2. **"zero vocabulary rejections" was false**, and this document and
+   `llm-evaluation.md` each contradicted it with their own `fields_rejected`
+   1 vs 3 a few dozen lines later. The pipeline keeps two rejection counters
+   and only `decisions_rejected` is zero. Corrected in four places; the claim
+   the argument actually needs — well-formed JSON and a legal verdict on all
+   170 — survives intact.
+3. **The reply figure `509–764` was not re-derivable from anything**, which
+   is precisely the failure `tools/measure_prompt_size.py` was written to
+   prevent. Now that F-159 has committed the evidence it *is* derivable, and
+   it was an overstatement: the worst reply is **1,471 characters = 327–491
+   tokens**, so the worst total is **2,497–3,747** against 4,096, not
+   2,679–4,020. The verdict is unchanged and the margin is wider.
+4. **The flag-only cost paragraph mixed two runs inside one sentence** —
+   the manuscript run's 703 as denominator, the goldens' 5 as numerator,
+   giving 691 + 5 = 696 ≠ 703. Both ratios circulate in this repository
+   (99.3% goldens, 98.3% manuscript) and that paragraph was what made them
+   indistinguishable. Now stated as two separate measurements.
+5. **Run C's `117/170` and its `uncertain` column mean something different
+   from the rows above them**: 33 unanswered judgments are back-filled as
+   uncertain with an invalid quote and are absent from the cache entirely.
+   Among answered judgments the rate is **117/137 = 85.4%**. Both cautions
+   are now printed under the table.
+6. **`usage.md`'s per-criterion status list omitted `MISSING`** — the
+   rewrite in `0d7de0a` added the member the vocabulary had just gained and
+   carried a pre-existing gap forward. Five statuses, not four. The gloss on
+   `UNCERTAIN` was also wrong for non-LLM criteria.
+7. **`usage.md` claimed a stored provider choice overrides `OPENAI_API_KEY`.**
+   It overrides `OPENAI_BASE_URL`; the key is still handed to the SDK
+   whatever endpoint is resolved. Corrected, and opened as **F-160**.
+8. **"All but one local exclusion per run"** is right for runs A and B and
+   wrong for run C, where all four were baseline-kept.
+9. **§1's lead-in still said "two bundles"** over a table of three, which
+   §B1 records as one of the five brief errors this session caught.
+
+**Four are code defects and stay open, per the brief's own rule** that a fix
+requiring code opens a row rather than being attempted in a documentation
+session:
+
+- **F-160** (High) — the vendor key reaches a keyless provider's endpoint.
+  INV-1's mirror image.
+- **F-161** (Medium) — **F-156 closed too early.** Six drill-downs exist, not
+  four; the two standalone ones still show 0 of 4 suppressed records. The
+  guard test compares two copies of the same literal and never reads the
+  engine, so a sixth list was simulated engine-side and the suite stayed
+  green at 117 passed while the drill-down went 4/4 → 0/4. And none of the
+  five new tests executes `_refresh_reports_view` at all.
+- **F-162** (High) — **F-157 closed too early.** The fix bounds the body and
+  the header phase is still unbounded, because `_read_bounded` runs inside
+  the `with urlopen(...)` block. Measured through a real Tk mainloop:
+  **20.75 s frozen, no events processed.** Both stages, not one. The wave's
+  own regression test cannot see it because `end_headers()` emits the
+  headers in a single write.
+- **F-163** (Medium) — `measure_prompt_size.py` selects criteria on stage
+  alone where the engine also requires `enabled` and `operator == "llm"`.
+  EL is unaffected, which is why the `calls_made: 34` cross-check passed;
+  IL reports double.
+
+### What this cost, and what it says
+
+Two of the four open rows say a wave-12 row closed too early. That is the
+same ratio session A reported — F-153 was entirely its own wave's damage —
+and it is the argument for the instruction that produces it: **the review
+executes rather than reads.** F-162 in particular was found by scripting a
+server that dribbles header bytes, which no amount of reading the diff would
+have suggested, and it sits on the code path F-157's own row calls "the most
+visible failure this wave could have shipped".
+
+The nine documentation defects share one cause and it is this project's
+named one: **a correction that grows on one side only.** `d5ad13e` retracted
+a claim in two files and left it standing in nine, exactly as F-145 added an
+outcome that failed to reach two places. §B6.2 tells a maintainer to grep
+every spelling of an enumerated set when they add a member. The same rule
+applies to retractions, and this session did not follow it until the review
+made it grep.

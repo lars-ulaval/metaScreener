@@ -342,10 +342,12 @@ def exclusion_allowed(*, provider: str, setting: Any = None) -> bool:
     ``tests/test_flag_only.py``: over the same 85-record corpus and the
     same criteria as the committed goldens, gpt-4o-mini produced one
     exclusion (audited, correct), llama3.2:latest produced 40 and 43
-    over two runs of an identical recorded configuration (all
-    unjustified) and qwen2.5:7b produced 4 (all unjustified, confirmed by
-    the author). Every one of the wrong exclusions **passed the evidence
-    gate**, with a verbatim quote above threshold — ``_quote_in_text``
+    over two runs of an identical recorded configuration (not
+    individually audited; 39 and 42 of them were records the audited run
+    kept) and qwen2.5:7b produced 4 (all four examined individually and
+    wrong, confirmed by the author). Every one of those exclusions
+    **passed the evidence gate**, with a verbatim quote above threshold
+    — ``_quote_in_text``
     verifies that a quote is real, and nothing here can verify that a
     quote is relevant.
 

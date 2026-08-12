@@ -50,8 +50,13 @@ Plugins 03 (with LLM refinement enabled), 06 and 07 need a **model
 provider**, which metaScreener asks for on first launch and remembers;
 see [Installation > Configuration](installation.md#configuration). A
 local server — Ollama, LM Studio, llama.cpp, vLLM — needs **no API key**,
-and `.env` is no longer the route: a stored provider choice takes
-precedence over `OPENAI_API_KEY` and `OPENAI_BASE_URL`. Plugin 01 is the
+and `.env` is no longer the route for choosing one: a stored provider
+choice takes precedence over `OPENAI_BASE_URL`. It does **not** take
+precedence over `OPENAI_API_KEY` — if that variable is set it is still
+handed to the SDK, whatever endpoint the stored choice resolves to, so a
+leftover vendor key in your environment travels to your local server.
+Unset it, or keep it out of the environment metaScreener runs in
+(F-160). Plugin 01 is the
 exception and does still require an OpenAI key in the environment: it
 calls the vendor directly and is billed even when the screening stages
 are set to a local model, which its own tab says in a banner. The
@@ -310,9 +315,11 @@ OpenAI, and the provider dialog can change it either way.
 The reason is measured, not precautionary: the gate verifies that a
 quoted span is *present*, not that it *supports the verdict*, and local
 models on this project's own corpus produced 40, 43 and 4 exclusions —
-every one of them unjustified, every one of them past the gate — where
-the hosted baseline produced one correct one. Two runs of the same model
-in the same recorded configuration did not even agree with each other.
+every one of them past the gate — where the hosted baseline produced one
+correct one. All but one per run were records the audited baseline kept,
+and the four from `qwen2.5` were examined individually and are wrong. Two
+runs of the same model in the same recorded configuration did not even
+agree with each other.
 See [LLM evaluation > Local models on this
 corpus](llm-evaluation.md#local-models-on-this-corpus-a-direct-measurement).
 
@@ -320,7 +327,12 @@ corpus](llm-evaluation.md#local-models-on-this-corpus-a-direct-measurement).
 report (`reports/EL_FULL.csv`) containing per-criterion status
 (`MET` = passes the screen, `FAILED` = excluded, `SUPPRESSED` = the
 model asked for exclusion and flag-only did not act on it, `UNCERTAIN` =
-the gate refused the verdict), confidence, and the quoted evidence.
+no verdict could be acted on — the gate refused one, or the criterion is
+not an LLM criterion at this stage, `MISSING` = the record has no text in
+any field the criterion targets, so nothing could be judged), confidence,
+and the quoted evidence. Five statuses, not four: `MISSING` is rare
+enough that it appears in none of the committed artefacts, which is why
+it went unnamed here for several releases.
 `SUPPRESSED` and `UNCERTAIN` are deliberately distinct: the first means
 the model was confident and was overruled, the second that it was not
 confident enough to be acted on. The record-level `el_outcome` column

@@ -15,8 +15,11 @@ same 85-record EL corpus and the same criteria as the committed goldens,
 both runs fully attributed by wave 10's provenance block::
 
     gpt-4o-mini (golden):   1 exclusion.  Audited by the author: correct.
-    llama3.2:latest      :  40 and 43 exclusions, two runs. All unjustified.
-    qwen2.5:7b           :   4 exclusions. All 4 unjustified, author-confirmed.
+    llama3.2:latest      :  40 and 43 exclusions, two runs. NOT individually
+                            audited; 39 and 42 of them were records the
+                            audited run kept.
+    qwen2.5:7b           :   4 exclusions. All 4 examined individually and
+                            wrong, author-confirmed; all 4 baseline-kept.
 
 qwen's four were A286 and A301 (brain-computer interface), A310 (neuromotor
 rehabilitation) and A423 (teenagers and social media), all excluded against
@@ -29,8 +32,9 @@ collaboration)" — as an independent second condition.
 quote and a confidence above threshold. ``_quote_in_text`` verifies that a
 quote is *real*; nothing in this pipeline can verify that a quote is
 *relevant*. Wave 8's counters show it was not a format failure either:
-llama3.2 answered 170 of 170 in perfect JSON with zero vocabulary
-rejections. It simply asserted matches that were not there.
+llama3.2 answered 170 of 170 in perfect JSON with zero rejected
+DECISIONS. (Field-vocabulary rejections were 1 and 3, not zero — the two
+counters are separate.) It simply asserted matches that were not there.
 
 The conclusion this file pins: a local model can read and annotate; it
 cannot be trusted to REMOVE a paper. The cost is five more abstracts on

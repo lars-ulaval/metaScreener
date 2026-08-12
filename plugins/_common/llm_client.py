@@ -206,10 +206,11 @@ def llm_exclusion_allowed(stage: str = "") -> bool:
 
     ``False`` means flag-only: the model may mark a record for human
     review, and may not take it out of the review. Off by default for the
-    keyless providers — local and custom — because a local model was
-    measured producing 43 and 4 unjustified exclusions on a corpus where
-    the vendor model produced one correct one, every wrong exclusion
-    carrying a verbatim quote above threshold. See
+    keyless providers — local and custom — because local models were
+    measured producing 40, 43 and 4 exclusions on a corpus where the
+    vendor model produced one correct one — all but one per llama3.2 run,
+    and all four from qwen2.5, being records the audited run kept — every
+    one of them carrying a verbatim quote above threshold. See
     ``stage_state.exclusion_allowed`` for the measurement and the rule.
 
     Resolved through ``_stage_config`` for the same reason

@@ -801,8 +801,12 @@ class TestTheExclusionPolicyHasAControl:
         text = d.lbl_exclude.cget("text")
         print("len=" + str(len(text)))
         for fragment in ("40", "43", "gpt-4o-mini", "llama3.2:latest",
-                         "unjustified", "quote", "temperature 0"):
+                         "the audited run kept", "quote", "temperature 0"):
             assert fragment in text, fragment
+        # The label must not re-assert the claim d5ad13e retracted: nobody
+        # audited the 40 and 43, so the dialog may not tell a user they were
+        # all unjustified. It says what the artefacts support instead.
+        assert "unjustified" not in text
         d.destroy()
         ''')
         assert "len=" in out
