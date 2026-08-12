@@ -602,3 +602,65 @@ class TestTheDialogUnderVolume:
         rows, cols = self._many(40)
         body = vr.build_validation_report(rows, cols).dialog.body
         assert body.count("\n") + 1 < 25, "the dialog has become a wall"
+
+
+class TestRowTints:
+    """The dialog says "every affected row is tinted", so the tints are not
+    optional decoration — they are the sentence being true.
+
+    The tag DECISION is here, in the pure function, and `_render_rows` reads it
+    rather than deciding a second time. Whether the colours are legible on a
+    real screen is HO-13-2's question for the existing two and HO-13-11's for
+    the new one; neither can be settled from a test.
+    """
+
+    def test_the_three_flagged_rows_are_tinted_lint(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        tinted = {m.criterion_id for m in report.marks if m.tag == vr.TAG_LINT}
+        assert tinted == {"EC-1", "EC-4", "IC-5"}
+
+    def test_the_five_correct_rows_are_not_tinted(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        untinted = {m.criterion_id for m in report.marks if not m.tag}
+        assert untinted == {"IC-1", "IC-3", "IC-4", "EC-2", "EC-3"}
+
+    def test_every_finding_has_a_tinted_row(self, rows, a_columns):
+        """The dialog's promise, asserted."""
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        tinted = {m.criterion_id for m in report.marks if m.tag}
+        for finding in report.findings:
+            assert finding.criterion_id in tinted, (
+                "%s is reported in the dialog and its row is not tinted, so "
+                '"every affected row is tinted" is false.' % finding.criterion_id
+            )
+
+    def test_an_error_row_is_not_recoloured_into_something_milder(self, a_columns):
+        """`error` is the only tint that stops anything; a linter finding on the
+        same row must not overwrite it."""
+        vr = _report()
+        broken = [{
+            "stage": "EH", "id": "EC-4", "type": "exclude", "scope": "metadata",
+            "label": "The publication venue contains ICRA OR IROS.",
+            "operator": "not_an_operator", "target": "doc_type",
+            "what": ["conference"], "threshold": "", "enabled": True,
+            "source_text": "",
+        }]
+        report = vr.build_validation_report(broken, a_columns)
+        assert report.findings, "the linter should still have something to say"
+        assert report.marks[0].tag == vr.TAG_ERROR
+
+    def test_tag_precedence_is_declared_once(self):
+        vr = _report()
+        assert vr.TAG_PRECEDENCE == (vr.TAG_ERROR, vr.TAG_WARN, vr.TAG_LINT)
+
+    def test_a_failed_linter_leaves_the_existing_tints_alone(self, rows, a_columns):
+        vr = _report()
+
+        def exploding(*_a, **_kw):
+            raise RuntimeError("induced")
+
+        report = vr.build_validation_report(rows, a_columns, lint=exploding)
+        assert all(m.tag == "" for m in report.marks)

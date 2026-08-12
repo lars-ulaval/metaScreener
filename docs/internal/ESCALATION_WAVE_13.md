@@ -697,6 +697,25 @@ EC-4, contradicting the prose three lines below it? If the image already contain
 correct value, the document contradicts itself on the same screen, which changes how
 urgent D-13 is.
 
+**HO-13-11 — Is the new third row tint distinguishable, and does the dialog read as a note rather than a verdict?**
+*Raised by wave 13c session B, which wired the criteria linter into Validate.*
+Launch the app, open the Harmoniser tab, load `samples/20260122_1654_aggregate.csv` as
+the A vector and `samples/ic_ec_12.txt` as criteria, click **Harmonise (no LLM)**, then
+**Validate**. *Expected from source: a dialog titled "Criteria checked" listing EC-1,
+EC-4 and IC-5 by id and saying what each rule will do, ending "Nothing here stops you …
+these are notes, not a gate."; and three of the eight rows tinted `#e8f0fe`, the other
+five untinted.* **Three questions, and only the first is new.** (a) Is `#e8f0fe` legible
+against the default Treeview background, and distinguishable from the two existing warm
+tints `#ffe5e5` and `#fff6d5`? It is deliberately the palest of the three, being the
+only one that stops nothing. (b) Does it survive row selection — the same worry
+**HO-13-2** already raises for the other two, since a `ttk.Treeview` selection
+highlight can override a tag background. (c) **The one that matters most:** does a
+dialog headed *"Criteria checked"*, arriving after a button called **Validate**, read
+as *"here are notes, carry on"* or as *"something is wrong, you may not proceed"*? The
+whole feature is built on warn-never-block, and nothing in the code can tell you whether
+the wording achieves it. If it reads as a verdict, the title is the thing to change, not
+the checks.
+
 ---
 
 ## What was not done

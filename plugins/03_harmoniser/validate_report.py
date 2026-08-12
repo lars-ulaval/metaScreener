@@ -39,7 +39,17 @@ from .linter import Finding, lint_criteria
 #: `error` -> #ffe5e5, `warn` -> #fff6d5.
 TAG_ERROR = "error"
 TAG_WARN = "warn"
+
+#: New in wave 13c B: a row the linter has something to say about, which
+#: `_validate_row` passed clean. Every row of the reference contract that
+#: F-166, F-167 and F-65 are about lands here — E=0 W=0 and still wrong.
+TAG_LINT = "lint"
+
 TAG_NONE = ""
+
+#: Precedence when a row qualifies for more than one. `error` first because it
+#: is the only one that stops anything.
+TAG_PRECEDENCE = (TAG_ERROR, TAG_WARN, TAG_LINT)
 
 
 @dataclass(frozen=True)
@@ -149,6 +159,7 @@ def build_validation_report(
             errors=tuple(errs or ()),
             warnings=tuple(warns or ()),
         ))
+        # `tag` may be raised to TAG_LINT below, once the findings are known.
 
     # THE LINTER, wired here rather than in the View.
     #
@@ -166,6 +177,16 @@ def build_validation_report(
         findings = tuple((lint or lint_criteria)(rows, a_columns))
     except Exception as exc:                      # noqa: BLE001 - deliberate
         lint_error = "%s: %s" % (type(exc).__name__, exc)
+
+    # A row the linter flagged, which `_validate_row` passed clean, gets its own
+    # tint. `error` and `warn` are never overwritten — a row that cannot be
+    # exported must not be recoloured into something milder.
+    flagged = {f.criterion_id for f in findings if f.criterion_id}
+    marks = [
+        m if (m.tag or m.criterion_id not in flagged)
+        else RowMark(m.criterion_id, TAG_LINT, m.errors, m.warnings)
+        for m in marks
+    ]
 
     log_line = "Validate: %d rows, errors=%d, warnings=%d, findings=%d" % (
         len(rows), n_err, n_warn, len(findings))

@@ -275,6 +275,13 @@ class HarmoniserView(ttk.Frame):
 
         self.tree.tag_configure("error", background="#ffe5e5")
         self.tree.tag_configure("warn", background="#fff6d5")
+        # Wave 13c B: a row the linter has something to say about, which
+        # `_validate_row` passed clean. Blue rather than a third warm shade,
+        # because the existing two already sit close together and HO-13-2 is
+        # open on whether they are distinguishable at all. HO-13-11 asks the
+        # same question of this one. Deliberately the palest of the three: it
+        # is the only tint that stops nothing.
+        self.tree.tag_configure("lint", background="#e8f0fe")
         self.tree.bind("<Double-1>", self._on_double_click)
 
         log_frame = ttk.LabelFrame(right, text="Log")
@@ -832,7 +839,16 @@ class HarmoniserView(ttk.Frame):
                 if not _safe_str(r.get("threshold")).strip():
                     r["threshold"] = f"{DEFAULT_THRESHOLD:.2f}"
 
-        for r in self.state.rows:
+        # One source for the tints. `build_validation_report` already decides
+        # error/warn/lint per row and is tested; deciding it a second time here
+        # would be two representations of one rule, which is F-69's shape.
+        marks = ()
+        if with_validation and self.state.a_columns:
+            marks = build_validation_report(
+                self.state.rows, self.state.a_columns, show_ok=False
+            ).marks
+
+        for index, r in enumerate(self.state.rows):
             vals = (
                 r.get("stage", ""),
                 r.get("id", ""),
@@ -846,12 +862,8 @@ class HarmoniserView(ttk.Frame):
             )
 
             tags = ()
-            if with_validation and self.state.a_columns:
-                errs, warns = _validate_row(r, self.state.a_columns)
-                if errs:
-                    tags = ("error",)
-                elif warns:
-                    tags = ("warn",)
+            if index < len(marks) and marks[index].tag:
+                tags = (marks[index].tag,)
 
             self.tree.insert("", "end", values=vals, tags=tags)
 
