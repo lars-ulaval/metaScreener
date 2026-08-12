@@ -44,6 +44,7 @@ from plugins._common.settings import (
     DEFAULT_OPENAI_ENDPOINT,
     UNCHOSEN,
 )
+from plugins._common.stage_state import exclusion_allowed
 
 
 class ProviderDialog(tk.Toplevel):
@@ -68,6 +69,18 @@ class ProviderDialog(tk.Toplevel):
             value=(cfg.get("endpoint") or "").strip() or DEFAULT_LOCAL_ENDPOINT)
         self.var_key = tk.StringVar(value=(cfg.get("api_key") or "").strip())
         self.var_model = tk.StringVar(value=(cfg.get("model") or "").strip())
+        # F-145 is tri-state in the store: None means "follow the
+        # provider". A checkbox has two states, so the box is seeded from
+        # the RESOLVED answer and `_on_exclusion_toggled` records that the
+        # user has now chosen. Seeding it from the raw setting would show
+        # an unconfigured local install an unticked box that means the
+        # same thing as the ticked box it would show OpenAI.
+        self._exclusion_touched = isinstance(
+            cfg.get("allow_llm_exclusion"), bool)
+        self.var_allow_exclusion = tk.BooleanVar(
+            value=exclusion_allowed(
+                provider=remembered or "local",
+                setting=cfg.get("allow_llm_exclusion")))
 
         self._build()
         self._on_provider_changed()
@@ -119,6 +132,37 @@ class ProviderDialog(tk.Toplevel):
         self.ent_model = ttk.Entry(frm, textvariable=self.var_model, width=46)
         self.ent_model.grid(row=8, column=1, columnspan=2, sticky="we", **pad)
 
+        # F-145's control, and F-153 is why it exists at all: the engine
+        # logged "the provider dialog can permit exclusion" while no
+        # widget anywhere could write the setting. A policy the user is
+        # told is theirs and cannot reach is F-91's shape — the defect
+        # where no control bound the endpoint.
+        #
+        # Here rather than in the stage tabs because the setting is
+        # application-level and provider-shaped: this is the screen where
+        # the provider is chosen, so it is the screen where "and may this
+        # one exclude?" belongs.
+        self.chk_exclude = ttk.Checkbutton(
+            frm, text="Let the model exclude records, not just flag them",
+            variable=self.var_allow_exclusion,
+            command=self._on_exclusion_toggled)
+        self.chk_exclude.grid(row=11, column=0, columnspan=3, sticky="w", **pad)
+
+        # **The measurement, stated where the user changes it.** A
+        # checkbox offering to turn off a safety gate without saying what
+        # the gate is for is a checkbox that will be turned off.
+        self.lbl_exclude = ttk.Label(
+            frm, wraplength=520, justify="left", foreground="#555",
+            text=("Measured on this project's own 85-record corpus: "
+                  "gpt-4o-mini produced 1 exclusion and it was correct; "
+                  "llama3.2:3b produced 43 and qwen2.5:7b produced 4, and "
+                  "every one of those was unjustified — each with a real "
+                  "quote and a confidence above threshold. The quote check "
+                  "cannot tell whether a quote is relevant. Leave this off "
+                  "unless you have validated the model on your own corpus."))
+        self.lbl_exclude.grid(row=12, column=0, columnspan=3, sticky="w",
+                              padx=10, pady=(0, 4))
+
         # Its own row. `lbl_status` above spans columns 0-2 of row 4, so a
         # button placed in column 2 of that row occupies the same grid
         # cell and the two overlap.
@@ -144,8 +188,24 @@ class ProviderDialog(tk.Toplevel):
 
     # -- behaviour ---------------------------------------------------------
 
+    def _on_exclusion_toggled(self):
+        """The user has now chosen, so the store stops deciding for them.
+
+        Until this fires the setting stays ``None`` — *nobody has chosen*
+        — and the provider answers. That distinction is the whole reason
+        the setting is tri-state: a boolean written at install time is
+        wrong the moment the provider changes.
+        """
+        self._exclusion_touched = True
+
     def _on_provider_changed(self):
         provider = self.var_provider.get()
+        # The default follows the provider, so an untouched box has to
+        # follow it too — otherwise switching from OpenAI to local leaves
+        # a ticked box that no longer reflects what will happen.
+        if not self._exclusion_touched:
+            self.var_allow_exclusion.set(
+                exclusion_allowed(provider=provider, setting=None))
         if provider == "openai":
             self.var_endpoint.set(DEFAULT_OPENAI_ENDPOINT)
             self.ent_endpoint.state(["disabled"])
@@ -345,6 +405,11 @@ class ProviderDialog(tk.Toplevel):
             "endpoint": endpoint,
             "api_key": sanitize_api_key(self.var_key.get()),
             "model": self.var_model.get().strip(),
+            # `None` unless the user actually operated the checkbox, so a
+            # dialog opened and accepted without touching it leaves the
+            # provider deciding rather than freezing today's answer.
+            "allow_llm_exclusion": (bool(self.var_allow_exclusion.get())
+                                    if self._exclusion_touched else None),
         }
         self.destroy()
 

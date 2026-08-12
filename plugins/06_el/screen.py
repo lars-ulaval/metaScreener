@@ -654,8 +654,9 @@ def run_el_screen(
                                   else POLICY_FLAG_ONLY)
     if log_cb and not allow_exclusion:
         log_cb("[EL] flag-only: an LLM verdict may flag a record for review "
-               "but may not exclude it. Change this in the provider "
-               "settings if the model has been validated for this corpus.\n")
+               "but may not exclude it. The provider dialog can permit "
+               "exclusion, once the model has been validated on this "
+               "corpus.\n")
 
     if log_cb:
         # F-119's lesson: say what the code observed. Whether the variable

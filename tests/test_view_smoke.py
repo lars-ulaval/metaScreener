@@ -554,15 +554,31 @@ class TestTheProviderCanBeReCheckedWithoutRelaunching:
         ''')
         assert "other_survived=True" in out
 
-    def test_all_three_tabs_have_one(self):
-        out = _smoke('''
+    def test_all_three_tabs_have_one_and_it_works(self):
+        """Clicked, not merely present.
+
+        Each View resolves its endpoint differently -- EL and IL from a
+        live widget, the harmoniser from the store -- so each has its own
+        ``_reprobe_job``. A missing or misnamed helper on any of them is
+        an AttributeError that only appears when the button is pressed,
+        which is exactly the class of defect this file exists for.
+        """
+        out = _smoke(self._PREAMBLE + '''
         for name, V in (("EL", ELView), ("IL", ILView),
                         ("harmoniser", HarmoniserView)):
+            calls.clear()
             v = V(frame())
             assert hasattr(v, "btn_recheck"), name
+            v.btn_recheck.invoke()
+            _root.update()
             print(name + "_text=" + repr(v.btn_recheck.cget("text")))
+            print(name + "_probed=" + repr(len(calls)))
+            assert len(calls) == 1, (name, calls)
+            assert str(v.btn_recheck.cget("state")) != "disabled", name
+        assert errors == [], errors
         ''')
         assert out.count("_text='Re-check'") == 3
+        assert out.count("_probed=1") == 3
 
     def test_the_button_survives_the_tab_closing_under_it(self):
         """F-147's class, which this button could have re-opened.
@@ -678,3 +694,114 @@ class TestARunIsDescribedBeforeItStarts:
         assert "17 minutes" in asked["text"], asked["text"]
         ''')
         assert "17 minutes" in out
+
+
+class TestTheExclusionPolicyHasAControl:
+    """F-153. F-145 shipped a policy the README calls user-changeable and
+    the engine's own log line told the user to change "in the provider
+    settings" — while **no widget anywhere could write it**.
+
+    That is F-91's shape exactly: the defect where the documentation
+    described an endpoint the user could configure and no control bound
+    it. A setting reachable only by hand-editing JSON in ``%APPDATA%`` is
+    not user-changeable in a GUI-first application.
+    """
+
+    _PREAMBLE = '''
+        import types, threading as real_threading
+        import tkinter as tk
+        import metascreener.provider_dialog as PD
+        from plugins._common import provider_detect as pd
+        from plugins._common import settings as S
+
+        class _Det:
+            state = pd.NOT_RUNNING; models = (); detail = "stub"
+            endpoint = ""; can_use = False
+        PD.pd.detect = lambda *a, **k: _Det()
+        class _FakeThread:
+            def __init__(self, target=None, daemon=None, **kw): pass
+            def start(self): pass
+        PD.threading = types.SimpleNamespace(
+            Thread=_FakeThread, Event=real_threading.Event)
+        tk.Misc.grab_set = lambda self: None
+    '''
+
+    def test_an_untouched_box_follows_the_provider(self):
+        """Tri-state preserved: opening and accepting without touching the
+        box must leave the provider deciding, not freeze today's answer."""
+        out = _smoke(self._PREAMBLE + '''
+        for provider, expected_ticked in (("local", False), ("custom", False),
+                                          ("openai", True)):
+            d = PD.ProviderDialog(_root, settings={"provider": provider})
+            ticked = bool(d.var_allow_exclusion.get())
+            d._accept()
+            print(provider + "_ticked=" + repr(ticked))
+            print(provider + "_stored=" + repr(d.result["allow_llm_exclusion"]))
+            assert ticked is expected_ticked, provider
+            assert d.result["allow_llm_exclusion"] is None, (
+                "an untouched checkbox must store None, not a boolean")
+        ''')
+        assert "local_ticked=False" in out
+        assert "openai_ticked=True" in out
+        assert out.count("_stored=None") == 3
+
+    def test_switching_provider_moves_an_untouched_box(self):
+        out = _smoke(self._PREAMBLE + '''
+        d = PD.ProviderDialog(_root, settings={"provider": "openai"})
+        assert d.var_allow_exclusion.get() is True
+        d.var_provider.set("local")
+        d._on_provider_changed()
+        print("after_switch=" + repr(bool(d.var_allow_exclusion.get())))
+        assert d.var_allow_exclusion.get() is False
+        d.destroy()
+        ''')
+        assert "after_switch=False" in out
+
+    def test_ticking_it_reaches_the_engine(self):
+        """End to end: the box, the store, and what the engine will do."""
+        out = _smoke(self._PREAMBLE + '''
+        from plugins._common.llm_client import llm_exclusion_allowed
+
+        d = PD.ProviderDialog(_root, settings={"provider": "local"})
+        d.var_allow_exclusion.set(True)
+        d._on_exclusion_toggled()
+        d._accept()
+        print("stored=" + repr(d.result["allow_llm_exclusion"]))
+        assert d.result["allow_llm_exclusion"] is True
+
+        S.update_settings(**d.result)
+        print("engine_allows=" + repr(llm_exclusion_allowed("EL")))
+        assert llm_exclusion_allowed("EL") is True, (
+            "the user permitted exclusion and the engine did not hear it")
+        ''')
+        assert "engine_allows=True" in out
+
+    def test_unticking_it_forbids_exclusion_on_openai(self):
+        """Both directions. A user who does not trust their configuration
+        must be able to turn exclusion off for a paid provider too."""
+        out = _smoke(self._PREAMBLE + '''
+        from plugins._common.llm_client import llm_exclusion_allowed
+
+        d = PD.ProviderDialog(_root, settings={"provider": "openai"})
+        d.var_allow_exclusion.set(False)
+        d._on_exclusion_toggled()
+        d.var_key.set("sk-test-key")
+        d._accept()
+        S.update_settings(**d.result)
+        print("engine_allows=" + repr(llm_exclusion_allowed("EL")))
+        assert llm_exclusion_allowed("EL") is False
+        ''')
+        assert "engine_allows=False" in out
+
+    def test_the_measurement_is_stated_beside_the_control(self):
+        """A checkbox offering to turn off a safety gate without saying
+        what the gate is for is a checkbox that gets turned off."""
+        out = _smoke(self._PREAMBLE + '''
+        d = PD.ProviderDialog(_root, settings={"provider": "local"})
+        text = d.lbl_exclude.cget("text")
+        print("len=" + str(len(text)))
+        for fragment in ("43", "gpt-4o-mini", "unjustified", "quote"):
+            assert fragment in text, fragment
+        d.destroy()
+        ''')
+        assert "len=" in out

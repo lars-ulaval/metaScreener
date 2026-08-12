@@ -195,6 +195,19 @@ def _run_summary_counts_text(counts: Dict[str, int], *, stage: str,
         parts.append(f"PASS_FLAGGED: {counts.get('PASS_FLAGGED', 0)}")
     if "REVIEW" in counts:
         parts.append(f"REVIEW: {counts.get('REVIEW', 0)}")
+    # F-153, found by the wave 12 review. F-145 added an outcome and did
+    # not add it here, so a flag-only run reported "OUT: 0 | PASS_CLEAN: 0
+    # | PASS_FLAGGED: 19" for a corpus of 20 — the line a user reads as
+    # the result of the run, with a record missing from it and the
+    # arithmetic visibly wrong.
+    #
+    # This function is F-34's requirement 2, whose whole point is that a
+    # fact reaching only a side panel does not reach the user. Adding an
+    # outcome without adding it here reproduces the original defect for
+    # the new value. Shown only when present, so no existing line moves.
+    if EXCLUSION_SUPPRESSED in counts:
+        parts.append(
+            f"{EXCLUSION_SUPPRESSED}: {counts.get(EXCLUSION_SUPPRESSED, 0)}")
     return " | ".join(parts)
 
 

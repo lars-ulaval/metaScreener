@@ -306,8 +306,17 @@ def compute_mode(endpoint: str, *, model: str = "",
         if wanted and name == wanted:
             chosen = entry
             break
-        if chosen is None:
+        if not wanted and chosen is None:
             chosen = entry
+    # F-153, found by the wave 12 review. When a model was named and was
+    # NOT among the loaded ones, this fell back to the first entry and
+    # reported ITS placement -- a confident answer about the wrong model.
+    # A user about to run gemma on the CPU would have been told "GPU"
+    # because something else happened to be resident.
+    #
+    # Not knowing is already a first-class state here, and this is one of
+    # its cases: Ollama unloads idle models, so "the model you asked about
+    # is not loaded" is ordinary and says nothing about where it will run.
     if not isinstance(chosen, dict):
         return _compute_unknown()
 

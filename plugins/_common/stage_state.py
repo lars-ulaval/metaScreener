@@ -148,12 +148,19 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
     failed = int(llm_report.get("failed", 0) or 0)
     rejected = int(llm_report.get("decisions_rejected", 0) or 0)
     calls_failed = int(llm_report.get("calls_failed", 0) or 0)
-    separated = int(counts.get("OUT", 0) or 0) + int(counts.get("PASS_CLEAN", 0) or 0)
     # From the outcome histogram the engine already built, not re-derived
     # by re-scanning the rows: two representations of one fact with nothing
     # forcing them to agree is F-69's shape, which this project has shipped
     # four times.
     suppressed = int(counts.get(EXCLUSION_SUPPRESSED, 0) or 0)
+    # F-153. A suppressed record received a confident verdict that passed
+    # the evidence gate; the only reason it is not in `OUT` is that policy
+    # declined to act. Counting it as separated is what keeps the
+    # `nothing_separated` gate meaning the same thing under both policies
+    # — see the branch below for why that equivalence is the requirement.
+    separated = (int(counts.get("OUT", 0) or 0)
+                 + int(counts.get("PASS_CLEAN", 0) or 0)
+                 + suppressed)
 
     if records and answered == 0:
         return Outcome(
@@ -176,23 +183,6 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
             ),
         )
 
-    if suppressed:
-        return Outcome(
-            code=OUTCOME_EXCLUSIONS_SUPPRESSED,
-            label=(f"{stage} done, flag-only — {suppressed} record(s) carry "
-                   f"a model exclusion that was not acted on."),
-            # None, deliberately. **This branch exists to stop a second
-            # F-34.** Suppressing every exclusion drives OUT to zero, so
-            # without it the branch below would fire on a run that was
-            # correctly configured, fully successful and doing exactly what
-            # the user asked — reporting "nothing separated — every record
-            # flagged" and demanding an acknowledgement to export. F-34 was
-            # a stage using a label that asserted the opposite of the
-            # truth; asking a user to acknowledge a working safety gate as
-            # damage would be the same error with the sign flipped.
-            ack_reason=None,
-        )
-
     if total_rows and separated == 0:
         return Outcome(
             code=OUTCOME_NOTHING_SEPARATED,
@@ -209,6 +199,44 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"flagged for human review.\n\n"
                 f"Export anyway?"
             ),
+        )
+
+    if suppressed:
+        # F-153, the wave 12 review's confirmed finding. This branch used
+        # to sit ABOVE the one now above it, guarded on `if suppressed:`
+        # alone, so **one** suppressed record among nineteen unresolved
+        # ones cancelled the export acknowledgement for the whole run —
+        # turning a degenerate result into a silent export, and doing it
+        # most readily for the weak local models flag-only exists for.
+        #
+        # The repair is in `separated` rather than here: a suppressed
+        # record *did* receive a confident, gate-passing verdict, so it is
+        # work done and counts toward "this stage separated something".
+        # A run with nothing separated and nothing suppressed still gets
+        # its gate.
+        #
+        # That also keeps the two policies judging run quality
+        # identically, which is the property that matters: under
+        # exclusion-permitted the same model behaviour gives 1 OUT and 19
+        # flagged, `separated == 1`, and no acknowledgement. Flag-only
+        # must not be stricter about an outcome the model produced
+        # either way.
+        gaps = (f" {failed} failed and {rejected} unreadable of {records}."
+                if (failed or rejected) else "")
+        return Outcome(
+            code=OUTCOME_EXCLUSIONS_SUPPRESSED,
+            label=(f"{stage} done, flag-only — {suppressed} record(s) carry "
+                   f"a model exclusion that was not acted on.{gaps}"),
+            # None, deliberately. **This branch exists to stop a second
+            # F-34.** Suppressing every exclusion drives OUT to zero, so
+            # without it the branch below would fire on a run that was
+            # correctly configured, fully successful and doing exactly what
+            # the user asked — reporting "nothing separated — every record
+            # flagged" and demanding an acknowledgement to export. F-34 was
+            # a stage using a label that asserted the opposite of the
+            # truth; asking a user to acknowledge a working safety gate as
+            # damage would be the same error with the sign flipped.
+            ack_reason=None,
         )
 
     if failed or rejected:
@@ -336,6 +364,15 @@ def exclusion_allowed(*, provider: str, setting: Any = None) -> bool:
 #: so they cannot drift apart silently.
 PAID_VENDOR_HOSTS = ("api.openai.com",)
 
+#: The code points IDNA folds to an ASCII full stop, so a host carrying
+#: one is the same host to DNS and a different string to a comparison
+#: (F-152). RFC 3490 §3.1 names exactly these three besides U+002E.
+_IDNA_FULL_STOPS = {
+    0x3002: ".",        # IDEOGRAPHIC FULL STOP
+    0xFF0E: ".",        # FULLWIDTH FULL STOP
+    0xFF61: ".",        # HALFWIDTH IDEOGRAPHIC FULL STOP
+}
+
 
 def is_paid_vendor(endpoint: Optional[str]) -> bool:
     """Whether this endpoint is a host that charges for the call.
@@ -354,16 +391,39 @@ def is_paid_vendor(endpoint: Optional[str]) -> bool:
     if not raw:
         return False
     from urllib.parse import urlsplit
-    parsed = urlsplit(raw if "//" in raw else "//" + raw)
-    host = (parsed.hostname or "").lower()
-    # **The trailing dot is the same host, and session C's review found
-    # it defeating this check.** `api.openai.com.` is the fully-qualified
-    # form: DNS resolves it to the identical server and the SDK sends the
-    # request there, but the string comparison missed it, so
-    # `key_required_for("local", "https://api.openai.com./v1")` returned
-    # False and a keyless provider reached the paid vendor. That is INV-1
-    # broken by a fourth route, and by one character.
-    host = host.rstrip(".")
+    try:
+        parsed = urlsplit(raw if "//" in raw else "//" + raw)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        # **F-152. This used to raise rather than answer.** `urlsplit`
+        # raises `ValueError: Invalid IPv6 URL` on inputs a user can type
+        # (`http://[::1`), and this predicate is called from
+        # `key_required_for` -> `key_ok` -> `llm_readiness`, i.e. from
+        # inside Tk callbacks during widget construction, where an
+        # exception does not surface as an error message.
+        #
+        # `True` is the answer, not `False`. An endpoint this code cannot
+        # parse is one it cannot prove is *not* the vendor, and INV-1's
+        # own rule decides the direction: refusing to run costs a click,
+        # while guessing "not the vendor" waives the key gate and bills.
+        return True
+
+    # **Every character DNS treats as a label separator, not just the
+    # ASCII one.** Session C's review found `api.openai.com.` — the
+    # fully-qualified form — defeating a plain string comparison, so a
+    # `rstrip(".")` was added and INV-1's fourth route closed.
+    #
+    # F-152 is the fifth, and it is the same defect in a wider alphabet.
+    # IDNA (RFC 3490 §3.1) treats U+3002, U+FF0E and U+FF61 as full stops
+    # exactly as it treats U+002E, so `api.openai.com．` encodes to
+    # `api.openai.com.` and resolves to the identical server — measured,
+    # not assumed: `"api.openai.com．".encode("idna")` returns
+    # `b"api.openai.com."`. The request went to the paid vendor while
+    # this returned False and the keyless gate stayed open.
+    #
+    # Normalised before the strip rather than added to it, so that an
+    # interior one (`api．openai．com`) is also the same host.
+    host = host.translate(_IDNA_FULL_STOPS).rstrip(".")
     return host in PAID_VENDOR_HOSTS
 
 

@@ -914,7 +914,18 @@ class ILView(ttk.Frame):
             pass
         self._refresh_discovery()
         self._refresh_readiness_label()
-        self._set_controls_running(False)
+        # F-153, found by the wave 12 review. This unconditionally put the
+        # controls back into their idle state, which was harmless while the
+        # only callers were the launch probe and the provider dialog -- both
+        # of which fire when no run is in progress. F-149's Re-check button
+        # made it reachable DURING a run, where it disabled Cancel (the run
+        # could no longer be stopped) and re-armed Export over rows the
+        # worker was still writing.
+        #
+        # Asking the worker rather than assuming: `_set_controls_running`
+        # takes the running state, and this is the one caller that cannot
+        # know it a priori.
+        self._set_controls_running(bool(self._worker))
 
     def _readiness(self) -> Readiness:
         """F-111. One place decides whether this stage may run, and

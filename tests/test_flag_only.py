@@ -527,3 +527,125 @@ class TestTheManifestRecordsThePolicy:
         for junk in ("", "yes", True, False, 0, [], {}):
             assert history_exclusion_policy(
                 {"exclusion_policy": junk}) is None, junk
+
+
+# ---------------------------------------------------------------------------
+# 7. what the wave 12 review found — F-153
+# ---------------------------------------------------------------------------
+
+class TestSuppressionDoesNotCancelTheExportGate:
+    """F-153. The review's confirmed finding, with its own repro.
+
+    The branch added above for the second-F-34 problem was guarded on
+    ``if suppressed:`` alone and sat above ``nothing_separated``. So
+    **one** suppressed record among nineteen unresolved ones cancelled
+    the export acknowledgement for the entire run: two runs over the same
+    corpus, identical in every way that matters to a reader, one gated
+    and one exporting in silence.
+
+    Worse, it was self-reinforcing. Flag-only is on precisely for the
+    weak local models that also produce unresolved verdicts, so the runs
+    most likely to be degenerate were the runs most likely to contain a
+    suppression that silenced the gate — F-93 built that gate so a
+    degenerate run could not reach the next stage unnoticed.
+
+    The repair is in ``separated``, not in the branch: a suppressed
+    record received a confident, gate-passing verdict, so it is work
+    done. The property that decides it is the last test here.
+    """
+
+    def _outcome(self, *, suppressed, flagged, clean=0, out=0, answered=20,
+                 records=20, failed=0, total_rows=20):
+        counts = {"OUT": out, "PASS_CLEAN": clean, "PASS_FLAGGED": flagged,
+                  EXCLUSION_SUPPRESSED: suppressed}
+        return st.run_outcome(
+            stage="EL", counts=counts,
+            llm_report={"records": records, "answered": answered,
+                        "failed": failed},
+            cancelled=False, not_screened=False, total_rows=total_rows)
+
+    def test_a_degenerate_run_is_still_gated(self):
+        """Run A: nothing separated, nothing suppressed."""
+        out = self._outcome(suppressed=0, flagged=20)
+        assert out.code == st.OUTCOME_NOTHING_SEPARATED
+        assert out.ack_reason is not None
+
+    def test_one_suppression_does_not_silence_that_gate(self):
+        """Run B: the review's repro. Nothing separated, one suppressed.
+
+        A single suppressed record must not buy silence for nineteen
+        unresolved ones — but it is not nothing either, so the run is no
+        longer *nothing* separated. What decides the case is the
+        equivalence asserted below.
+        """
+        out = self._outcome(suppressed=1, flagged=19)
+        assert out.code != st.OUTCOME_NOTHING_SEPARATED
+
+    def test_a_wholly_suppressed_run_is_not_called_damage(self):
+        """The case the branch exists for, still working."""
+        out = self._outcome(suppressed=20, flagged=0)
+        assert out.code == st.OUTCOME_EXCLUSIONS_SUPPRESSED
+        assert out.ack_reason is None
+
+    def test_the_two_policies_judge_a_run_identically(self):
+        """**The property the repair turns on.**
+
+        The same model behaviour produces ``1 OUT + 19 flagged`` with
+        exclusion permitted and ``1 suppressed + 19 flagged`` under
+        flag-only. A policy about what to *do* with verdicts must not
+        change how the run's *quality* is judged — otherwise flag-only
+        is stricter than exclusion-permitted about an outcome the model
+        produced either way, which is a new inconsistency in place of the
+        one being fixed.
+        """
+        permitted = self._outcome(suppressed=0, flagged=19, out=1)
+        flag_only = self._outcome(suppressed=1, flagged=19, out=0)
+        assert (permitted.ack_reason is None) == (flag_only.ack_reason is None)
+
+    def test_gaps_are_still_reported_when_suppression_wins_the_branch(self):
+        """``partial_failure``'s label is the only run-level statement of
+        failed and unreadable calls, and this branch sits above it."""
+        out = self._outcome(suppressed=5, flagged=5, failed=9, answered=11)
+        assert out.code == st.OUTCOME_EXCLUSIONS_SUPPRESSED
+        assert "9 failed" in out.label, out.label
+
+    def test_a_dead_server_still_reports_as_one(self):
+        out = self._outcome(suppressed=0, flagged=20, answered=0, failed=20)
+        assert out.code == st.OUTCOME_NO_ANSWERS
+
+
+class TestTheRunSummaryCountsTheNewOutcome:
+    """F-153, second half: F-34's requirement 2, for the new value.
+
+    ``_run_summary_counts_text`` is the line a user reads as the result
+    of the run. F-145 added an outcome and did not add it here, so a
+    flag-only run over 20 records reported ``OUT: 0 | PASS_CLEAN: 0 |
+    PASS_FLAGGED: 19`` — a record missing and the arithmetic visibly
+    wrong. Adding an outcome without adding it here reproduces the
+    original F-34 defect for the new value.
+    """
+
+    def test_the_suppressed_records_appear(self):
+        from plugins._common.bundle import _run_summary_counts_text
+        text = _run_summary_counts_text(
+            {"OUT": 0, "PASS_CLEAN": 0, "PASS_FLAGGED": 19,
+             EXCLUSION_SUPPRESSED: 1},
+            stage="EL", total_rows=20)
+        assert EXCLUSION_SUPPRESSED in text, text
+        assert "1" in text
+
+    def test_the_numbers_account_for_every_record(self):
+        from plugins._common.bundle import _run_summary_counts_text
+        counts = {"OUT": 2, "PASS_CLEAN": 3, "PASS_FLAGGED": 4,
+                  EXCLUSION_SUPPRESSED: 11}
+        text = _run_summary_counts_text(counts, stage="EL", total_rows=20)
+        shown = sum(int(p.split(":")[1]) for p in text.split(" | "))
+        assert shown == 20, (shown, text)
+
+    def test_a_run_without_suppressions_says_nothing_new(self):
+        """No existing line moves."""
+        from plugins._common.bundle import _run_summary_counts_text
+        text = _run_summary_counts_text(
+            {"OUT": 1, "PASS_CLEAN": 2, "PASS_FLAGGED": 3},
+            stage="EL", total_rows=6)
+        assert text == "OUT: 1 | PASS_CLEAN: 2 | PASS_FLAGGED: 3"

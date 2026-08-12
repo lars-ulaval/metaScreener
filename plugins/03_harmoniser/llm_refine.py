@@ -49,7 +49,7 @@ from .inference import _validate_row
 STAGE = "harmoniser"
 
 
-def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120,
+def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 600,
                       stage: str = STAGE) -> Dict[str, Any]:
     """One OpenAI-compatible call, returning the JSON object it replied with.
 
@@ -82,6 +82,15 @@ def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 120,
       only by the removed branch, so deleting that branch alone would have
       left this path with no timeout expression at all — the diagnostic's
       C-19, a regression hiding inside a repair.
+
+    The default is 600 rather than the 120 the dead branch declared, and
+    the wave 12 review is why (F-153). That 120 was never applied to
+    anything, so making it live would have *shortened* the effective
+    timeout from the SDK's own default of 600 to two minutes — and this
+    stage's reason for existing on a local provider is a model doing a
+    long reasoning pass on a CPU, which is precisely the run that takes
+    more than two minutes. A repair that quietly tightens a limit nobody
+    asked to tighten is the shape being avoided.
 
     Parsing goes through ``_parse_llm_json_object`` rather than a bare
     ``json.loads`` for the same reason EL and IL use

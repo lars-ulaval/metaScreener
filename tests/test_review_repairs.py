@@ -547,3 +547,70 @@ class TestTheHarmoniserLabelDoesNotOverclaim:
                              endpoint=LOCAL, probe=None)
         assert r.can_run is False
         assert r.label == "No provider"
+
+
+class TestEveryFullStopDnsHonoursIsTheSameHost:
+    """F-152 — INV-1 broken a FIFTH time, by one character again.
+
+    Wave 11 session C's review found ``api.openai.com.`` defeating
+    ``is_paid_vendor``: the fully-qualified form is the same host to DNS
+    and a different string to a comparison, so a keyless provider reached
+    the paid vendor. It was closed with ``host.rstrip(".")``.
+
+    That closed the ASCII spelling. IDNA (RFC 3490 §3.1) folds three more
+    code points to a full stop, and each of them re-opens the identical
+    route::
+
+        >>> "api.openai.com\uff0e".encode("idna")
+        b'api.openai.com.'
+
+    So the host resolves to the vendor's real server while the string
+    comparison misses it. Measured, not reasoned: the encode above is run
+    in ``test_dns_really_folds_them`` below, so this test cannot rot into
+    an assertion about a claim nobody re-checks.
+    """
+
+    #: U+002E, then the three IDNA-equivalent full stops.
+    DOTS = ("\u002e", "\u3002", "\uff0e", "\uff61")
+
+    @pytest.mark.parametrize("dot", DOTS)
+    def test_a_trailing_separator_is_still_the_vendor(self, dot):
+        endpoint = f"https://api.openai.com{dot}/v1"
+        assert ss.is_paid_vendor(endpoint) is True, endpoint
+        assert ss.key_required_for("local", endpoint) is True, (
+            "a keyless provider reached the paid vendor"
+        )
+
+    @pytest.mark.parametrize("dot", DOTS)
+    def test_an_interior_separator_is_still_the_vendor(self, dot):
+        endpoint = f"https://api{dot}openai{dot}com/v1"
+        assert ss.is_paid_vendor(endpoint) is True, endpoint
+        assert ss.key_required_for("local", endpoint) is True
+
+    @pytest.mark.parametrize("dot", DOTS)
+    def test_dns_really_folds_them(self, dot):
+        """The premise, executed. If a future Python stops folding one of
+        these, this test says so rather than the guard silently becoming
+        theatre."""
+        assert f"api.openai.com{dot}".encode("idna") == b"api.openai.com."
+
+    @pytest.mark.parametrize("dot", DOTS)
+    def test_a_lookalike_is_still_not_the_vendor(self, dot):
+        """The guard must not become a substring match in disguise."""
+        assert ss.is_paid_vendor(
+            f"http://api{dot}openai{dot}com{dot}example{dot}invalid/v1") is False
+
+    def test_an_unparseable_endpoint_refuses_rather_than_bills(self):
+        """``urlsplit`` raises on inputs a user can type, and this
+        predicate runs inside Tk callbacks where an exception does not
+        surface. The safe answer is *require a key*: refusing to run
+        costs a click, guessing "not the vendor" waives the gate."""
+        for bad in ("http://[::1", "http://[fe80::1%25eth0", "https://["):
+            assert ss.is_paid_vendor(bad) is True, bad
+            assert ss.key_required_for("local", bad) is True, bad
+
+    def test_the_ordinary_local_endpoint_is_unaffected(self):
+        for good in ("http://localhost:11434/v1", "http://127.0.0.1:1234/v1",
+                     "http://ollama.lan:11434/v1"):
+            assert ss.is_paid_vendor(good) is False, good
+            assert ss.key_required_for("local", good) is False, good
