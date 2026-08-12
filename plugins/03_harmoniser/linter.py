@@ -153,14 +153,21 @@ def _norm_row(row: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# The concept vocabulary, DERIVED rather than retyped.
+# The concept vocabulary: which corpus column does a word in the label name?
 #
-# `parser.py::TARGET_ALIASES` already maps the words a researcher writes onto
-# the columns the engine reads (language->lang, journal->venue, conference->venue,
-# document_type->doc_type, ...). Extending it with an identity mapping for each
-# corpus column gives "which column does this word name?" for free. Retyping the
-# vocabulary here would make this module a further copy of it; F-109 is the row
-# about exactly that, and it already counts seven.
+# It began as `parser.py::TARGET_ALIASES` extended with an identity mapping per
+# corpus column, on the reasoning that retyping a vocabulary makes this module a
+# further copy of it (F-109). Both halves of that turned out to be wrong under
+# measurement, and both corrections are recorded where they bite:
+#
+#   - reading TARGET_ALIASES BACKWARDS over-reaches (see `_concept_map`);
+#   - identity against ALL corpus columns over-reaches too, because most columns
+#     are ones no inference branch can pick (see `_TARGETABLE`).
+#
+# What survives of the original reasoning is the discipline, not the source: the
+# narrowed list is restated and then CHECKED against the real inference by
+# `TestTheTargetableColumnsAreNotJustRetyped`, the same way the executable-operator
+# set is checked against the real evaluator.
 # --------------------------------------------------------------------------
 
 def _concept_map(a_columns: Sequence[str]) -> Dict[str, str]:
@@ -179,11 +186,44 @@ def _concept_map(a_columns: Sequence[str]) -> Dict[str, str]:
     contains "venue".
     """
     concepts: Dict[str, str] = {}
-    for col in a_columns:
-        c = _safe_str(col).strip().lower()
-        if c:
-            concepts[c] = c
+    for col in targetable_columns(a_columns):
+        concepts[col] = col
     return concepts
+
+
+#: The columns an inference branch can actually select as a target, from the
+#: `pick_col` calls inside `inference.py::_infer_criterion_details`: language,
+#: year, document type, venue, DOI, and the text fields branch 6 uses.
+#:
+#: RESTATED, AND CHECKED — those lists are inline and unimportable, which is
+#: F-109 for the third time in this module, so
+#: `tests/test_criteria_linter.py::TestTheTargetableColumnsAreNotJustRetyped`
+#: drives the real inference over a battery of labels and asserts every target
+#: it emits appears here.
+#:
+#: THE RESTRICTION IS THE POINT, not an optimisation. `authors`, `status`,
+#: `pages`, `confidence` and `provenance` are real corpus columns that NO
+#: branch can pick, so a label mentioning one cannot be evidence that the wrong
+#: column was chosen. Before this, "Exclude papers written in German whose
+#: authors are anonymous." — rendered correctly as `equals lang German` — was
+#: reported as a mistranslation. Measured: six false positives on nine
+#: realistic sentences, found by this wave's refutation pass.
+_TARGETABLE = frozenset({
+    "lang", "language", "publication_language",
+    "year", "publication_year", "pub_year", "date_year",
+    "doc_type", "document_type", "publication_type", "type", "pub_type",
+    "venue", "journal", "source", "conference",
+    "doi",
+    "title", "abstract", "keywords",
+})
+
+
+def targetable_columns(a_columns: Sequence[str]) -> Tuple[str, ...]:
+    """The corpus columns an inference branch could select. Sorted, lowercased."""
+    return tuple(sorted(
+        c for c in (_safe_str(x).strip().lower() for x in a_columns)
+        if c and c in _TARGETABLE
+    ))
 
 
 _WORD = re.compile(r"[a-z_]+")
@@ -264,16 +304,32 @@ DROPPED_OPERAND = "dropped-operand"
 
 _DISCRETE_OPERATORS = frozenset({"equals", "contains", "not_in", "in_list"})
 
-# "2018 or later" is one bound, not two alternatives.
-_RANGE_TAIL = re.compile(
+# `or` that is not a disjunction of operands. Two families, both measured:
+#
+#   RANGE TAILS  — "2018 or later" is one bound, not two alternatives.
+#   IDIOMS       — "two or three sessions", "whether or not embargoed", "with or
+#                  without registration" are ordinary English. Each inflated the
+#                  count by one against a CORRECT single-operand rule and told
+#                  the user an operand had been dropped when none had. Found by
+#                  this wave's refutation pass; three false positives on nine
+#                  realistic sentences.
+#
+# This list is deliberately short and deliberately not growing into grammar.
+# The next idiom that turns up is a candidate finding, not another entry: a
+# check that needs a parser to stay quiet is a check that should be dropped.
+_NON_DISJUNCTIVE = re.compile(
     r"\bor\s+(?:later|earlier|more|less|above|below|greater|fewer|newer|older|"
     r"after|before|higher|lower|beyond|onwards?)\b"
+    r"|\bwhether\s+or\s+not\b"
+    r"|\bwith\s+or\s+without\b"
+    r"|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+or\s+"
+    r"(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b"
 )
 
 
 def _alternatives_offered(label: str, targets: Sequence[str]) -> int:
     """How many alternatives does this sentence offer as VALUES?"""
-    text = _RANGE_TAIL.sub(" ", label.lower())
+    text = _NON_DISJUNCTIVE.sub(" ", label.lower())
     words = _WORD.findall(text)
 
     own = set()

@@ -196,8 +196,8 @@ what it detects, the measured defect behind it, its false-positive risk, and wha
 
 | # | check | detects | measured defect it catches | needs | FP risk |
 | --- | --- | --- | --- | --- | --- |
-| 1 | **target-mismatch** | the label names a corpus concept, and the rule targets a different one | **F-166** — `EC-4`, *"venue"* → `doc_type`, 112 of 776 records removed | table + column vocabulary | **low, measured 0/8** |
-| 2 | **dropped-operand** | the label offers more alternatives than the rule carries operands | **F-167** — `EC-1`, *"French or Spanish"* → one operand; and **F-166** again | table only | **low after two refinements; naive version 1/8** |
+| 1 | **target-mismatch** | the label names a **targetable** corpus column, and the rule targets a different one | **F-166** — `EC-4`, *"venue"* → `doc_type`, 112 of 776 records removed | table + column vocabulary | **took four narrowings — see below** |
+| 2 | **dropped-operand** | the label offers more alternatives than the rule carries operands | **F-167** — `EC-1`, *"French or Spanish"* → one operand; and **F-166** again | table only | **took three narrowings; false NEGATIVE remains — CL-4** |
 | 3 | **unresolved-target** | the rule targets a column the corpus does not have | none live | table + corpus header | very low |
 | 4 | **inert-at-stage** | the operator cannot execute at the assigned stage | **F-65** — `IC-5`, `contains` at `IL`, 0 of 70 matching records acted on | table only | none — it is a set membership |
 | 5 | **duplicate-id** | two rows share an `id` | none live (**F-174**, latent) | table only | none |
@@ -222,19 +222,33 @@ is explicit about the cost.
 label names ['venue']; rule targets ['doc_type']
 ```
 
-Zero false positives. Note the alias map earns its place here: `EC-4`'s label contains both
-`venue` (identity) and `conference` (`TARGET_ALIASES` → `venue`), and both point away from
-`doc_type`.
+**This check took four narrowings, and the paragraph that used to stand here was wrong.** It
+read: *"Zero false positives … the alias map earns its place … if the corpus-column half proves
+noisy in session B, the fallback is to restrict the vocabulary."* Measured against harder prose
+in this same session, the corpus-column half **was** noisy, the alias map **did not** earn its
+place, and the "fallback" was the correct design from the start. What the check does now:
 
-**False-positive risk, stated rather than dismissed.** The corpus carries 34 columns and some
-are ordinary English — `status`, `confidence`, `provenance`, `pages`, `parents`, `url`. A
-label reading *"papers whose status is preprint"* would fire against a rule targeting
-something else, correctly; a label using one of those words incidentally would fire wrongly.
-**[measured]** none of the eight fires wrongly, but eight clean, one-per-line sentences are
-not a fair sample of the input this feature exists for (§7.1 of the diagnostic makes exactly
-that point). If the corpus-column half proves noisy in session B, the fallback is to restrict
-the vocabulary to `TARGET_ALIASES` plus the five columns the inference branches actually
-`pick_col` for, and to say so.
+1. **Skip `llm` rows.** At EL/IL the `target` cell is not honoured —
+   `06_el/prompt.py::_build_llm_messages_for_criterion` packs title/abstract/keywords whatever
+   the cell says (F-175) — so the finding's own sentence would be false. Cost 3 false positives.
+2. **No reverse alias lookup.** `TARGET_ALIASES` maps `conference → venue` so the *inference*
+   can pick a column from a word; as evidence of *user intent* it over-reaches. *"Exclude
+   robotics conference proceedings"* → `equals doc_type conference` is right. Cost 1.
+3. **Only `_TARGETABLE` columns count.** `authors`, `status`, `pages`, `confidence`,
+   `provenance` are real columns that **no inference branch can select**, so naming one cannot
+   be evidence of a mis-pick. Cost 3 more — *"Exclude papers written in German whose authors
+   are anonymous."*, rendered correctly as `equals lang German`, was reported as a
+   mistranslation.
+4. `_TARGETABLE` is **restated and then checked** against the real inference, the same way the
+   executable-operator set is checked against the real evaluator.
+
+**Why the first measurement missed it, which is the part worth keeping.** The design's
+"0 of 8" was true and useless: eight clean one-per-line sentences are not a sample of the input
+this feature exists for, and §7.1 says so. Worse, the *first* adversarial fixture also read
+clean — but by accident, because its three incidental-column-word criteria all landed on `llm`
+rows and were silenced by narrowing 1 rather than by the check being right. **A fixture can be
+green for the wrong reason, and only a third file written specifically to defeat the fix
+exposed it.** All three files are now permanent tests.
 
 ### Check 2 — dropped-operand (F-167's class)
 
@@ -517,6 +531,48 @@ constraint more than a defect — the coordinator may prefer it as an annotation
 obviously right, and `tools/measure_prompt_size.py` already establishes the alternative shape —
 a headless entry point that reads the corpus once, which `07_criteria_parsing.md` §8.1 argues
 is the cheapest useful version of T1 anyway.
+
+### CL-4 — check 2 sees an operand series only when it contains the word "or"
+
+**Proposed severity: Medium**, and it is a **false negative in the check built for F-167**,
+which is why it is not filed lower.
+
+`_alternatives_offered` counts coordinating alternatives by looking for the token `or`. An
+operand series written **without** one is invisible. **[measured]**, all three rendered by the
+real inference as `equals lang ['French']` — one operand of three:
+
+```
+EC-7  "written in French, Spanish or Portuguese."   -> dropped-operand FIRES   (true positive)
+EC-8  "written in French, Spanish, Portuguese."     -> NO FINDING              (false negative)
+EC-9  "written in French/Spanish/Portuguese."       -> NO FINDING              (false negative)
+```
+
+`EC-8` and `EC-9` are F-167's exact defect — the rule silently carries one of N operands — and
+the linter written to catch F-167 reports nothing.
+
+**This corrects a claim in this wave's own commit `c51055c`**, which recorded the comma
+series as *"the defect is in the number inside the message rather than in the detection"*. That
+was measured only on a series that also contained an `or`, so it still tripped the counter. With
+the `or` removed the detection fails outright, and the commit's account of its own scope is
+wrong.
+
+**Why it is not fixed here.** Counting commas, slashes and semicolons as alternatives
+re-introduces the false positives this wave just removed: *"Exclude any document type that is a
+thesis, whether or not embargoed."* gains an alternative from its comma, and an appositive, a
+parenthetical and an Oxford comma are not distinguishable from a series without parsing the
+sentence. The brief's own instruction is not to chase a check into noise, and a check that needs
+a grammar to stay quiet is one that should be dropped rather than tuned.
+
+**The shape that would fix it properly**, for whoever takes it: stop counting the label and
+start comparing it against the operands — for a discrete-operator row, look for tokens in the
+label that are *of the same kind* as the surviving operand (adjacent in a series, same case
+class) and absent from `what`. That detects `EC-8` and `EC-9` without counting punctuation at
+all, and it is a different check rather than a tuning of this one.
+
+**Duplication check.** **[measured]** no register row concerns the linter, which does not exist
+outside this branch. It is a gap in **this wave's own work** rather than in the shipped
+application, so it belongs to the coordinator's sweep of this session rather than to the
+register's existing families.
 
 ---
 

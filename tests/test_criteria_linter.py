@@ -714,3 +714,131 @@ class TestItStaysQuietOnHarderProse:
         assert "IC-5" in _ids(_by_check(report, "inert-at-stage")), (
             "IC-5 is `contains` at IL — F-65's class on new input."
         )
+
+
+# ---------------------------------------------------------------------------
+# A third file, from this wave's refutation pass. Every one of these is a
+# CORRECTLY translated criterion, and the linter fired on six of them. The
+# earlier adversarial fixture missed the class because its three
+# incidental-column-word criteria all landed on `llm` rows, where check 1 is
+# skipped — so the fixture read clean for the wrong reason.
+# ---------------------------------------------------------------------------
+
+CORRECTLY_TRANSLATED_CRITERIA = """\
+EC-1 - Exclude papers written in German whose authors are anonymous.
+IC-2 - The paper is written in English (status: peer-reviewed).
+EC-3 - Exclude papers written in Portuguese with fewer than ten pages.
+IC-4 - The paper is written in English and reports two or three outcome measures.
+EC-5 - Exclude any document type that is a thesis, whether or not embargoed.
+EC-6 - Exclude any document type that is a protocol, with or without registration.
+"""
+
+
+@pytest.fixture(scope="module")
+def correctly_translated():
+    return _harmonise_text(CORRECTLY_TRANSLATED_CRITERIA)
+
+
+class TestItStaysQuietOnCorrectlyTranslatedRules:
+    """Six false positives, found by this wave's refutation pass.
+
+    Every rule here is right — `equals lang German`, `equals doc_type thesis`
+    and so on — and each label merely *mentions* something else. A linter that
+    fires on correct rows gets ignored, which is the failure mode that matters
+    most for this feature, so these are pinned one cause at a time.
+    """
+
+    def test_a_column_name_the_inference_can_never_target_is_not_a_mismatch(
+            self, correctly_translated):
+        """`authors`, `status` and `pages` are real corpus columns and no
+        inference branch can select any of them, so their presence in a label
+        cannot be evidence that the wrong column was picked."""
+        rows, cols = correctly_translated
+        found = _by_check(_linter().lint_criteria(rows, cols), "target-mismatch")
+        assert _ids(found) == [], (
+            "target-mismatch fired on a correct `equals lang` rule because the "
+            "sentence happened to contain authors / status / pages."
+        )
+
+    def test_non_disjunctive_or_idioms_are_not_alternatives(self, correctly_translated):
+        """"two or three", "whether or not" and "with or without" are ordinary
+        English, not a list of operands."""
+        rows, cols = correctly_translated
+        found = _by_check(_linter().lint_criteria(rows, cols), "dropped-operand")
+        assert _ids(found) == [], (
+            "dropped-operand counted a non-disjunctive `or` as an alternative "
+            "and told the user an operand had been dropped when none had."
+        )
+
+    def test_the_whole_file_is_silent(self, correctly_translated):
+        rows, cols = correctly_translated
+        report = _linter().lint_criteria(rows, cols)
+        assert list(report) == [], [f.message for f in report]
+
+    def test_the_real_defects_still_fire(self, rows, a_columns):
+        """The narrowings must not cost the findings the linter exists for."""
+        report = _linter().lint_criteria(rows, a_columns)
+        assert _ids(_by_check(report, "target-mismatch")) == ["EC-4"]
+        assert _ids(_by_check(report, "dropped-operand")) == ["EC-1", "EC-4"]
+        assert _ids(_by_check(report, "inert-at-stage")) == ["IC-5"]
+
+
+class TestTheTargetableColumnsAreNotJustRetyped:
+    """Check 1's vocabulary, checked against the inference that populates it.
+
+    The set of columns `_infer_criterion_details` can emit as a target is a
+    closed list inside its `pick_col` calls — inline, so unimportable, which is
+    F-109 for the third time in this module. This drives the real inference over
+    a battery of labels and asserts every target it produces is one the linter
+    considers targetable.
+    """
+
+    LABELS = [
+        ("include", "The paper is written in English."),
+        ("exclude", "The paper is written in French or Spanish."),
+        ("include", "The publication year is 2018 or later."),
+        ("include", "Published between 2010 and 2020."),
+        ("exclude", "Published before 2015."),
+        ("include", "The document type is a randomized controlled trial."),
+        ("exclude", "Exclude conference proceedings."),
+        ("exclude", "The publication venue contains ICRA OR IROS."),
+        ("include", "Published in the journal Nature."),
+        ("exclude", "The DOI is missing."),
+        ("include", "The title, abstract, or keywords mention training."),
+        ("include", "The study considers immersive virtual reality."),
+    ]
+
+    def test_every_target_the_inference_can_emit_is_targetable(self):
+        h = get_harmoniser()
+        lint = _linter()
+        a_columns, text_stats = h._load_a_header_and_stats(str(AGGREGATE_CSV))
+        dtt, _ = h._canonicalize_targets(
+            h._get_best_text_targets(a_columns, text_stats), a_columns)
+
+        emitted = set()
+        for i, (ctype, label) in enumerate(self.LABELS):
+            inferred = h._infer_criterion_details(
+                crit_id="X-%d" % i, crit_type=ctype, label=label,
+                a_columns=list(a_columns), default_text_target=dtt,
+            )
+            for t in inferred["target"].split(","):
+                if t.strip():
+                    emitted.add(t.strip().lower())
+
+        targetable = set(lint.targetable_columns(a_columns))
+        assert emitted <= targetable, (
+            "The inference emitted a target the linter does not consider "
+            "targetable, so check 1 is blind to a mis-pick onto it: %s"
+            % sorted(emitted - targetable)
+        )
+
+    def test_columns_no_branch_can_pick_are_not_targetable(self):
+        lint = _linter()
+        a_columns, _ = get_harmoniser()._load_a_header_and_stats(str(AGGREGATE_CSV))
+        targetable = set(lint.targetable_columns(a_columns))
+        for col in ("authors", "status", "pages", "confidence", "provenance",
+                    "volume", "issue", "publisher", "parents", "local_id"):
+            assert col not in targetable, (
+                "%s is a corpus column but no inference branch can select it, "
+                "so naming it in a label is not evidence of a mis-pick." % col
+            )
