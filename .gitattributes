@@ -47,3 +47,33 @@ docs/data/wave12_local_runs/*.json binary
 # docs/data/grids/partition_manifest.csv stays `text: auto` deliberately:
 # it is an input to the reproduction, never one of its compared outputs.
 docs/data/*.csv binary
+
+# The demonstration corpus, pinned CRLF rather than binary — the opposite
+# direction from every rule above, and the direction matters (F-99, cause 3
+# of the same red CI; it was masked by the httpx failure until wave 13a
+# fixed that and unmasked it on all twelve non-Windows cells).
+#
+# runB_llama32_manifest.json and runC_qwen25_manifest.json record
+# `data/original.csv` as b36c3cbb…, which is the sha256 of this file **as
+# CRLF**. Those manifests are evidence of what the wave-12 runs actually
+# consumed: the runs were made on Windows, against the checkout-converted
+# copy. They are not to be recomputed to suit a test.
+# tests/test_wave12_measurement_freeze.py, class
+# TestTheOmittedBundleMembersAreAccountedFor, hashes this file live and
+# compares. Under `* text=auto` the index's LF reaches a Linux worktree
+# unconverted, giving 311442a0… and a failure on every non-Windows cell.
+#
+# `eol=crlf` makes the checkout produce on every platform the bytes the
+# manifests were computed from. **F-99's own suggested fix, `samples/**
+# binary`, is the exact inverse and must not be implemented as written:**
+# `binary` pins the *index* bytes, which are LF, so it would make Windows
+# compute 311442a0… and break the four cells that currently pass. Measured
+# both ways. F-99's fix cell records the correction.
+#
+# Scoped to the one file whose bytes an external manifest pins. The other
+# three files under samples/ are hashed nowhere, and widening the rule
+# would change what a Linux reader sees for no stated reason. If another
+# sample ever becomes hash-pinned it needs its own line here — and the
+# guard in tests/test_wave12_measurement_freeze.py derives the pinned set
+# from the manifests rather than repeating it, so it will say so.
+samples/20260122_1654_aggregate.csv text eol=crlf
