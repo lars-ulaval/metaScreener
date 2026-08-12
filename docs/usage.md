@@ -46,10 +46,16 @@ can save and resume between stages by checkpointing a bundle to disk.
 
 ### Configuration
 
-Plugins 01, 03 (with LLM refinement enabled), 06, and 07 require an
-OpenAI API key in `.env`; see
-[Installation > Configuration](installation.md#configuration). The
-deterministic plugins (02, 04, 05) run without a key but still
+Plugins 03 (with LLM refinement enabled), 06 and 07 need a **model
+provider**, which metaScreener asks for on first launch and remembers;
+see [Installation > Configuration](installation.md#configuration). A
+local server — Ollama, LM Studio, llama.cpp, vLLM — needs **no API key**,
+and `.env` is no longer the route: a stored provider choice takes
+precedence over `OPENAI_API_KEY` and `OPENAI_BASE_URL`. Plugin 01 is the
+exception and does still require an OpenAI key in the environment: it
+calls the vendor directly and is billed even when the screening stages
+are set to a local model, which its own tab says in a banner. The
+deterministic plugins (02, 04, 05) run without any provider but still
 benefit from network access (Plugin 02) and an active venv (all of
 them). The per-plugin model and temperature settings are exposed in
 each plugin's UI panel; defaults are sensible for first use.
@@ -175,9 +181,25 @@ interpretation are routed to the LLM stages (`EL` for exclusion,
   [LLM validation study](llm-evaluation.md)).
 
 **LLM refinement (optional).** A second pass can re-examine borderline
-assignments under structural guardrails (row-count and identifier
-invariance). The refined output is annotated with the original and
-refined assignments so the researcher can audit any changes.
+assignments under structural guardrails: the model may not change the
+number of rows, and may not change any row's `id` or `type`. A row that
+fails validation aborts the pass and the rule-based output stands.
+
+> **Two corrections, both from wave 12.** This passage previously said
+> the refined output "is annotated with the original and refined
+> assignments so the researcher can audit any changes". **It is not.**
+> `plugins/03_harmoniser/ui.py::HarmoniserView._harmonise_llm` assigns
+> `self.state.rows = refined`, replacing the table wholesale; the
+> previous assignments are not recorded anywhere and the change is not
+> shown. Compare the criteria table before and after, or export first,
+> if you need to audit the pass (F-158).
+>
+> This went unnoticed because **the pass could not run at all**. Until
+> wave 12 it fell through to an SDK interface removed in `openai` 1.0
+> and failed on every modern install with an error naming the wrong
+> problem (F-146), so no user had ever seen its output. Treat the
+> refinement as newly available rather than long-standing, and review
+> its output rather than the description of it.
 
 **Common gotchas.**
 
@@ -277,10 +299,32 @@ exclusion. Records that fail either condition are flagged for
 human review rather than auto-excluded. The thresholds and the
 human-review queue are visible in the plugin's UI panel.
 
+**Flag-only, and it is the rule that decides removal on a local
+provider.** Passing the gate is necessary for an exclusion and is no
+longer sufficient. On a `local` or `custom` provider metaScreener runs
+**flag-only** by default: a verdict that clears the gate marks the record
+`EXCLUSION_SUPPRESSED` and the record **survives** to human review
+instead of being removed. Exclusion is permitted by default only for
+OpenAI, and the provider dialog can change it either way.
+
+The reason is measured, not precautionary: the gate verifies that a
+quoted span is *present*, not that it *supports the verdict*, and local
+models on this project's own corpus produced 40, 43 and 4 exclusions —
+every one of them unjustified, every one of them past the gate — where
+the hosted baseline produced one correct one. Two runs of the same model
+in the same recorded configuration did not even agree with each other.
+See [LLM evaluation > Local models on this
+corpus](llm-evaluation.md#local-models-on-this-corpus-a-direct-measurement).
+
 **What it produces.** A bundle with the surviving records plus a
 report (`reports/EL_FULL.csv`) containing per-criterion status
-(`MET` = passes the screen, `FAILED` = excluded, `UNCERTAIN` =
-flagged), confidence, and the quoted evidence. The full
+(`MET` = passes the screen, `FAILED` = excluded, `SUPPRESSED` = the
+model asked for exclusion and flag-only did not act on it, `UNCERTAIN` =
+the gate refused the verdict), confidence, and the quoted evidence.
+`SUPPRESSED` and `UNCERTAIN` are deliberately distinct: the first means
+the model was confident and was overruled, the second that it was not
+confident enough to be acted on. The record-level `el_outcome` column
+carries `EXCLUSION_SUPPRESSED` for the first case. The full
 `el_evidence_json` column is also added to the canonical record
 table for downstream use - this is the column from which the
 [LLM validation study](llm-evaluation.md) computes agreement
@@ -310,10 +354,17 @@ the manual full-text review queue.
 
 **Inputs.** The bundle from Plugin 06.
 
-**What it produces.** A bundle with the records that the LLM
-considers eligible against the inclusion criteria, plus the same
-shape of decision report and an `il_evidence_json` column on the
-record table.
+**What it produces.** A bundle with the records that survive the
+inclusion criteria, plus the same shape of decision report and an
+`il_evidence_json` column on the record table.
+
+Flag-only applies here too, and the polarity is worth stating because it
+is easy to get backwards. IL's criteria are *inclusion* criteria, so the
+verdict that removes a record is `not_meet` — the model saying the record
+does **not** satisfy the criterion. Under flag-only that verdict is
+recorded as `EXCLUSION_SUPPRESSED` and the record survives, exactly as an
+EL `meet` verdict does. The mirror image of the verdict; the same action
+declined.
 
 **Common gotchas.** Identical to EL's: trust the cache, do not trust
 unverified outputs, treat `UNCERTAIN` as "human review needed" not

@@ -262,9 +262,19 @@ whatever the provider is set to.
 The model, the resolved endpoint, the temperature, the prompt version,
 the truncation limit and the batch size **are** recorded in the bundle's
 `manifest.json`, once per stage run, in the `provenance` block of the
-run-history entry. Two limits are worth knowing: the record is per run
-rather than per decision, and a bundle whose stage ran more than once
-carries one entry per run.
+run-history entry. Whether that run was permitted to exclude is recorded
+beside it, as `exclusion_policy`. Two limits are worth knowing: the
+record is per run rather than per decision, and a bundle whose stage ran
+more than once carries one entry per run.
+
+**What is *not* recorded, and it matters for a local run.** The block
+does not carry the model's quantisation, and it does not carry the
+server's context window — metaScreener never sets `num_ctx`, so a local
+run inherits whatever the server defaults to (F-154). A local model's
+name in this block therefore does not fully identify what produced the
+result: `llama3.2:latest` is also a **mutable tag**, naming whatever
+weights it pointed at on the day. For a run you intend to cite, record
+the quantisation and the context window yourself alongside the bundle.
 
 ## Verifying the installation
 
@@ -342,6 +352,16 @@ they are **Resolve Metadata** and **Fetch References**.
 If you have an LLM provider configured, extend the smoke test through
 Plugins 06 (EL) and 07 (IL). A local model works for these; see
 [Configuration](#configuration).
+
+**Expect zero exclusions on a local model, and do not read that as a
+failure.** metaScreener runs **flag-only** by default on a `local` or
+`custom` provider: the model reads every record and may flag it, but may
+not remove it. A smoke run will therefore show records marked
+`EXCLUSION_SUPPRESSED` or flagged for review and **none** marked `OUT`.
+That is the stage working. The run summary line reports the suppressed
+count, the provider dialog can permit exclusion, and the measurement
+behind the default is in [LLM
+evaluation](llm-evaluation.md#local-models-on-this-corpus-a-direct-measurement).
 
 ## Troubleshooting
 
