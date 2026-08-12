@@ -173,51 +173,162 @@ def build_validation_report(
         log_line += " (criteria check failed: %s)" % lint_error
 
     dialog: Optional[Dialog] = None
-    if n_err > 0:
-        if show_ok:
-            dialog = Dialog(
-                "error", "Validation failed",
-                "%d row(s) have errors. Fix them before export." % n_err,
-            )
-        return ValidationReport(
-            ok=False, n_rows=len(rows), n_error_rows=n_err, n_warning_rows=n_warn,
-            marks=tuple(marks), dialog=dialog, log_line=log_line,
-            findings=findings, lint_error=lint_error,
-        )
-
     if show_ok:
-        dialog = _compose_pass_dialog(n_warn, findings, lint_error)
+        dialog = compose_dialog(n_err, marks, findings, lint_error)
 
     # `ok` is computed from `n_err` alone. Findings do not appear in it, and a
     # linter that failed outright does not appear in it either.
     return ValidationReport(
-        ok=True, n_rows=len(rows), n_error_rows=n_err, n_warning_rows=n_warn,
-        marks=tuple(marks), dialog=dialog, log_line=log_line,
-        findings=findings, lint_error=lint_error,
+        ok=(n_err == 0), n_rows=len(rows), n_error_rows=n_err,
+        n_warning_rows=n_warn, marks=tuple(marks), dialog=dialog,
+        log_line=log_line, findings=findings, lint_error=lint_error,
     )
 
 
-def _compose_pass_dialog(
-    n_warn: int,
+#: How many findings the dialog spells out before it stops and counts the rest.
+#:
+#: Eight is a screenful. A messagebox does not scroll, so a long list does not
+#: become a long dialog — it becomes a dialog with its end off the bottom of the
+#: screen and its OK button with it. The overflow is not lost: every finding is
+#: in the log pane, and every affected row is tinted.
+MAX_LISTED = 8
+
+#: The heading each severity gets, singular and plural. Phrased as what is true
+#: of the criteria, not as what check fired.
+_HEADINGS = {
+    "MISTRANSLATED": ("1 criterion may not do what its wording says:",
+                      "%d criteria may not do what their wording says:"),
+    "INERT": ("1 criterion will not run at all:",
+              "%d criteria will not run at all:"),
+    "NOTICE": ("1 thing worth checking:",
+               "%d things worth checking:"),
+}
+
+_SEVERITY_ORDER = ("MISTRANSLATED", "INERT", "NOTICE")
+
+#: Said on every dialog that reports anything, because the whole feature turns
+#: on the user knowing they may disagree and carry on.
+_NOT_BLOCKED = ("Nothing here stops you. Edit any row and check again, or "
+                "carry on — these are notes, not a gate.")
+
+
+def _plural(n: int, singular: str, plural: str) -> str:
+    return singular if n == 1 else plural % n
+
+
+def _finding_lines(findings: Sequence[Finding]) -> List[str]:
+    """Findings grouped by severity, most urgent first, capped at MAX_LISTED.
+
+    Two things the first draft got wrong, both found by running the stress case
+    rather than by reading:
+
+      - the budget was global, so the most urgent group spent all of it and the
+        next group got a HEADING WITH NOTHING UNDER IT. Every non-empty group now
+        keeps at least one slot, and each states its own overflow, so a heading
+        and the list beneath it always agree.
+      - the heading counted FINDINGS and called them criteria. One criterion can
+        produce several — EC-4 trips two checks — so "3 criteria" was shown for
+        two. Headings count distinct criterion ids.
+    """
+    groups = []
+    for severity in _SEVERITY_ORDER:
+        group = [f for f in findings if f.severity == severity]
+        if group:
+            groups.append((severity, group))
+
+    lines: List[str] = []
+    budget = MAX_LISTED
+    for index, (severity, group) in enumerate(groups):
+        groups_after = len(groups) - index - 1
+        allowance = max(1, budget - groups_after)
+        take = min(len(group), allowance)
+
+        n_criteria = len({f.criterion_id for f in group})
+        singular, plural = _HEADINGS.get(severity, ("1 note:", "%d notes:"))
+        lines.append("")
+        lines.append(_plural(n_criteria, singular, plural))
+        for finding in group[:take]:
+            # The linter's own message already opens with the criterion id and
+            # already says what the rule will DO. Repeating the id here, or
+            # naming the check that fired, would be the engine's vocabulary.
+            lines.append("  • %s" % finding.message)
+        if len(group) > take:
+            lines.append("  … and %d more of these. All of them are in the log "
+                         "below the table, and every affected row is tinted."
+                         % (len(group) - take))
+        budget -= take
+    return lines
+
+
+def _row_problem_lines(marks: Sequence[RowMark]) -> List[str]:
+    """`_validate_row`'s own strings, by criterion id.
+
+    F-173's other half: these were computed and discarded, so a user told
+    "1 row(s) have errors" had to find the row by tint and the check by
+    guesswork.
+    """
+    lines: List[str] = []
+    bad = [m for m in marks if m.errors]
+    if bad:
+        lines.append("")
+        lines.append(_plural(len(bad),
+                             "1 row cannot be exported until it is fixed:",
+                             "%d rows cannot be exported until they are fixed:"))
+        for mark in bad[:MAX_LISTED]:
+            lines.append("  • %s: %s" % (mark.criterion_id or "(no id)",
+                                              "; ".join(mark.errors)))
+        if len(bad) > MAX_LISTED:
+            lines.append("  … and %d more." % (len(bad) - MAX_LISTED))
+
+    warned = [m for m in marks if m.warnings]
+    if warned:
+        lines.append("")
+        lines.append(_plural(len(warned),
+                             "1 row was adjusted or is worth a look:",
+                             "%d rows were adjusted or are worth a look:"))
+        for mark in warned[:MAX_LISTED]:
+            lines.append("  • %s: %s" % (mark.criterion_id or "(no id)",
+                                              "; ".join(mark.warnings)))
+        if len(warned) > MAX_LISTED:
+            lines.append("  … and %d more." % (len(warned) - MAX_LISTED))
+    return lines
+
+
+def compose_dialog(
+    n_error_rows: int,
+    marks: Sequence[RowMark],
     findings: Sequence[Finding],
     lint_error: str,
 ) -> Dialog:
-    """The dialog shown when nothing blocks. Never an error, never a prompt."""
-    if lint_error:
-        return Dialog(
-            "info", "Criteria checked",
-            "The rules are valid, but the check that compares each rule against "
-            "its own wording could not run:\n\n%s\n\nNothing is blocked."
-            % lint_error,
-        )
+    """The whole message. Never a prompt; never a question; never a gate.
 
-    if not findings and not n_warn:
+    The error case keeps its "error" kind and its blocking sentence, because
+    `_validate_row` errors genuinely do stop export and pretending otherwise
+    would be the opposite defect. Everything else is informational.
+    """
+    body: List[str] = []
+
+    if n_error_rows:
+        body.append(_plural(
+            n_error_rows,
+            "1 row has an error and export is blocked until it is fixed.",
+            "%d rows have errors and export is blocked until they are fixed."))
+    body.extend(_row_problem_lines(marks))
+    body.extend(_finding_lines(findings))
+
+    if lint_error:
+        body.append("")
+        body.append("The check that compares each rule against its own wording "
+                    "could not run:")
+        body.append("  %s" % lint_error)
+        body.append("The rules themselves were still checked.")
+
+    if not body:
         return Dialog("info", "Validation OK", "All good.")
 
-    parts = []
-    if findings:
-        parts.append("%d thing%s worth a look."
-                     % (len(findings), "" if len(findings) == 1 else "s"))
-    if n_warn:
-        parts.append("Warnings: %d" % n_warn)
-    return Dialog("info", "Criteria checked", " ".join(parts))
+    if n_error_rows:
+        return Dialog("error", "Validation failed", "\n".join(body).strip("\n"))
+
+    body.append("")
+    body.append(_NOT_BLOCKED)
+    return Dialog("info", "Criteria checked", "\n".join(body).strip("\n"))
