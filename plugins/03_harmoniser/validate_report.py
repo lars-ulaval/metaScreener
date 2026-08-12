@@ -29,10 +29,11 @@ The defects it currently reproduces, all F-173:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Callable, List, Mapping, Optional, Sequence, Tuple
 
 from .inference import _validate_row
+from .linter import Finding, lint_criteria
 
 #: Treeview tags `ui.py::HarmoniserView::_render_rows` already binds to colours:
 #: `error` -> #ffe5e5, `warn` -> #fff6d5.
@@ -62,7 +63,13 @@ class RowMark:
 
 @dataclass(frozen=True)
 class ValidationReport:
-    """The whole decision. `ok` is what `_validate` returns, and it gates export."""
+    """The whole decision. `ok` is what `_validate` returns, and it gates export.
+
+    ``findings`` are the linter's. **They are deliberately absent from every
+    computation of ``ok``** — a translation warning must never stop a researcher
+    harmonising, editing, exporting or running a stage. The one thing that gates
+    export is ``_validate_row``'s errors, exactly as before.
+    """
 
     ok: bool
     n_rows: int
@@ -71,6 +78,11 @@ class ValidationReport:
     marks: Tuple[RowMark, ...]
     dialog: Optional[Dialog]
     log_line: str
+    findings: Tuple[Finding, ...] = ()
+    #: Non-empty when the linter itself raised. The Validate path completes and
+    #: says so rather than dying; `lint_criteria` promises it raises nothing,
+    #: and this is what happens when that promise is wrong.
+    lint_error: str = ""
 
 
 def build_validation_report(
@@ -78,12 +90,16 @@ def build_validation_report(
     a_columns: Sequence[str],
     *,
     show_ok: bool = True,
+    lint: Optional[Callable[..., Any]] = None,
 ) -> ValidationReport:
     """Decide what Validate should say and how the rows should be tinted.
 
     ``show_ok=False`` is the export path: the same decision, with no dialog. It
     does **not** change ``ok``, so export gating is unaffected by whether a
     dialog was requested.
+
+    ``lint`` is injectable so a test can induce a failing linter; production
+    passes nothing and gets `linter.py::lint_criteria`.
     """
     if not rows:
         # `_validate` returns False here without saying anything at all. Kept.
@@ -134,7 +150,27 @@ def build_validation_report(
             warnings=tuple(warns or ()),
         ))
 
-    log_line = "Validate: %d rows, errors=%d, warnings=%d" % (len(rows), n_err, n_warn)
+    # THE LINTER, wired here rather than in the View.
+    #
+    # Session A proposed "one call after `_validate`'s loop". The loop is now in
+    # this function, so that is where the call goes — and it matters that it is
+    # here and not in `_validate`: a call in the View could not be tested, which
+    # is the reason this module exists at all.
+    #
+    # Defensive despite `lint_criteria` promising it raises nothing. It is
+    # called from a GUI callback, an uncaught exception there is a crash dialog,
+    # and "it promised" is not a reason to let the Validate button die.
+    findings: Tuple[Finding, ...] = ()
+    lint_error = ""
+    try:
+        findings = tuple((lint or lint_criteria)(rows, a_columns))
+    except Exception as exc:                      # noqa: BLE001 - deliberate
+        lint_error = "%s: %s" % (type(exc).__name__, exc)
+
+    log_line = "Validate: %d rows, errors=%d, warnings=%d, findings=%d" % (
+        len(rows), n_err, n_warn, len(findings))
+    if lint_error:
+        log_line += " (criteria check failed: %s)" % lint_error
 
     dialog: Optional[Dialog] = None
     if n_err > 0:
@@ -146,13 +182,42 @@ def build_validation_report(
         return ValidationReport(
             ok=False, n_rows=len(rows), n_error_rows=n_err, n_warning_rows=n_warn,
             marks=tuple(marks), dialog=dialog, log_line=log_line,
+            findings=findings, lint_error=lint_error,
         )
 
     if show_ok:
-        # F-173: "All good" regardless of `n_warn`.
-        dialog = Dialog("info", "Validation OK", "All good. Warnings: %d" % n_warn)
+        dialog = _compose_pass_dialog(n_warn, findings, lint_error)
 
+    # `ok` is computed from `n_err` alone. Findings do not appear in it, and a
+    # linter that failed outright does not appear in it either.
     return ValidationReport(
         ok=True, n_rows=len(rows), n_error_rows=n_err, n_warning_rows=n_warn,
         marks=tuple(marks), dialog=dialog, log_line=log_line,
+        findings=findings, lint_error=lint_error,
     )
+
+
+def _compose_pass_dialog(
+    n_warn: int,
+    findings: Sequence[Finding],
+    lint_error: str,
+) -> Dialog:
+    """The dialog shown when nothing blocks. Never an error, never a prompt."""
+    if lint_error:
+        return Dialog(
+            "info", "Criteria checked",
+            "The rules are valid, but the check that compares each rule against "
+            "its own wording could not run:\n\n%s\n\nNothing is blocked."
+            % lint_error,
+        )
+
+    if not findings and not n_warn:
+        return Dialog("info", "Validation OK", "All good.")
+
+    parts = []
+    if findings:
+        parts.append("%d thing%s worth a look."
+                     % (len(findings), "" if len(findings) == 1 else "s"))
+    if n_warn:
+        parts.append("Warnings: %d" % n_warn)
+    return Dialog("info", "Criteria checked", " ".join(parts))

@@ -259,10 +259,10 @@ class TestValidateAsItStandsToday:
     Every assertion here that is a defect says so.
     """
 
-    def test_the_reference_contract_validates_completely_clean(self, rows, a_columns):
-        """THE DEFECT THIS WHOLE WAVE IS ABOUT. Three of these eight rows do not
-        do what their labels say — F-166, F-167 and F-65 — and Validate reports
-        nothing at all."""
+    def test_the_rule_level_checks_still_see_nothing(self, rows, a_columns):
+        """UNCHANGED, and it is why the linter had to exist: `_validate_row`
+        reports errors=0 warnings=0 on all eight rows, three of which do not do
+        what their labels say (F-166, F-167, F-65)."""
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         assert report.n_rows == 8
@@ -270,43 +270,62 @@ class TestValidateAsItStandsToday:
         assert report.n_warning_rows == 0
         assert report.ok is True
 
-    def test_it_says_all_good(self, rows, a_columns):
+    def test_it_no_longer_says_all_good(self, rows, a_columns):
+        """FLIPPED. Was: kind=info, title="Validation OK",
+        body="All good. Warnings: 0" — with three mistranslated rows on screen."""
         vr = _report()
         dialog = vr.build_validation_report(rows, a_columns).dialog
         assert dialog.kind == "info"
-        assert dialog.title == "Validation OK"
-        assert dialog.body == "All good. Warnings: 0"
+        assert dialog.title == "Criteria checked"
+        assert "All good" not in dialog.body
 
-    def test_the_dialog_names_no_criterion(self, rows, a_columns):
-        """DEFECT (F-173): counts, never identities."""
+    def test_the_dialog_now_reports_the_findings(self, rows, a_columns):
+        """FLIPPED. Was: the dialog named no criterion at all."""
         vr = _report()
-        dialog = vr.build_validation_report(rows, a_columns).dialog
-        for row in rows:
-            assert row["id"] not in dialog.body
+        report = vr.build_validation_report(rows, a_columns)
+        assert len(report.findings) == 4
+        assert "4 things worth a look." in report.dialog.body
 
     def test_the_per_check_strings_are_computed_and_never_reach_the_dialog(
             self, rows, a_columns):
-        """DEFECT (F-173): `_validate_row`'s findings are built and thrown away.
+        """STILL A DEFECT (F-173), and narrowed rather than fixed by the wiring.
 
-        The extraction keeps them on the marks so a later commit can surface
-        them; today nothing reads them.
+        The LINTER's findings now reach the user. `_validate_row`'s own
+        per-check strings still do not — they are carried on the marks, where
+        the dialog composition can reach them, and nothing reads them yet.
         """
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         assert all(isinstance(m.errors, tuple) for m in report.marks)
         assert all(isinstance(m.warnings, tuple) for m in report.marks)
-        assert report.dialog.body == "All good. Warnings: 0"
+        assert "4 things worth a look." in report.dialog.body
 
-    def test_all_good_is_shown_even_with_warnings_outstanding(self, rows, a_columns):
-        """DEFECT (F-173): the pass message does not depend on the warning count."""
+    def test_all_good_is_no_longer_shown_with_warnings_outstanding(
+            self, rows, a_columns):
+        """FLIPPED. Was: title="Validation OK", body started "All good." with a
+        warning outstanding."""
         vr = _report()
         noisy = [dict(r) for r in rows]
         noisy[1]["what"] = ["English", "French"]     # equals with >1 value -> warning
         report = vr.build_validation_report(noisy, a_columns)
         assert report.n_warning_rows >= 1
         assert report.ok is True
-        assert report.dialog.title == "Validation OK"
-        assert report.dialog.body.startswith("All good.")
+        assert report.dialog.title == "Criteria checked"
+        assert "All good" not in report.dialog.body
+        assert "Warnings: 1" in report.dialog.body
+
+    def test_all_good_survives_only_when_there_is_genuinely_nothing(self, a_columns):
+        """The one case that still says it, and it has to be earned."""
+        vr = _report()
+        clean = [{
+            "stage": "IH", "id": "IC-9", "type": "include", "scope": "metadata",
+            "label": "The paper is written in English.", "operator": "equals",
+            "target": "lang", "what": ["English"], "threshold": "",
+            "enabled": True, "source_text": "",
+        }]
+        report = vr.build_validation_report(clean, a_columns)
+        assert report.findings == ()
+        assert report.dialog == vr.Dialog("info", "Validation OK", "All good.")
 
     def test_an_error_blocks_and_still_names_nothing(self, a_columns):
         vr = _report()
@@ -372,7 +391,114 @@ class TestValidateAsItStandsToday:
         assert report.n_warning_rows == 1
         assert sum(1 for m in report.marks if m.tag == vr.TAG_WARN) == 0
 
-    def test_the_log_line_is_unchanged(self, rows, a_columns):
+    def test_the_log_line_now_carries_the_finding_count(self, rows, a_columns):
+        """FLIPPED. Was: "Validate: 8 rows, errors=0, warnings=0"."""
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
-        assert report.log_line == "Validate: 8 rows, errors=0, warnings=0"
+        assert report.log_line == (
+            "Validate: 8 rows, errors=0, warnings=0, findings=4")
+
+
+class TestTheLinterIsWiredInAndBlocksNothing:
+    """The constraint that defines the feature: warn, never block."""
+
+    def test_the_three_defective_rows_produce_findings_through_the_wired_path(
+            self, rows, a_columns):
+        """Not through `lint_criteria` directly — through what Validate builds."""
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        found = sorted((f.criterion_id, f.check) for f in report.findings)
+        assert found == [
+            ("EC-1", "dropped-operand"),      # F-167
+            ("EC-4", "dropped-operand"),
+            ("EC-4", "target-mismatch"),      # F-166
+            ("IC-5", "inert-at-stage"),       # F-65
+        ]
+
+    def test_the_five_correct_rows_produce_nothing_through_the_wired_path(
+            self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        noisy = {f.criterion_id for f in report.findings}
+        assert noisy == {"EC-1", "EC-4", "IC-5"}
+        for quiet in ("IC-1", "IC-3", "IC-4", "EC-2", "EC-3"):
+            assert quiet not in noisy
+
+    def test_findings_do_not_change_the_verdict(self, rows, a_columns):
+        """`ok` is what gates export. Four findings, and it is still True."""
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        assert len(report.findings) == 4
+        assert report.ok is True
+
+    def test_a_table_of_nothing_but_findings_still_passes(self, a_columns):
+        """Every row mistranslated, and export is still permitted."""
+        vr = _report()
+        rows, cols = _production_rows()
+        bad = [r for r in rows if r["id"] in {"EC-1", "EC-4", "IC-5"}]
+        report = vr.build_validation_report(bad, cols)
+        assert len(report.findings) >= 3
+        assert report.ok is True
+        assert report.dialog.kind == "info"
+
+    def test_the_dialog_is_never_a_prompt(self, rows, a_columns):
+        """Nothing here may look like a blocking question."""
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns)
+        assert report.dialog.kind in {"info", "warning", "error"}
+        assert "?" not in report.dialog.body
+        for word in ("Continue", "Proceed", "Cancel", "Are you sure", "Yes", "No"):
+            assert word not in report.dialog.body
+
+    def test_errors_still_block_exactly_as_before(self, a_columns):
+        """The linter changed nothing about the one thing that DOES gate."""
+        vr = _report()
+        broken = [{
+            "stage": "EH", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "x", "operator": "not_an_operator", "target": "lang",
+            "what": ["x"], "threshold": "", "enabled": True, "source_text": "",
+        }]
+        report = vr.build_validation_report(broken, a_columns)
+        assert report.ok is False
+        assert report.dialog.kind == "error"
+        assert report.dialog.title == "Validation failed"
+
+
+class TestTheValidatePathSurvivesALinterThatThrows:
+    """`lint_criteria` promises it raises nothing. "It promised" is not a reason
+    to let the Validate button die, so the failure is induced and tested."""
+
+    @staticmethod
+    def _exploding(*_a, **_kw):
+        raise RuntimeError("induced linter failure")
+
+    def test_validate_still_completes(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns, lint=self._exploding)
+        assert report.n_rows == 8
+        assert report.ok is True
+        assert report.findings == ()
+
+    def test_it_says_the_check_could_not_run(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns, lint=self._exploding)
+        assert report.lint_error == "RuntimeError: induced linter failure"
+        assert "could not run" in report.dialog.body
+        assert "Nothing is blocked." in report.dialog.body
+
+    def test_it_does_not_silently_claim_all_good(self, rows, a_columns):
+        """The failure mode that would matter: a broken checker reading as a
+        clean bill of health."""
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns, lint=self._exploding)
+        assert "All good" not in report.dialog.body
+
+    def test_a_failed_linter_does_not_block_export(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns, lint=self._exploding)
+        assert report.ok is True
+
+    def test_the_log_line_records_the_failure(self, rows, a_columns):
+        vr = _report()
+        report = vr.build_validation_report(rows, a_columns, lint=self._exploding)
+        assert "criteria check failed" in report.log_line
