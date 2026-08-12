@@ -382,6 +382,12 @@ UNRESOLVED_TARGET = "unresolved-target"
 DUPLICATE_ID = "duplicate-id"
 THRESHOLD = "threshold"
 
+#: Not a check over a criterion but over the *table*: a row this module cannot
+#: read. Found by this wave's own adversarial pass, which made `lint_criteria`
+#: raise `AttributeError: 'str' object has no attribute 'get'` against a
+#: docstring promising it raises nothing.
+UNREADABLE_ROW = "unreadable-row"
+
 
 def _check_unresolved_target(row: Dict[str, Any], columns: Sequence[str]) -> Optional[Finding]:
     known = {_safe_str(c).strip().lower() for c in columns}
@@ -479,11 +485,28 @@ def lint_criteria(
     ``a_columns`` is the A-vector header. Without it the checks that need to know
     what a column name looks like are skipped, and named in ``report.skipped``.
     """
-    normalised = [_norm_row(r) for r in (rows or [])]
-
     ran: List[str] = []
     skipped: List[str] = []
     findings: List[Finding] = []
+
+    # A row this function cannot read must become a FINDING, not an exception
+    # and not a silent drop. It is called from a GUI callback, where raising is
+    # a crash dialog; and a dropped row is a row the user believes was checked.
+    normalised: List[Dict[str, Any]] = []
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, Mapping):
+            findings.append(Finding(
+                criterion_id="",
+                check=UNREADABLE_ROW,
+                severity=NOTICE,
+                message=(
+                    "Row %d could not be read as a criterion, so nothing in it "
+                    "has been checked." % (index + 1)
+                ),
+                detail="row %d is %s, not a mapping" % (index + 1, type(row).__name__),
+            ))
+            continue
+        normalised.append(_norm_row(row))
 
     concepts = _concept_map(a_columns or ())
     if concepts:

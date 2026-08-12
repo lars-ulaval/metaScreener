@@ -22,6 +22,7 @@ still defective at this commit **on purpose**: `inference.py` is not fixed in th
 wave, so the linter can be proven against the defect rather than against its memory.
 """
 
+import copy
 import subprocess
 import sys
 import textwrap
@@ -551,3 +552,57 @@ class TestItDoesNotDragInAGui:
             "The two shapes the linter's two callers hand it must produce the "
             "same findings, or the check depends on who called it."
         )
+
+
+class TestItNeverRaises:
+    """The module claims it raises nothing. A GUI callback that throws is a
+    crash dialog, and this one is called from the Validate button."""
+
+    def test_degenerate_input_produces_a_report_rather_than_an_exception(self, a_columns):
+        lint = _linter()
+        for label, rows_in in (
+            ("empty", []),
+            ("None", None),
+            ("row with no keys", [{}]),
+            ("all-None values", [{k: None for k in (
+                "id", "stage", "type", "operator", "target", "what",
+                "label", "threshold", "enabled", "source_text")}]),
+            ("what is an int", [{"id": "X", "stage": "EH", "operator": "equals",
+                                 "target": "lang", "what": 7, "label": "a or b"}]),
+        ):
+            report = lint.lint_criteria(rows_in, a_columns)
+            assert isinstance(report, list), label
+
+    def test_a_row_that_is_not_a_mapping_is_reported_not_raised(self, a_columns):
+        """Found by this wave's own adversarial pass: `'str' object has no
+        attribute 'get'`. A malformed row must become a finding, because a
+        silently dropped row is a row the user thinks was checked."""
+        lint = _linter()
+        for bad in ("not a row", ("a", "b"), 7, None):
+            report = lint.lint_criteria([bad], a_columns)
+            assert isinstance(report, list)
+            assert [f for f in report if f.check == "unreadable-row"], (
+                "A row the linter cannot read must be reported, not dropped "
+                "and not raised: %r" % (bad,)
+            )
+
+    def test_a_mix_of_good_and_unreadable_rows_still_lints_the_good_ones(self, rows, a_columns):
+        lint = _linter()
+        report = lint.lint_criteria(list(rows) + ["garbage"], a_columns)
+        assert _ids(_by_check(report, "target-mismatch")) == ["EC-4"], (
+            "One unreadable row must not stop the rest of the table being "
+            "checked."
+        )
+        assert len(_by_check(report, "unreadable-row")) == 1
+
+    def test_it_does_not_mutate_its_input(self, rows, a_columns):
+        lint = _linter()
+        before = copy.deepcopy(rows)
+        lint.lint_criteria(rows, a_columns)
+        assert rows == before
+
+    def test_it_is_deterministic(self, rows, a_columns):
+        lint = _linter()
+        shape = lambda rep: [(f.criterion_id, f.check, f.message) for f in rep]
+        assert shape(lint.lint_criteria(rows, a_columns)) == \
+               shape(lint.lint_criteria(rows, a_columns))
