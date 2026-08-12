@@ -49,6 +49,20 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov",
+    # Test-only, and declared here rather than removed because the tests
+    # genuinely need it (F-164). tests/test_error_classification.py and
+    # tests/test_run_report.py build the transport objects that openai's
+    # exception constructors require -- httpx.Request for APIConnectionError
+    # and APITimeoutError, httpx.Response for the APIStatusError subclasses --
+    # so there is no import to simply delete. The shipped application never
+    # imports httpx; its only mentions are two prose comments in
+    # plugins/_common/llm_client.py, which is why this belongs in the dev
+    # extra and not in project.dependencies or requirements.txt.
+    #
+    # It arrived transitively via openai until openai 3.0.0 swapped httpx for
+    # httpx2, at which point two modules stopped collecting and pytest exited
+    # before running a single test in all 16 CI cells.
+    "httpx",
 ]
 
 [project.urls]
