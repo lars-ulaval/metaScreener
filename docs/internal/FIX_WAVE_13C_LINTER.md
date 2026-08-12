@@ -190,7 +190,8 @@ operator   : equals      target: lang           what: ['French']
 
 ## b. The check list
 
-Seven checks. Five are decidable from the table alone; two need the corpus. Each row states
+Seven checks proposed; **six built**. Check 7 was dropped during construction for a reason the
+design did not foresee, recorded in full below rather than quietly deleted. Each row states
 what it detects, the measured defect behind it, its false-positive risk, and what it needs.
 
 | # | check | detects | measured defect it catches | needs | FP risk |
@@ -201,7 +202,7 @@ what it detects, the measured defect behind it, its false-positive risk, and wha
 | 4 | **inert-at-stage** | the operator cannot execute at the assigned stage | **F-65** — `IC-5`, `contains` at `IL`, 0 of 70 matching records acted on | table only | none — it is a set membership |
 | 5 | **duplicate-id** | two rows share an `id` | none live (**F-174**, latent) | table only | none |
 | 6 | **threshold** | unparseable or out of `[0,1]` | none live (**F-176**'s arrival route) | table only | none |
-| 7 | **matches-nothing** | the rule selects zero records, or every record | none live | table + **corpus rows** | medium — see below |
+| 7 | ~~**matches-nothing**~~ | the rule selects zero records, or every record | none live | table + **corpus rows** | **NOT BUILT — see below** |
 
 ### Check 1 — target-mismatch (F-166's class)
 
@@ -286,17 +287,40 @@ must not own the gate**, for three reasons:
 row is `llm`. That difference is real, disclosed, and F-159's subject — a useful proof that
 the check discriminates rather than always firing.
 
-### Check 7 — matches-nothing (proposed; not on the coordinator's list)
+### Check 7 — matches-nothing — PROPOSED, THEN NOT BUILT. The correction is below.
 
 `07_criteria_parsing.md` §5 records that Validate never checks *"that `equals lang 'French'`
 will ever match"*. A rule that selects **zero** records, or **all** of them, is almost always
 a mistranslation or a typo. It is the only check that would have caught `EC-4`
 **as the researcher wrote it** — `contains venue [ICRA, IROS]` matches 0 of 776.
 
-**It needs the corpus, so it is optional**: `lint_criteria(rows, a_columns, corpus_rows=None)`
-runs checks 1–6 without it and adds 7 when given rows. **[measured]** no live instance on any
-committed table: every emitted rule matches something. Proposed at the lowest severity, and it
-is the one check I would drop first if session B finds it noisy.
+**I proposed it as "optional, because it needs the corpus". That was too weak, and building it
+disclosed why.** **[measured]** the harmoniser **never holds the corpus rows**.
+`plugins/03_harmoniser/ui.py::_UiState` carries `criteria_path`, `criteria_kind`, `a_path`,
+`a_columns`, `a_id_col`, `text_stats`, `criteria_text` and `rows` — the last being the
+*criteria* rows, not the corpus. And `parser.py::_load_a_header_and_stats` returns
+`(cols, stats)` only: it reads the header, then loops records solely to count non-empty text
+fields, `break`s at `sample_n = 200`, and retains none of them.
+
+So check 7's input is not *optional* at the only call site — **it is absent**. Supplying it
+means session B adding a full read of the A-vector CSV (1.3 MB here, unbounded in general)
+into a Validate click that is currently instant. That is new file IO in the wiring session,
+which this brief's own fence calls the signal to stop and report.
+
+**Decision: not built in session A.** Three reasons, in order of weight:
+
+1. Its input does not exist at the caller, and creating it is a scope change session B has not
+   been given.
+2. **[measured]** it has no live instance — every emitted rule on all three committed tables
+   matches something, so nothing is going uncaught today.
+3. The seam costs nothing to leave open: `lint_criteria(rows, a_columns, corpus_rows=None)`
+   already accepts the parameter and reports the check in `report.skipped`, so a later wave
+   adds the check and its caller together without an API change.
+
+**What this costs, stated rather than buried:** the class *"the rule is well-formed, correctly
+targeted, and matches nothing"* is **not covered by this wave**, and it is the class that would
+catch a mistranslation whose label happens not to name a column — the gap §e item 1 already
+names. Raised as **CL-3**.
 
 ### Dropped from the coordinator's list
 
@@ -462,6 +486,37 @@ swallow of an unparseable value; it does not cover the indistinguishability of a
 choice. **F-88** is the general provenance shape and is scoped to model/endpoint/prompt.
 Novel as stated, and plausibly better recorded as an annotation on F-176 than as a row — the
 coordinator's call.
+
+**Pinned as a gap rather than left as a surprise.**
+`tests/test_criteria_linter.py::TestTheQuietChecks::test_a_defaulted_threshold_is_indistinguishable_and_is_not_reported`
+asserts that all four EL/IL rows carry exactly `0.60` and that the linter reports **nothing**
+about them. When a later wave records which happened, that test is where the gap closes, and
+it fails loudly at the moment it does.
+
+### CL-3 — the harmoniser cannot check a rule against the corpus, because it never holds the corpus
+
+**Proposed severity: Low.** **[measured]** `ui.py::_UiState` retains `a_path` and `a_columns`
+but no records, and `parser.py::_load_a_header_and_stats` reads the header, samples 200 rows
+to compute text-field coverage, and discards every row. Nothing in plugin 03 can answer *"how
+many records would this rule actually match?"* without re-reading the file.
+
+**Consequence.** Three of the things the Validate button is criticised for not checking are
+corpus-dependent and therefore unreachable from where it stands: whether an operand will ever
+match (`07_criteria_parsing.md` §5), whether a rule removes an implausible share of the corpus
+(F-166's 112 of 776 would have been visible as a number), and check 7 above. It also means
+**F-175**'s target-collapse decision is taken from a 200-row sample of a 776-record corpus and
+cannot be revisited later in the same session without another read.
+
+**Duplication check.** **[measured]** no register row mentions `_UiState`, and F-173's subject
+is what `_validate` does with findings it already has rather than what it cannot compute.
+Adjacent to **F-175** (which records the 200-row sample as a *provenance* inaccuracy, not as a
+capability limit) and to **F-166**'s remedy. Novel as stated; small, and it is a design
+constraint more than a defect — the coordinator may prefer it as an annotation on F-175.
+
+**Suggested fix.** None proposed. Retaining 776 records in `_UiState` to serve a linter is not
+obviously right, and `tools/measure_prompt_size.py` already establishes the alternative shape —
+a headless entry point that reads the corpus once, which `07_criteria_parsing.md` §8.1 argues
+is the cheapest useful version of T1 anyway.
 
 ---
 
