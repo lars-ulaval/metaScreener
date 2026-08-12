@@ -67,6 +67,7 @@ import io
 import json
 import re
 import statistics
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -595,59 +596,88 @@ class TestTheFrozenBytesSurviveCheckout:
 
 
 # ---------------------------------------------------------------------------
-# .gitattributes, parsed and matched rather than substring-searched
+# What git will actually do on checkout — asked, not re-implemented
 # ---------------------------------------------------------------------------
+#
+# An earlier version of this block hand-rolled the pathspec matcher. It
+# agreed with git on every rule this repository happens to contain, and
+# diverged on six of six probes of rules it might plausibly contain
+# instead — one of them silently, in the dangerous direction:
+#
+#   docs/**.csv binary        matcher: pinned      git: text: auto
+#   docs/data/*.csv binary
+#     then *.csv diff=csv     matcher: unpinned    git: binary: set
+#   /docs/data/*.csv binary   matcher: unpinned    git: binary: set
+#   docs/data/eval_[rd]*.csv  matcher: unpinned    git: binary: set
+#   "docs/data/*.csv" binary  matcher: unpinned    git: binary: set
+#   docs/data/*.csv<TAB>bin.  matcher: unpinned    git: binary: set
+#
+# The first is a guard that passes while the artefacts are unprotected,
+# which is the one failure mode a guard may not have: git gives ``**`` its
+# cross-directory meaning only when it is slash-surrounded, and treats
+# other consecutive asterisks as a single ``*``. The rest are false alarms
+# on a healthy tree, mostly because git merges attributes per name and
+# splits on any whitespace. Re-implementing the rest of that surface — and
+# knowing when it is complete — is not a thing a test should be doing when
+# git will answer the question directly.
 
-def _gitattributes_rules():
-    """``[(pattern, [attr, ...])]`` in file order, comments and blanks
-    dropped."""
-    rules = []
-    text = (PROJECT_ROOT / ".gitattributes").read_text(encoding="utf-8")
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        pattern, _, attrs = line.partition(" ")
-        rules.append((pattern, attrs.split()))
-    return rules
+def _checked_out_attrs(rel):
+    """``{attribute: value}`` exactly as git resolves it for ``rel``."""
+    proc = subprocess.run(
+        ["git", "check-attr", "-a", "--", rel],
+        cwd=str(PROJECT_ROOT), capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError("git check-attr failed: %s" % proc.stderr.strip())
+    attrs = {}
+    for line in proc.stdout.splitlines():
+        # "<path>: <attribute>: <value>"; split from the right so a path
+        # containing ": " cannot confuse it.
+        parts = line.rsplit(": ", 2)
+        if len(parts) == 3:
+            attrs[parts[1]] = parts[2]
+    return attrs
 
 
-def _pattern_matches(pattern, rel):
-    """The pathspec subset this repository's ``.gitattributes`` uses.
+def _is_pinned_on_checkout(rel):
+    """True when ``.gitattributes`` stops ``* text=auto`` rewriting ``rel``.
 
-    ``**`` crosses ``/``, a single ``*`` does not, and a pattern containing
-    a ``/`` is anchored at the repository root. That third rule is the one
-    that matters here: it is why ``docs/data/*.csv`` leaves
-    ``docs/data/grids/partition_manifest.csv`` alone.
+    The question is decided by ``text`` and ``eol``, and **not** by
+    ``binary``. ``binary`` is a macro — ``[attr]binary -diff -merge -text``
+    — so ``binary: set`` reports that the macro was applied, not that it
+    survived. A later ``text=auto`` on the same path overrides only the
+    ``text`` name, leaving ``binary: set`` alongside ``text: auto``.
+    Measured: git checks such a file out with 345 CRLF, i.e. converted,
+    while still reporting ``binary: set``. Keying on the macro name is how
+    a shadowed rule reads as protection.
+
+    So: no conversion at all (``text: unset``, which is what a surviving
+    ``binary`` or an explicit ``-text`` gives), or a conversion pinned to a
+    stated line ending regardless of platform (``eol=crlf`` / ``eol=lf``).
     """
-    out, i = [], 0
-    while i < len(pattern):
-        if pattern.startswith("**", i):
-            out.append(".*")
-            i += 2
-        elif pattern[i] == "*":
-            out.append("[^/]*")
-            i += 1
-        elif pattern[i] == "?":
-            out.append("[^/]")
-            i += 1
-        else:
-            out.append(re.escape(pattern[i]))
-            i += 1
-    body = "".join(out)
-    if "/" not in pattern:
-        body = "(?:.*/)?" + body
-    return re.fullmatch(body, rel) is not None
+    a = _checked_out_attrs(rel)
+    if a.get("text") == "unset":
+        return True
+    return a.get("eol") in ("crlf", "lf")
 
 
-def _byte_pinning_attrs(rel):
-    """The attributes that stop ``* text=auto`` rewriting ``rel`` on
-    checkout. Last matching rule wins, as git resolves it."""
-    winning = []
-    for pattern, attrs in _gitattributes_rules():
-        if _pattern_matches(pattern, rel):
-            winning = attrs
-    return [a for a in winning if a == "binary" or a.startswith("eol=")]
+def _git_is_usable():
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(PROJECT_ROOT), capture_output=True, text=True,
+        )
+    except (OSError, ValueError):
+        return False
+    return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
+_NEEDS_GIT = pytest.mark.skipif(
+    not _git_is_usable(),
+    reason="git check-attr is the authority these assertions consult; "
+           "there is no work tree here (an unpacked sdist, say). Skipped "
+           "rather than faked — a checkout question needs a checkout.",
+)
 
 
 class TestTheProtectedSetsAreDeclaredInGitattributes:
@@ -671,6 +701,7 @@ class TestTheProtectedSetsAreDeclaredInGitattributes:
     a later rule, passes the substring check and fails this one.
     """
 
+    @_NEEDS_GIT
     def test_every_hash_pinned_sample_is_pinned_on_checkout(self):
         recorded = set()
         for prefix in _RUN_PREFIXES:
@@ -691,7 +722,7 @@ class TestTheProtectedSetsAreDeclaredInGitattributes:
 
         unprotected = [
             p.name for p in pinned
-            if not _byte_pinning_attrs("samples/%s" % p.name)
+            if not _is_pinned_on_checkout("samples/%s" % p.name)
         ]
         assert not unprotected, (
             "These files under samples/ have their bytes pinned by a run "
@@ -705,6 +736,7 @@ class TestTheProtectedSetsAreDeclaredInGitattributes:
             % unprotected
         )
 
+    @_NEEDS_GIT
     def test_every_published_eval_csv_is_pinned_on_checkout(self):
         data_dir = PROJECT_ROOT / "docs" / "data"
         csvs = sorted(
@@ -714,7 +746,7 @@ class TestTheProtectedSetsAreDeclaredInGitattributes:
 
         unprotected = [
             p.name for p in csvs
-            if not _byte_pinning_attrs("docs/data/%s" % p.name)
+            if not _is_pinned_on_checkout("docs/data/%s" % p.name)
         ]
         assert not unprotected, (
             "These published artefacts are compared byte-for-byte against a "
