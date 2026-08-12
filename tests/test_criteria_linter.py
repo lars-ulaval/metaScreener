@@ -249,3 +249,133 @@ class TestDroppedOperand:
         report = lint.lint_criteria(rows)
         assert self.CHECK in report.ran
         assert _ids(_by_check(report, self.CHECK)) == ["EC-1", "EC-4"]
+
+
+class TestInertAtStage:
+    """Check 4 — the operator cannot execute at the assigned stage. F-65.
+
+    The linter REPORTS this; it does not gate it. F-65's own remedy proposes an
+    `_validate_row` error, and an error blocks export — the human's decision for
+    this feature is warn-clearly-never-block, so both mechanisms should exist and
+    they are not the same mechanism.
+    """
+
+    CHECK = "inert-at-stage"
+
+    def test_it_fires_on_IC_5(self, rows, a_columns):
+        lint = _linter()
+        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        assert _ids(found) == ["IC-5"], (
+            "IC-5 is `contains` at IL, where only `llm` executes. It has never "
+            "been applied to any record in any run (F-65)."
+        )
+
+    def test_the_finding_says_the_rule_will_not_run(self, rows, a_columns):
+        lint = _linter()
+        f = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)[0]
+        assert f.severity == "INERT"
+        assert "IL" in f.message and "contains" in f.message
+
+    def test_it_does_not_fire_on_the_same_row_rendered_as_llm(self, rows, a_columns):
+        """The wave-12 local-run table renders IC-5 as `llm` at IL, which is
+        executable. The check must discriminate, not always fire."""
+        lint = _linter()
+        as_llm = []
+        for r in rows:
+            r = dict(r)
+            if r["id"] == "IC-5":
+                r["operator"] = "llm"
+                r["what"] = [r["label"]]
+            as_llm.append(r)
+        found = _by_check(lint.lint_criteria(as_llm, a_columns), self.CHECK)
+        assert _ids(found) == []
+
+    def test_the_mirror_case_fires_too(self, rows, a_columns):
+        """`llm` at EH/IH is the other direction of the same defect."""
+        lint = _linter()
+        mutated = []
+        for r in rows:
+            r = dict(r)
+            if r["id"] == "IC-3":       # equals lang English, at IH
+                r["operator"] = "llm"
+            mutated.append(r)
+        found = _by_check(lint.lint_criteria(mutated, a_columns), self.CHECK)
+        assert "IC-3" in _ids(found)
+
+
+class TestTheExecutableSetIsNotJustRetyped:
+    """The linter's executable-operator table, checked against the real executor.
+
+    `plugins/_common/evaluator.py` has no module-level constant for this set —
+    the 8-tuple is inline inside `_eval_criterion`, so it cannot be imported, and
+    a linter that retypes it is the eighth representation of one vocabulary
+    (F-109). This test turns an eighth copy into a *checked* copy.
+
+    It cannot be done by probing alone at run time: `_eval_criterion` returns
+    `UNKNOWN` both for "operator not supported" and for "operand not comparable"
+    (raised as CL-1 in `docs/internal/FIX_WAVE_13C_LINTER.md`), so the probe
+    needs a well-typed operand per operator, which is what this test supplies.
+    """
+
+    # One row of corpus, and an operand that is well typed for each operator.
+    ROW = {"lang": "en", "year": "2020"}
+    WELL_TYPED = {
+        "contains": ("lang", ["e"]),
+        "equals": ("lang", ["en"]),
+        "regex": ("lang", ["e.*"]),
+        "in_list": ("lang", ["en", "fr"]),
+        "not_in": ("lang", ["fr"]),
+        "gte": ("year", ["2000"]),
+        "lte": ("year", ["2030"]),
+        "between": ("year", ["2000", "2030"]),
+        "llm": ("lang", ["some prose"]),
+    }
+
+    def test_the_linter_agrees_with_the_evaluator_about_EH_and_IH(self):
+        common_parser = _import_plugin("_common", "parser")
+        evaluator = _import_plugin("_common", "evaluator")
+        lint = _linter()
+
+        header = set(self.ROW)
+        derived = set()
+        for op, (target, what) in self.WELL_TYPED.items():
+            crit = common_parser.Criterion(
+                stage="EH", cid="X", ctype="include", scope="metadata",
+                label="probe", operator=op, targets=[target],
+                what_raw=";".join(what), what_list=what,
+                threshold=0.6, enabled=True, source_text="probe",
+            )
+            if evaluator._eval_criterion(self.ROW, header, crit) != "UNKNOWN":
+                derived.add(op)
+
+        assert derived == set(lint.executable_operators("EH")), (
+            "The linter's idea of what EH/IH can execute has drifted from what "
+            "`_eval_criterion` actually executes. Update the linter, not this "
+            "test — the evaluator is the authority."
+        )
+        assert derived == set(lint.executable_operators("IH"))
+
+    def test_the_linter_agrees_that_EL_and_IL_run_llm_only(self):
+        """EL/IL mark every non-`llm` operator UNCERTAIN without evaluating it."""
+        lint = _linter()
+        assert set(lint.executable_operators("EL")) == {"llm"}
+        assert set(lint.executable_operators("IL")) == {"llm"}
+
+    def test_every_declared_operator_is_accounted_for(self):
+        """No operator may be silently absent from every stage's table.
+
+        `OPERATORS` is reached through `parser` directly rather than through
+        `plugin.py`, which does not re-export it — consistent with
+        `07_criteria_parsing.md` §2.5's finding that the authoritative
+        vocabulary is imported by no executor.
+        """
+        harmoniser_parser = _import_plugin("03_harmoniser", "parser")
+        lint = _linter()
+        covered = set()
+        for stage in ("EH", "IH", "EL", "IL"):
+            covered |= set(lint.executable_operators(stage))
+        assert covered == set(harmoniser_parser.OPERATORS), (
+            "Every operator in parser.py::OPERATORS must be executable "
+            "somewhere, or the linter cannot tell 'inert here' from "
+            "'unimplemented everywhere'."
+        )

@@ -305,6 +305,70 @@ def _check_dropped_operand(row: Dict[str, Any]) -> Optional[Finding]:
 
 
 # --------------------------------------------------------------------------
+# Check 4 — inert-at-stage (F-65)
+#
+# The linter REPORTS this and does not gate it. F-65's own remedy proposes an
+# `_validate_row` error, and an error blocks export; the decision for this
+# feature is warn-clearly-never-block. Both mechanisms should exist, and this
+# one can say what an error string cannot: not "invalid" but "this rule will
+# never be evaluated".
+#
+# THE SET BELOW IS A RESTATEMENT AND IT IS NOT ALLOWED TO STAY UNCHECKED.
+# `plugins/_common/evaluator.py` keeps its executable operators as an inline
+# tuple inside `_eval_criterion`, so there is nothing to import (F-109 counts
+# seven copies of this vocabulary already). It also cannot be derived at run
+# time: `_eval_criterion` returns UNKNOWN both for "operator not supported" and
+# for "this value is not comparable" — measured, `gte` against a non-numeric
+# field returns UNKNOWN while `gte` against `year` returns MET. So
+# `tests/test_criteria_linter.py::TestTheExecutableSetIsNotJustRetyped` probes
+# the real evaluator with a well-typed operand per operator and asserts this
+# table equals what it actually executes. An eighth copy, made a checked copy.
+# --------------------------------------------------------------------------
+
+INERT_AT_STAGE = "inert-at-stage"
+
+_DETERMINISTIC_OPERATORS = frozenset({
+    "equals", "contains", "regex", "in_list", "not_in", "gte", "lte", "between",
+})
+
+_EXECUTABLE_BY_STAGE = {
+    "EH": _DETERMINISTIC_OPERATORS,
+    "IH": _DETERMINISTIC_OPERATORS,
+    # EL/IL mark every non-`llm` operator UNCERTAIN *without evaluating it*.
+    "EL": frozenset({"llm"}),
+    "IL": frozenset({"llm"}),
+}
+
+
+def executable_operators(stage: str) -> Tuple[str, ...]:
+    """Which operators actually execute at ``stage``. Empty for an unknown stage."""
+    return tuple(sorted(_EXECUTABLE_BY_STAGE.get(_safe_str(stage).strip().upper(), ())))
+
+
+def _check_inert_at_stage(row: Dict[str, Any]) -> Optional[Finding]:
+    stage = row["stage"]
+    if stage not in _EXECUTABLE_BY_STAGE:
+        return None                     # not this check's business; _validate_row errors
+    operator = row["operator"]
+    if not operator or operator in _EXECUTABLE_BY_STAGE[stage]:
+        return None
+
+    runnable = ", ".join(executable_operators(stage))
+    return Finding(
+        criterion_id=row["id"],
+        check=INERT_AT_STAGE,
+        severity=INERT,
+        message=(
+            "%s will never be evaluated: it is a \"%s\" rule at the %s stage, "
+            "which runs %s only. No record will be included or excluded by it."
+            % (row["id"] or "This criterion", operator, stage, runnable)
+        ),
+        detail="stage=%s operator=%s executable=%s"
+               % (stage, operator, list(executable_operators(stage))),
+    )
+
+
+# --------------------------------------------------------------------------
 
 
 def lint_criteria(
@@ -336,10 +400,16 @@ def lint_criteria(
     else:
         skipped.append(TARGET_MISMATCH)
 
-    # Decidable from the table alone — no corpus needed, so it always runs.
+    # Decidable from the table alone — no corpus needed, so these always run.
     ran.append(DROPPED_OPERAND)
     for row in normalised:
         f = _check_dropped_operand(row)
+        if f is not None:
+            findings.append(f)
+
+    ran.append(INERT_AT_STAGE)
+    for row in normalised:
+        f = _check_inert_at_stage(row)
         if f is not None:
             findings.append(f)
 
