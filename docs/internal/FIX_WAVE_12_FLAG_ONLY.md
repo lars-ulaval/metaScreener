@@ -997,3 +997,106 @@ outcome that failed to reach two places. §B6.2 tells a maintainer to grep
 every spelling of an enumerated set when they add a member. The same rule
 applies to retractions, and this session did not follow it until the review
 made it grep.
+
+## B9. Verification
+
+| Check | Result |
+|---|---|
+| Suite at `main` (session A close) | 1534 passed, 7 skipped |
+| Suite at `ff23b40` (session B, first close) | 1545 passed, 7 skipped |
+| **Suite now** | **1588 passed, 7 skipped** |
+| — the difference | +43, exactly `tests/test_wave12_measurement_freeze.py` |
+| GUI smoke, run explicitly | **23 passed** — a display was available, so the `provider_dialog` label change is actually covered rather than skipped |
+| Goldens, both ways | **9/9 SHA-256 identical to `main`**; `git diff main..HEAD -- tests/golden/` and the reverse both empty |
+| `rekey_cache_goldens.py --verify` | clean — EL 170/170, IL 84/84, values unchanged since `c5e2100`, key sets disjoint from the pre-F-89 function |
+| `tools/check_encoding.py` | 218 paths, no BOM, no mojibake |
+| `tools/audit_imports.py plugins` | clean, 42 files |
+| `tools/audit_decorators.py plugins metascreener` | clean, 58 files |
+| Frozen evidence, index vs working tree | **byte-identical for all 12 files** — the `.gitattributes` rule holds |
+| Frozen evidence, self-authentication | every artefact matches the digest inside its own run's manifest |
+
+**The goldens not moving is again the load-bearing check.** This session
+committed evidence *derived from* runs that used a different criteria table
+and a different model, and none of it touches the replay path. Nine
+byte-identical fixtures is the proof.
+
+**One check this session added that did not exist before:** the published
+figures are no longer verified by reading. `tests/test_wave12_measurement_freeze.py`
+recomputes each of them from the frozen bytes and requires the document to
+state the result, so `docs/llm-evaluation.md` cannot drift from its evidence
+without a red suite.
+
+## B10. Commits
+
+| Hash | Subject |
+|---|---|
+| `ec81d58` | `docs(F-154)`: num_ctx is never set, and the recommended batch range already exceeds it |
+| `e6cb53c` | `docs(F-155)`: publish the local-model measurement, and the non-determinism inside it |
+| `f879670` | `fix(F-156, F-157)`: both reproduced claims were real |
+| `0d7de0a` | `docs(F-158)`: correct what session A's code falsified, and one thing it exposed |
+| `d5ad13e` | `docs`: say what was audited, not what was asserted |
+| `ff23b40` | `docs`: record wave 12 session B, and what a maintainer needs in six months |
+| `6e0bf7b` | `fix(F-159)`: commit the evidence the published measurement rests on |
+| `118873e` | `fix`: repair what the review pass found, and open what it could not |
+
+The last two are this close-out. `6e0bf7b` is §B7, `118873e` is §B8.
+
+**A convention note, because it will confuse someone otherwise.** Rows
+F-152 through F-163 say **"Fixed in `PENDING`"**. That is the wave's own
+convention — the hash is written back when the wave merges, as `c5e2100` and
+`b01ec25` were for wave 9 — and it is deliberately *not* resolved here, so
+that all twelve rows resolve together rather than three of them carrying
+hashes and nine carrying a placeholder. Whoever merges this branch resolves
+them.
+
+## B11. Register
+
+**Five rows opened, one closed.**
+
+| Row | Severity | State |
+|---|---|---|
+| **F-159** | High | **closed** — the published measurement's evidence, committed and re-derived on every suite run |
+| **F-160** | High | open — a vendor key in the environment reaches a keyless provider's endpoint |
+| **F-161** | Medium | open — F-156's closure overclaimed: six drill-downs, not four; the guard test never reads the engine |
+| **F-162** | High | open — F-157's closure overclaimed: the header phase is still unbounded, 20.75 s of frozen GUI measured |
+| **F-163** | Medium | open — `measure_prompt_size.py` selects criteria the engine would not call |
+
+**F-155 was extended, not merely cross-referenced:** the freeze produced a
+figure the original measurement did not have (**37 of 170, 21.8%**, against
+the published 4.7%) and an instance the original could not explain (**A570**,
+which moved from flagged to excluded with both decisions unchanged). **F-145
+was corrected** where it repeated the retracted "all unjustified".
+
+**Totals regenerated**, and the previous snapshot was stale: it read
+`141 / 69 / 72`, computed at wave 10 close and carried unchanged through
+wave 11 and wave 12 session A while nineteen rows were added. That is F-131
+happening in the one place F-131 is about. The register now runs **F-01..F-163
+with the permanent F-56/F-57/F-58 gap — 160 rows, 81 closed, 79 open.**
+
+**Out of scope and untouched, as instructed:** the golden re-capture
+(cancelled in session A), F-135, and the four code fixes opened above. No
+merge, no tag, no push.
+
+## B12. Session B is complete
+
+Everything session B was asked for is done and verified:
+
+- **F-154** opened — `num_ctx` is never set and the recommended local batch
+  range already exceeds the window; `tools/measure_prompt_size.py` committed.
+- **Part 2**, the measurement, published in `docs/llm-evaluation.md`
+  § *Local models on this corpus: a direct measurement*, self-corrected once
+  in `d5ad13e` and corrected again by the review in `118873e`.
+- **Part 3**, two of session A's eight unverified claims reproduced by
+  execution and fixed — F-156 and F-157. **Both closures were later found to
+  be partial** (F-161, F-162); the reproductions themselves stand.
+- **Part 4**, the documentation sweep — F-158 opened, `usage.md` and
+  `installation.md` corrected, with nine further false claims found and fixed
+  by the review pass.
+- **The review pass**, run and recorded in §B8 rather than left as an absence.
+- **The evidence**, committed in §B7 — the follow-up §B6 called the
+  highest-value one in this document.
+
+**The six remaining unverified claims from session A stay tabulated and
+unactioned**, as §B4 says. Four new rows are open. Nothing here is merged,
+tagged or pushed; the branch is `docs/wave-12-measurement` and it is ready
+for the maintainer to take.
