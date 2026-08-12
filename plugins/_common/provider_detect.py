@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -290,15 +291,99 @@ def _read_bounded(resp, timeout: float,
     read = getattr(resp, "read1", None) or resp.read
     chunks = []
     total = 0
+    truncated = False
     while total < max_bytes:
         if monotonic() > deadline:
+            truncated = True
             break
         chunk = read(8192)
         if not chunk:
             break
         chunks.append(chunk)
         total += len(chunk)
-    return b"".join(chunks)
+    body = b"".join(chunks)
+
+    # F-162(c). `read()` raised ``IncompleteRead`` when the server sent
+    # fewer bytes than it declared; ``read1`` returns b"" at EOF and says
+    # nothing, so swapping to it for F-157 silently dropped the only
+    # transport-level check that a confident answer describes a response
+    # the server actually finished. Restored here rather than by going
+    # back to ``read`` — the reason ``read1`` was chosen is still good.
+    #
+    # An exhaustive prefix search found no body that parses to one answer
+    # whose truncation parses to a *different* one, so this was never a
+    # route to a WRONG mode; what it cost was the ability to tell a
+    # complete answer from a partial one, which is the difference between
+    # ``cpu`` and ``unknown``.
+    if not truncated:
+        declared = getattr(getattr(resp, "headers", None), "get", lambda _k: None)(
+            "Content-Length")
+        if declared is not None:
+            try:
+                truncated = len(body) < int(declared)
+            except (TypeError, ValueError):
+                pass
+    if truncated:
+        # Empty parses to nothing, and every parse failure downstream is
+        # already COMPUTE_UNKNOWN — the honest answer for a server that
+        # would not finish a sentence.
+        return b""
+    return body
+
+
+def _fetch_within_budget(url: str, timeout: float,
+                         max_bytes: int = _MAX_PS_BYTES) -> Optional[bytes]:
+    """Run the whole exchange under a bound the **caller** can rely on.
+
+    F-162, and the reason F-157 did not finish the job. ``urlopen`` returns
+    only after ``http.client`` has read the status line **and every
+    header**, so :func:`_read_bounded` — which runs inside the ``with``
+    block — cannot bound that phase at all. A server that dribbles header
+    bytes, each arriving inside the per-operation socket timeout, is
+    bounded by nothing: measured at ``timeout=1.0``, 8 padding bytes held
+    the call 4.28 s, 40 held it 12.29 s, 120 held it 32.33 s — linear in
+    header size, independent of the timeout, and every one of them
+    returning a confident answer rather than an error.
+
+    Through a real Tk mainloop that was **20.75 s of frozen application**
+    on the pre-run confirmation, on both LLM stages. F-157's row called
+    that "the most visible failure this wave could have shipped"; it was
+    describing the defect its own fix left in place.
+
+    So the bound moved off the phases and onto the call. The exchange runs
+    on a daemon worker and the caller waits exactly ``timeout``; if the
+    worker has not finished by then the answer is ``None`` and the caller
+    reports ``COMPUTE_UNKNOWN``. **The GUI thread is now blocked by the
+    budget rather than by the server**, which is the property
+    ``ELView._confirm_run`` needs and the one it was documented as having.
+
+    The orphaned worker is deliberate and is bounded twice over: the
+    socket keeps its own ``timeout``, so it cannot outlive a server that
+    stops sending, and the thread is a daemon, so it can never hold up
+    interpreter exit. Cancelling it properly would mean owning the socket,
+    which is a larger change than this row is worth — recorded rather than
+    hidden.
+    """
+    box = {}
+
+    def _work():
+        try:
+            req = urllib.request.Request(
+                url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if getattr(resp, "status", 200) != 200:
+                    return
+                box["body"] = _read_bounded(resp, timeout, max_bytes)
+        except Exception:
+            pass
+
+    worker = threading.Thread(target=_work, daemon=True,
+                              name="metascreener-compute-mode")
+    worker.start()
+    worker.join(max(0.0, float(timeout)))
+    if worker.is_alive():
+        return None
+    return box.get("body")
 
 
 def compute_mode_url(endpoint: str) -> str:
@@ -332,14 +417,14 @@ def compute_mode(endpoint: str, *, model: str = "",
     is ``COMPUTE_UNKNOWN``. Absent is not zero (F-68), and "no model
     loaded" says nothing about where the next one will run.
     """
+    # F-162. The whole exchange is bounded, not just the body — see
+    # ``_fetch_within_budget``. This function is called on the GUI thread
+    # on purpose, so "bounded" has to mean the call, not a phase of it.
+    body = _fetch_within_budget(compute_mode_url(endpoint), timeout)
+    if not body:
+        return _compute_unknown()
     try:
-        req = urllib.request.Request(
-            compute_mode_url(endpoint), headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if getattr(resp, "status", 200) != 200:
-                return _compute_unknown()
-            payload = json.loads(
-                _read_bounded(resp, timeout).decode("utf-8", "replace"))
+        payload = json.loads(body.decode("utf-8", "replace"))
     except Exception:
         return _compute_unknown()
 

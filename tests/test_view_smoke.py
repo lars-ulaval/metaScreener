@@ -810,3 +810,211 @@ class TestTheExclusionPolicyHasAControl:
         d.destroy()
         ''')
         assert "len=" in out
+
+
+class TestTheCriterionDrillDownsRunAtAll:
+    """F-161(c). Four drill-down sites were fixed and none was executed.
+
+    Traced with ``sys.settrace`` over a full run of ``test_flag_only.py``:
+    ``_refresh_reports_view`` never called, ``on_criterion_doubleclick``
+    never called. Re-inlining the old four-name predicate in **both** Views
+    left that file green at 117 passed. The tests applied the predicate the
+    way a drill-down would; nothing drove a drill-down.
+
+    They could not, in-process: ``conftest`` makes ``ttk.Frame`` a
+    ``MagicMock``, so ``class StandaloneELPlugin(ttk.Frame)`` is not a class
+    and cannot be instantiated. Real Tk is the only place these methods
+    exist as methods, which is why this lives here.
+
+    The rows and lists below come from a **real engine run** via
+    ``tests/_engine_probe.py``. A hand-written ``row_eval_lists`` would be
+    wave 11 session B's defect committed inside the test written to close a
+    vocabulary defect.
+    """
+
+    _SETUP = """
+        import importlib
+        import _engine_probe as EP
+    """
+
+    @pytest.mark.parametrize("stage,pkg,cls,ctype,decision", [
+        ("EL", "plugins.06_el", "StandaloneELPlugin", "exclude", "meet"),
+        ("IL", "plugins.07_il", "StandaloneILPlugin", "include", "not_meet"),
+    ])
+    def test_the_standalone_drilldown_shows_suppressed_records(
+            self, stage, pkg, cls, ctype, decision):
+        """The two sites F-156's repair did not reach.
+
+        Measured before this fix, driving the real engine and applying the
+        standalone predicate verbatim: ``criterion_touched`` gave 4 of 4 and
+        the standalone gave **0 of 4**. It filtered the exported ``*_ids``
+        columns, and F-145 added no ``*_suppressed_ids`` column, so those
+        columns could not answer the question at all.
+        """
+        out = _smoke(self._SETUP + """
+        plugin = importlib.import_module("%s.plugin")
+        full, evals, cid = EP.run_flag_only(plugin, "%s", "%s", "%s")
+        print("records=" + str(len(full)))
+
+        standalone = importlib.import_module("%s.standalone")
+        view = standalone.%s(frame())
+        view.full_rows = full
+        view.row_eval_lists = evals
+        view.bundle = object()
+
+        shown = []
+        view.table.set_rows = lambda rows: shown.append(list(rows))
+        view.lst_crit.curselection = lambda: (0,)
+        view.lst_crit.get = lambda _i: cid + "  (llm)"
+
+        view.on_criterion_doubleclick()
+
+        print("shown=" + str(len(shown[-1]) if shown else 0))
+        assert shown, "the drill-down never reached the table"
+        assert len(shown[-1]) == len(full) == 4
+        view.destroy()
+        """ % (pkg, stage, ctype, decision, pkg, cls))
+        assert "records=4" in out
+        assert "shown=4" in out, out
+
+    @pytest.mark.parametrize("stage,pkg,cls,ctype,decision", [
+        ("EL", "plugins.06_el", "ELView", "exclude", "meet"),
+        ("IL", "plugins.07_il", "ILView", "include", "not_meet"),
+    ])
+    def test_the_view_drilldown_shows_suppressed_records(
+            self, stage, pkg, cls, ctype, decision):
+        """The four sites F-156 *did* fix, now actually executed.
+
+        This is the one that was green for the wrong reason: the fix was
+        real and the test that certified it never ran the code.
+        """
+        out = _smoke(self._SETUP + """
+        plugin = importlib.import_module("%s.plugin")
+        full, evals, cid = EP.run_flag_only(plugin, "%s", "%s", "%s")
+
+        import types
+        view = plugin.%s(frame())
+        view.full_rows = full
+        view.row_eval_lists = evals
+        view.survivors = [dict(r) for r in full]
+        view.active_criterion_id = cid
+        # Scaffolding, not the state under test: the method reads the
+        # bundle only for its column names, and returns early without one.
+        # What must come from the engine is row_eval_lists, and it does.
+        view.bundle = types.SimpleNamespace(parse=types.SimpleNamespace(
+            header=["local_id", "title", "abstract", "keywords"]))
+
+        shown = {}
+        for name in ("full_table", "surv_table"):
+            tbl = getattr(view, name)
+            tbl.render_rows_incremental = (
+                lambda n: lambda rows: shown.__setitem__(n, list(rows)))(name)
+
+        view._refresh_reports_view()
+        print("full_shown=" + str(len(shown.get("full_table", []))))
+        assert len(shown.get("full_table", [])) == 4, shown
+        view.destroy()
+        """ % (pkg, stage, ctype, decision, cls))
+        assert "full_shown=4" in out, out
+
+
+class TestComputeModeDoesNotFreezeTheApplication:
+    """F-162. F-157 bounded the body and left the headers.
+
+    ``urlopen`` returns only after the status line and **every header** have
+    been read, and ``_read_bounded`` runs inside the ``with`` block — so a
+    server that dribbles header bytes, each arriving inside the
+    per-operation socket timeout, was bounded by nothing. Measured at
+    ``timeout=1.0``: 8 padding bytes held the call 4.28 s, 40 held it
+    12.29 s, 120 held it 32.33 s. Linear in header size, independent of the
+    timeout, every one returning a confident answer.
+
+    ``ELView._confirm_run`` calls this **on the GUI thread**, deliberately —
+    the pre-run confirmation must have the answer before the user decides.
+    So the measurement that matters is not elapsed seconds in a unit test;
+    it is whether Tk kept processing events. That is what this asserts, and
+    it is why it lives in the real-Tk file rather than in
+    ``test_compute_mode.py``, whose server uses ``end_headers()`` and emits
+    every header in a single write — which is exactly why the wave's own
+    regression test could not see this.
+    """
+
+    def test_a_header_dribbling_server_does_not_stop_the_mainloop(self):
+        out = _smoke(r"""
+        import socket, threading, time
+        from plugins._common import provider_detect as pd
+
+        # Answers the status line at once, then dribbles one header line at
+        # a time, every gap comfortably inside the socket timeout so
+        # urlopen's own timeout can never fire.
+        GAP = 0.30
+        PAD = 60
+
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        port = srv.getsockname()[1]
+
+        CRLF = bytes([13, 10])
+
+        def serve():
+            try:
+                conn, _ = srv.accept()
+                conn.recv(65535)
+                conn.sendall(b'HTTP/1.1 200 OK' + CRLF)
+                for i in range(PAD):
+                    conn.sendall(('X-Pad-%d: y' % i).encode() + CRLF)
+                    time.sleep(GAP)
+                body = b'{"models": []}'
+                conn.sendall(
+                    ('Content-Length: %d' % len(body)).encode()
+                    + CRLF + CRLF)
+                conn.sendall(body)
+                conn.close()
+            except Exception:
+                pass
+        threading.Thread(target=serve, daemon=True).start()
+
+        TIMEOUT = 2.0
+        ticks = []
+        gaps = []
+
+        def tick():
+            now = time.monotonic()
+            if ticks:
+                gaps.append(now - ticks[-1])
+            ticks.append(now)
+            _root.after(100, tick)
+
+        result = {}
+
+        def call():
+            t0 = time.monotonic()
+            result["mode"] = pd.compute_mode(
+                "http://127.0.0.1:%d/v1" % port, timeout=TIMEOUT)
+            result["elapsed"] = time.monotonic() - t0
+            _root.after(300, _root.quit)
+
+        _root.after(100, tick)
+        _root.after(200, call)
+        _root.mainloop()
+
+        worst = max(gaps) if gaps else 0.0
+        print("elapsed=%.2f" % result["elapsed"])
+        print("worst_gap=%.2f" % worst)
+        print("ticks=%d" % len(ticks))
+        print("mode=" + result["mode"].mode)
+
+        # The unbounded header phase would have been PAD * GAP = 18s.
+        assert result["elapsed"] < TIMEOUT * 2.5, result["elapsed"]
+        # And the GUI must have kept running: the call blocks its thread for
+        # at most the budget, so no gap between 100ms ticks may approach the
+        # 18s the server was willing to take.
+        assert worst < TIMEOUT * 2.5, worst
+        assert len(ticks) > 3, ticks
+        # "We could not say" is the honest answer and a first-class state --
+        # never COMPUTE_CPU.
+        assert result["mode"].mode == pd.COMPUTE_UNKNOWN, result["mode"]
+        """)
+        assert "mode=unknown" in out, out

@@ -683,15 +683,14 @@ class TestTheCriterionDrillDownShowsSuppressedRecords:
     back everything F-145 bought.
     """
 
-    LISTS = ("failed", "missing", "met", "uncertain", "suppressed")
-
     def test_every_list_counts_as_touched(self):
-        for key in self.LISTS:
-            ev = {k: ([] if k != key else ["EC-1"]) for k in self.LISTS}
+        for key in st.CRITERION_ROW_LISTS:
+            ev = {k: ([] if k != key else ["EC-1"])
+                  for k in st.CRITERION_ROW_LISTS}
             assert st.criterion_touched(ev, "EC-1") is True, key
 
     def test_an_untouched_criterion_is_not_shown(self):
-        ev = {k: [] for k in self.LISTS}
+        ev = {k: [] for k in st.CRITERION_ROW_LISTS}
         assert st.criterion_touched(ev, "EC-1") is False
 
     def test_a_missing_key_does_not_raise(self):
@@ -699,10 +698,129 @@ class TestTheCriterionDrillDownShowsSuppressedRecords:
         assert st.criterion_touched({}, "EC-1") is False
         assert st.criterion_touched({"failed": None}, "EC-1") is False
 
-    def test_the_vocabulary_is_the_engine_s(self):
-        """The list names are the engine's, so a sixth added there without
-        being added here would repeat this defect."""
-        assert set(st.CRITERION_ROW_LISTS) == set(self.LISTS)
+    # -- the vocabulary guard, rebuilt in wave 12 session C (F-161) --------
+    #
+    # What was here before::
+    #
+    #     LISTS = ("failed", "missing", "met", "uncertain", "suppressed")
+    #     def test_the_vocabulary_is_the_engine_s(self):
+    #         assert set(st.CRITERION_ROW_LISTS) == set(self.LISTS)
+    #
+    # Two copies of one literal, neither of them the engine. The engine
+    # spelled the set out in four dict literals of its own and did not
+    # import stage_state at all, so the two could diverge with nothing to
+    # notice. Measured: splitting a sixth list out of ``uncertain`` on the
+    # engine side left this file at 117 passed while the drill-down went
+    # 4 of 4 to 0 of 4.
+    #
+    # This is the THIRD time this project has shipped a fixture certifying
+    # a state the system cannot produce. Wave 11 session B's
+    # ``probe=SimpleNamespace(state="ready")`` for ``provider="openai"``
+    # was the first, and 926 tests were green while the OpenAI provider
+    # could not run at all; ``test_model_discovery.py`` answered it by
+    # building every fixture from the real producer and forbidding the
+    # constructors by AST. The rule that came out of it, applied here: a
+    # fixture that constructs a state by hand must be checkable against the
+    # producer that would create it in production.
+    #
+    # So the vocabulary below is READ OFF THE ENGINE, by running it.
+
+    @pytest.mark.parametrize("getter,stage,ctype,decision", EXCLUDING)
+    def test_the_vocabulary_is_the_engine_s(
+            self, monkeypatch, getter, stage, ctype, decision):
+        """The names come from a real run, not from a literal."""
+        _f, _s, _c, _i, evals, _ca, _cx, _r = _run(
+            monkeypatch, getter(), stage, ctype, decision, allow=False)
+        assert evals, "the engine produced no per-record lists to read"
+        for produced in evals:
+            assert set(produced) == set(st.CRITERION_ROW_LISTS), (
+                "the engine emitted %s where stage_state names %s — the "
+                "vocabulary grew on one side only, which is F-156 again"
+                % (sorted(produced), sorted(st.CRITERION_ROW_LISTS))
+            )
+
+    @pytest.mark.parametrize("getter,stage,ctype", [
+        (get_el, "EL", "exclude"), (get_il, "IL", "include")])
+    def test_the_no_criteria_path_emits_the_same_vocabulary(
+            self, monkeypatch, getter, stage, ctype):
+        """The engine builds these lists at two sites, not one.
+
+        The second is the "no enabled criteria" early return, which a run
+        with everything disabled is the only way to reach. Reading only the
+        normal path would leave half the producer unchecked.
+        """
+        mod = getter()
+        crit = mod.Criterion(
+            id=CID, stage=stage, ctype=ctype, enabled=False, operator="llm",
+            targets=["title"], what_raw="x", what_list=["x"], threshold=0.6,
+            source_text="x", label="x",
+        )
+        parse = mod.ParseReport(
+            header=["local_id", "title", "abstract", "keywords"],
+            rows=[{"local_id": "A%03d" % i, "title": "Title %d" % i,
+                   "abstract": "a", "keywords": "k"} for i in range(3)],
+            skipped=[])
+        report = mod.CriteriaLoadReport(criteria=[crit], warnings=[])
+        run = mod.run_el_screen if stage == "EL" else mod.run_il_screen
+        _f, _s, _c, _i, evals, _ca, _cx, _r = run(
+            parse, report, model="gemma3", trunc_chars=1500, batch_size=4,
+            use_cache=False, cache_in={}, cancel_event=threading.Event())
+        assert evals, "the no-criteria path produced no per-record lists"
+        for produced in evals:
+            assert set(produced) == set(st.CRITERION_ROW_LISTS)
+
+    def test_the_engine_refuses_to_emit_a_vocabulary_it_did_not_declare(self):
+        """The guarantee is at the producing site, not only here.
+
+        ``criterion_row_lists`` raises when the keys and
+        ``CRITERION_ROW_LISTS`` disagree, so a sixth list added on one side
+        stops the run at the first record instead of travelling to a View
+        that silently shows nothing. A test can be deleted; this cannot be
+        stepped around.
+        """
+        ok = st.criterion_row_lists(
+            **{k: [] for k in st.CRITERION_ROW_LISTS})
+        assert list(ok) == list(st.CRITERION_ROW_LISTS)
+
+        with pytest.raises(ValueError) as short:
+            st.criterion_row_lists(
+                **{k: [] for k in st.CRITERION_ROW_LISTS[:-1]})
+        assert st.CRITERION_ROW_LISTS[-1] in str(short.value)
+
+        with pytest.raises(ValueError) as sixth:
+            st.criterion_row_lists(
+                gate_rejected=[], **{k: [] for k in st.CRITERION_ROW_LISTS})
+        assert "gate_rejected" in str(sixth.value)
+
+    def test_this_file_holds_no_second_copy_of_the_vocabulary(self):
+        """Read as structure, not as text: the comment above quotes the
+        deleted literal in order to explain it, so a substring search would
+        match the explanation rather than a violation.
+
+        Flags any tuple/list/set literal holding two or more of the
+        vocabulary's names. A single name as a dict subscript is fine and
+        is used throughout; a *collection* of them is a second spelling.
+        """
+        import ast
+        from pathlib import Path
+        from conftest import PROJECT_ROOT
+
+        vocab = set(st.CRITERION_ROW_LISTS)
+        src = Path(PROJECT_ROOT, "tests", "test_flag_only.py").read_text(
+            encoding="utf-8")
+        offenders = []
+        for node in ast.walk(ast.parse(src)):
+            if not isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+                continue
+            names = [e.value for e in node.elts
+                     if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+            if len(vocab.intersection(names)) >= 2:
+                offenders.append("line %d: %s" % (node.lineno, sorted(names)))
+        assert offenders == [], (
+            "this file spells the criterion vocabulary out again:\n  "
+            + "\n  ".join(offenders)
+            + "\n\nRead it off the engine instead — that is F-161."
+        )
 
     @pytest.mark.parametrize("getter,stage,ctype,decision", EXCLUDING)
     def test_a_suppressed_record_is_reachable_from_its_criterion(

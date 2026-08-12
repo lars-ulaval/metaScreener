@@ -333,6 +333,40 @@ def criterion_touched(ev: Mapping[str, Any], cid: str) -> bool:
     return False
 
 
+def criterion_row_lists(**lists: Any) -> dict:
+    """Assemble one record's per-criterion lists, keyed by the vocabulary.
+
+    F-161. Naming the set in one module was not enough: the engine went on
+    spelling it out in four dict literals and never imported this one, so
+    :data:`CRITERION_ROW_LISTS` and the engine could disagree with nothing
+    to notice. The guard that was supposed to prevent that compared two
+    copies of the same literal in a test file.
+
+    So the check moved to the **producing site**, and it raises. Every
+    engine path that builds a row's lists comes through here, and a sixth
+    list added on either side stops the run at the first record with a
+    message naming the discrepancy — rather than travelling silently to a
+    View that filters on five names and quietly shows nothing.
+
+    Raising is the right severity, and it is not a risk to a real run: the
+    keys are written by this repository's own source, never by data or by
+    a model, so the only thing that can trip it is an edit. That makes it
+    a build-time error wearing a run-time coat, which is what F-69's four
+    repetitions of this shape needed and never had.
+    """
+    missing = [k for k in CRITERION_ROW_LISTS if k not in lists]
+    extra = sorted(k for k in lists if k not in CRITERION_ROW_LISTS)
+    if missing or extra:
+        raise ValueError(
+            "criterion row lists disagree with CRITERION_ROW_LISTS — "
+            "missing %s, unexpected %s. The vocabulary grew on one side "
+            "only; add the member to stage_state.CRITERION_ROW_LISTS and "
+            "to every site that reads it (F-161, F-156, F-145)."
+            % (missing, extra)
+        )
+    return {k: lists[k] for k in CRITERION_ROW_LISTS}
+
+
 def exclusion_allowed(*, provider: str, setting: Any = None) -> bool:
     """Whether an LLM verdict from this provider may REMOVE a record.
 

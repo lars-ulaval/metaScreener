@@ -78,6 +78,7 @@ from plugins._common.bundle import (
     _verify_sha256_map,
 )
 from plugins._common.parser import _decode_bytes as _decode_bytes_common
+from plugins._common.stage_state import criterion_row_lists
 
 from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
@@ -551,7 +552,9 @@ def run_il_screen(
             fr["il_evidence_json"] = "{}"
             full_rows.append(fr)
             survivors.append(dict(r))
-            row_eval_lists.append({"failed": [], "missing": [], "met": [], "uncertain": [], "suppressed": []})
+            row_eval_lists.append(criterion_row_lists(
+                failed=[], missing=[], met=[], uncertain=[],
+                suppressed=[]))
         counts[NOT_SCREENED] = len(survivors)
         if progress_cb:
             progress_cb(1.0)
@@ -884,8 +887,9 @@ def run_il_screen(
             outcome, failed, missing, uncertain, suppressed)
 
         full_rows.append(fr)
-        row_eval_lists.append({"failed": failed, "missing": missing, "met": met,
-                               "uncertain": uncertain, "suppressed": suppressed})
+        row_eval_lists.append(criterion_row_lists(
+            failed=failed, missing=missing, met=met,
+            uncertain=uncertain, suppressed=suppressed))
 
         if outcome != "OUT":
             survivors.append(dict(r))

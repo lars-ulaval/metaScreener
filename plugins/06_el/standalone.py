@@ -37,6 +37,7 @@ from plugins._common.bundle import (
     _write_llm_stage_bundle,
 )
 
+from plugins._common.stage_state import criterion_touched
 from plugins._common.input_errors import (
     from_dict_skipped,
     merge_input_errors_csv,
@@ -534,7 +535,17 @@ class StandaloneELPlugin(ttk.Frame):
         txt.configure(state="disabled")
 
     def on_criterion_doubleclick(self, _evt=None):
-        # Filter table to rows touched by selected criterion (failed/missing/uncertain/met)
+        # Filter table to rows touched by the selected criterion.
+        #
+        # F-161. This was four exported *_ids columns spelled out
+        # below -- a second, independent copy of the vocabulary that
+        # F-156's repair of the four ui.py filters never reached, so
+        # the standalone shell went on showing 0 of 4 suppressed
+        # records after the production Views were fixed. The exported
+        # columns CANNOT answer this question: F-145 added no
+        # *_suppressed_ids column, and adding one would be a third
+        # spelling. row_eval_lists carries the engine's own lists and
+        # is already stored by the run's completion handler above.
         if not self.full_rows or not self.bundle:
             return
         sel = self.lst_crit.curselection()
@@ -545,14 +556,10 @@ class StandaloneELPlugin(ttk.Frame):
         cid = line.split()[0].strip()
 
         touched: List[Dict[str, Any]] = []
-        for r in self.full_rows:
-            parts = ",".join([
-                _safe_str(r.get("el_failed_ids","")),
-                _safe_str(r.get("el_missing_ids","")),
-                _safe_str(r.get("el_uncertain_ids","")),
-                _safe_str(r.get("el_met_ids","")),
-            ])
-            if cid in {p.strip() for p in parts.split(",") if p.strip()}:
+        for i, r in enumerate(self.full_rows):
+            ev = (self.row_eval_lists[i]
+                  if i < len(self.row_eval_lists) else {})
+            if criterion_touched(ev, cid):
                 touched.append(r)
 
         if touched:
