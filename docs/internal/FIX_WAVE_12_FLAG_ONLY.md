@@ -446,12 +446,99 @@ flag-only, because that changes what the run *means* rather than what it costs.
 
 ---
 
-## 7. Verification
+## 7. The review pass, and what it cost
+
+Run by **executing**, as instructed. Seven lenses, each required to paste a
+command it actually ran and the output it actually saw, and to discard anything
+it could not make fail. The two mandatory lenses both paid.
+
+**Lens 1 — produce an exclusion under flag-only, by any route.** It could not.
+Every attack is recorded in the transcript: the full (ctype × decision ×
+confidence × threshold) cross product including confidences above 1.0 and
+thresholds of 0, cached excluding verdicts served through `use_cache=True`, a
+criterion typed neither include nor exclude, duplicate and empty `local_id`s,
+the zero-criteria path, the standalone shells, and every downstream consumer
+that might re-derive a removal from `el_failed_ids`. `tests/test_flag_only.py`
+pins the cross product so the answer stays answered.
+
+**Lens 2 — reach the paid vendor with a keyless provider. It succeeded**, and
+that is **F-152**: `api.openai.com．` — a fullwidth full stop — read as *not*
+the vendor, so a keyless provider passed the gate, while IDNA folds U+FF0E,
+U+3002 and U+FF61 to `.` and the request resolves to the vendor's real server.
+INV-1 broken a fifth time, by one character, in the guard written to close the
+fourth. The same function raised `ValueError` on `http://[::1` from inside a Tk
+callback rather than answering.
+
+That is the fifth instance of one defect class, and the **third** found by
+executing rather than reading. The lesson is not about hostnames. It is that
+this particular invariant has never once been broken in a way a reader would
+notice, and every closure of it has been a closure of a *spelling* rather than
+of the class — including this one, which is why the new test asserts the IDNA
+folding itself rather than trusting a list of code points to stay complete.
+
+**The review also found five defects this wave had just introduced** (F-153),
+and one missing deliverable. Three are worth restating because they are the same
+shape: a new value or a new caller reaching a surface written before it existed.
+
+* `run_outcome`'s new branch cancelled F-93's export acknowledgement whenever
+  *any* record was suppressed, so one suppression among nineteen unresolved
+  records bought silence for the whole run — and did so most readily for the
+  weak local models flag-only exists for. Repaired in `separated`, on the
+  principle that **the two policies must judge run quality identically**.
+* `_run_summary_counts_text` never learned `EXCLUSION_SUPPRESSED`, so the line a
+  user reads as the result printed `OUT: 0 | PASS_CLEAN: 0 | PASS_FLAGGED: 19`
+  for a corpus of 20. F-34's requirement 2, reproduced for the value F-145 added —
+  the exact error this wave spent three paragraphs planning to avoid, committed
+  one function away from where it was being avoided.
+* The Re-check button reached `on_provider_changed`, which ends in
+  `_set_controls_running(False)`. Harmless for its previous callers, which only
+  fire at launch; reachable **during a run**, where it disabled Cancel and
+  re-armed Export over rows the worker was still writing.
+
+**The missing deliverable.** The brief asked for the setting to be
+user-changeable *with the measurement stated where the user changes it*. It
+shipped with no writer at all: the README called it user-changeable and the
+engine's own log line told the user to change it "in the provider settings",
+while no widget anywhere could write it — F-91's shape, the defect where the
+documentation described an endpoint no control bound. `ProviderDialog` now
+carries the checkbox and the measurement beside it, tri-state preserved, driven
+end to end by five smoke tests.
+
+### What the review could not finish
+
+**Twenty of the thirty-two verification agents died on a session limit**, so of
+25 candidate findings only a handful were adversarially verified. Everything
+acted on above was verified — either by an independent refutation agent
+(the `run_outcome` finding, which came back confirmed with a corrected severity
+and two corrections to the reporter's reasoning) or by me re-running the repro
+in the real repository (F-152's two claims, the counts line, the mid-run control
+reset).
+
+The rest are **reported but unverified**, and are recorded here rather than
+silently dropped, because an unverified finding is not a refuted one:
+
+| Claim | Area |
+|---|---|
+| `RunPlan.requests` ignores adaptive batch splitting, so the estimate is low on the runs that split | `run_estimate.py` |
+| `compute_mode`'s timeout does not bound total blocking time on a slow body; it runs on the GUI thread | `provider_detect.py`, `_confirm_run` |
+| The observed rate is keyed by (endpoint, model) but not batch size, so a rate measured at one size mispredicts another | `run_estimate.py` |
+| The criterion drill-down filters on outcome, and may hide exactly the suppressed records | `06_el/ui.py`, `07_il/ui.py` |
+| `_fetch_models` forwards the API key across a cross-host HTTP redirect *(pre-existing, not this wave)* | `provider_detect.py` |
+| The AST-based SDK ban can be fooled by an alias import or `getattr` | `test_harmoniser_llm_call.py` |
+| `test_worker_thread_tk_safety.py` scans `plugins/` only, so it cannot see `metascreener/` | test coverage |
+| `RecheckButton._post` catches `TclError` but not the `RuntimeError` a shutdown mid-flight can raise | `widgets.py` |
+
+None is a correctness defect in screening output on the evidence available. Each
+needs the same treatment the confirmed ones got — a repro, executed — before it
+is either fixed or refuted, and none should be actioned on the strength of an
+unverified report.
+
+## 8. Verification
 
 | Check | Result |
 |---|---|
 | Suite before | 1330 passed, 7 skipped |
-| Suite after | **1502 passed, 7 skipped** |
+| Suite after | **1534 passed, 7 skipped** |
 | Goldens, both ways | **9/9 SHA-256 identical**; `git diff main..HEAD -- tests/golden/` empty |
 | `rekey_cache_goldens.py --verify` | clean — EL 170/170, IL 84/84, values unchanged since `c5e2100`, key sets disjoint from the pre-F-89 function |
 | `tools/check_encoding.py` | 200 paths, no BOM, no mojibake |
@@ -464,7 +551,7 @@ formality. The application level resolves `provider = ""`, which `key_required`
 calls keyed, so exclusion stays permitted on every replay and each of the nine
 fixtures keeps its meaning.
 
-## 8. Commits
+## 9. Commits
 
 | Hash | Subject |
 |---|---|
@@ -474,13 +561,19 @@ fixtures keeps its meaning.
 | `be711d0` | `feat(F-149)`: let the user ask the provider again, without relaunching |
 | `a6ba567` | `docs(F-148)`: correct the call-site inventory that contradicted its own prose |
 | `be2fadc` | `feat(F-150, F-151)`: report the compute mode, and say what a run costs before starting it |
+| `bbf423a` | `fix(F-152, F-153)`: close INV-1's fifth route, and repair what this wave's review found |
 
-## 9. Register
+## 10. Register
 
-Seven rows opened and closed: **F-145** (Critical, correctness), **F-146** (High,
+Nine rows opened and closed: **F-145** (Critical, correctness), **F-146** (High,
 correctness), **F-147** (Medium, correctness), **F-148** (Medium,
 process/documentation), **F-149** (Medium, correctness), **F-150** (Medium,
-reporting), **F-151** (Medium, correctness/reporting).
+reporting), **F-151** (Medium, correctness/reporting), **F-152** (Critical,
+correctness/cost), **F-153** (High, correctness).
+
+Two of the nine — F-152 and F-153 — exist because the review executed instead of
+reading, and F-153 is entirely this wave's own damage. That ratio is the argument
+for the instruction that produced it.
 
 Out of scope, untouched, as instructed: the golden re-capture (cancelled), F-135,
 and every documentation change except the two claims a code fix falsified —
