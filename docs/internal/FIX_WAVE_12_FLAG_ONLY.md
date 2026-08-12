@@ -1043,11 +1043,16 @@ The last two are this close-out. `6e0bf7b` is §B7, `118873e` is §B8.
 
 **A convention note, because it will confuse someone otherwise.** Rows
 F-152 through F-163 say **"Fixed in `PENDING`"**. That is the wave's own
-convention — the hash is written back when the wave merges, as `c5e2100` and
-`b01ec25` were for wave 9 — and it is deliberately *not* resolved here, so
-that all twelve rows resolve together rather than three of them carrying
-hashes and nine carrying a placeholder. Whoever merges this branch resolves
-them.
+convention — the hash is written back before the wave merges, as `c5e2100`
+and `b01ec25` were for wave 9 — and it is deliberately *not* resolved in
+session B, so that the rows resolve together rather than a few carrying
+hashes and the rest carrying a placeholder.
+
+*Corrected in session C:* **this note undercounted.** It said twelve rows,
+having looked only at the rows session B itself touched; **sixteen** carried
+a placeholder, because F-145 through F-151 — session A's — carried them too,
+and nineteen placeholders in all once F-156 and F-157 gained a second each.
+All nineteen are resolved in §C3.
 
 ## B11. Register
 
@@ -1100,3 +1105,286 @@ Everything session B was asked for is done and verified:
 unactioned**, as §B4 says. Four new rows are open. Nothing here is merged,
 tagged or pushed; the branch is `docs/wave-12-measurement` and it is ready
 for the maintainer to take.
+
+
+---
+
+# Session C — the two fixes that were not fixes
+
+**Branch `docs/wave-12-measurement`**, continuing from session B. Scope, set
+by the maintainer and kept to: **F-161 and F-162 only**, plus the pending-hash
+resolution. The reason for the scope is the reason the wave did not merge —
+*two of the four open rows are this wave's own fixes not working, and merging
+would ship a register that calls them closed.*
+
+## C0. The closure state was corrected first
+
+Before any code was written, `8cc10d4` withdrew the `(done)` markers on
+**F-156** and **F-157** under the partial-closure convention F-93 established:
+empty Effort marker, and the fix cell says what is genuinely done and what was
+claimed and was false. Neither row was deleted or rewritten — the false claim
+stays visible with the correction beside it.
+
+That commit moves the totals the wrong way on purpose: **closed 81 → 79, open
+79 → 81.** A register that has to get worse before it gets better is a
+register that is telling the truth in between.
+
+## C1. F-161 — the vocabulary, and the fixture that certified nothing
+
+Three parts. The middle one is the point.
+
+**(a) The two standalone drill-downs** now call `criterion_touched` over
+`row_eval_lists` — which they had been storing since the run completed and
+never reading. Their old predicate filtered the *exported* `*_ids` columns,
+and F-145 added no `*_suppressed_ids` column, so those columns could not
+answer the question at all. Adding one would have been a **third** spelling of
+the same set.
+
+**(b) The guarantee moved from a test to the producing site.**
+`stage_state::criterion_row_lists` assembles every row's lists and **raises**
+when the keys and `CRITERION_ROW_LISTS` disagree. All four engine sites come
+through it, and the engine imports the vocabulary instead of spelling it out
+in dict literals. A test can be deleted; this cannot be stepped around. The
+keys are written by this repository's own source and never by data or by a
+model, so the only thing that can trip it is an edit — **a build-time error
+wearing a run-time coat**, which is what F-69's four repetitions of this shape
+needed and never had.
+
+**(c) The guard reads the engine.** `test_the_vocabulary_is_the_engine_s` runs
+a real screen and asserts the keys the engine *emitted*, over **both**
+production paths — the normal one and the no-enabled-criteria early return,
+which is a second site nobody was checking. An AST check forbids this file
+holding a second literal copy of the set: the idiom `test_model_discovery.py`
+established in wave 11 for the same failure.
+
+### The third instance, and the rule
+
+This is the **third** time this project has shipped a fixture certifying a
+state the system cannot produce.
+
+| | |
+|---|---|
+| Wave 11 session B | `probe=SimpleNamespace(state="ready")` for `provider="openai"` — a probe the real detector cannot emit. **926 tests green while the OpenAI provider could not run at all.** |
+| Wave 11 session C | a combobox tested against a fabricated model list — caught before it shipped, and answered with `test_model_discovery.py`'s `PRODUCED` table |
+| Wave 12 session B | `LISTS = ("failed", …)` compared against `CRITERION_ROW_LISTS` — two copies of one literal, neither of them the engine |
+
+The rule from the first is now written into the test file itself: **a fixture
+that constructs a state by hand must be checkable against the producer that
+would create it in production.** The vocabulary is read off a real run.
+
+### Proven by mutation
+
+A test added beside a fix proves nothing until the fix is removed and the test
+fails. Splitting a sixth list `gate_rejected` out of `uncertain`, engine-side
+only — the faithful analogue of what F-145 did:
+
+| | result |
+|---|---|
+| before session C | **117 passed** — the defect, entirely invisible |
+| through the assembler | **43 failed** |
+| bypassing it with a raw dict literal | **2 failed** |
+
+**(d) The call sites are executed at last.** Nothing had ever run
+`_refresh_reports_view` or `on_criterion_doubleclick` — traced with
+`sys.settrace`, and re-inlining the old predicate in *both* Views left the
+suite green. They cannot be driven in-process, because `conftest` makes
+`ttk.Frame` a `MagicMock` and the classes are then not classes; so
+`test_view_smoke.py` drives all four under **real Tk** against **real engine
+output**, via the new `tests/_engine_probe.py`. Reverting the standalone
+predicate turns them red.
+
+## C2. F-162 — bound the call, not a phase of it
+
+`_read_bounded` ran **inside** the `with urlopen(...)` block, and `urlopen`
+returns only after the status line and every header have been read. So the
+header phase was bounded by nothing:
+
+| padding bytes, `timeout=1.0` | elapsed |
+|---|---|
+| 8 | 4.28 s |
+| 40 | 12.29 s |
+| 120 | 32.33 s |
+
+Linear in header size, **independent of the timeout**, and every one of them
+returning a confident answer rather than an error. F-157's row called this
+code path *"the most visible failure this wave could have shipped"* — it was
+describing the defect its own fix left in place. The finding it closed was a
+startup hang, and the application still hung at startup.
+
+`_fetch_within_budget` now runs the whole exchange — connect, status line,
+headers, body — on a daemon worker, and the caller waits exactly the budget.
+**The GUI thread is blocked by the budget rather than by the server**, which
+is the property `_confirm_run` was documented as having and did not have. The
+orphaned worker is recorded rather than hidden: its socket keeps its own
+timeout so it cannot outlive a silent server, and it is a daemon so it cannot
+delay exit. Cancelling it properly would mean owning the socket, which is a
+larger change than this row is worth.
+
+Also from the same row: `_read_bounded` compares what arrived against a
+declared `Content-Length` and returns empty when short. That restores the
+guarantee `read()` gave and `read1` silently dropped — **without** going back
+to `read()`, whose reason for being replaced still stands.
+
+### Proven through a real mainloop, because that is what was measured
+
+A raw-socket server dribbles 60 header lines at 0.30 s — **18 s of work**.
+`compute_mode` is called from inside a **real Tk mainloop** with a 100 ms
+tick, and the test asserts both the elapsed time and that no gap between ticks
+approached it. Reverting the fix turns it red, and **that run takes 18.99 s
+against a 2.86 s baseline** — the freeze is visible in the wall clock of the
+test suite itself.
+
+It lives in the real-Tk file deliberately. `tests/test_compute_mode.py` uses
+`BaseHTTPRequestHandler.end_headers()`, which writes every header in one go —
+**which is exactly why the wave's own regression test could not see this.**
+
+## C3. The pending hashes
+
+All resolved. Session B's §B10 said twelve rows carried a `PENDING`; it had
+looked only at the rows session B itself touched. There were **sixteen rows
+and nineteen placeholders** — F-145 through F-151 carried session A's, and
+F-156 and F-157 gained a second each when session C withdrew and then restored
+their closures.
+
+| Rows | Commit |
+|---|---|
+| F-145 | `ef5b0e3` |
+| F-146 | `e460a64` |
+| F-147 | `0868379` |
+| F-148 | `a6ba567` |
+| F-149 | `be711d0` |
+| F-150, F-151 | `be2fadc` |
+| F-152, F-153 | `bbf423a` |
+| F-156, F-157 (partial) | `f879670` |
+| F-158 | `0d7de0a` |
+| F-159 | `6e0bf7b` |
+| F-160 (documentation) | `118873e` |
+| F-156, F-157 (closed), F-161, F-162 | `2886d43` |
+
+Every hash was checked to be an ancestor of `HEAD` before it was written, and
+the register now contains no `PENDING` of any kind.
+
+## C4. Two conventions
+
+### The retraction sweep
+
+`d5ad13e` corrected the claim that all 83 local exclusions were unjustified.
+It edited **two** files. The claim was still standing in **nine** others,
+including F-145's own register row, this document's §1 table — which then
+contradicted §B1 in the same file — and **a shipped dialog label telling every
+user about to change a safety setting that all 83 were unjustified, when four
+had been audited.** A smoke test asserted the word was present.
+
+> **Convention.** A retraction is not complete when the sentence is fixed. It
+> is complete when the *claim* has been swept for across the tree — code
+> comments, docstrings, GUI strings, tests and the register included — and
+> every instance is either corrected or deliberately kept as a record of the
+> error. **Grep for the claim, not for the sentence**, and grep before
+> claiming the retraction is done.
+
+This is the same shape as §B6.2's rule for enumerated sets, which tells a
+maintainer to grep every spelling of a set when adding a member. The two are
+one rule: **in this codebase, anything asserted in more than one place grows
+and shrinks on one side only unless someone greps.** A retraction is just a
+set that shrank.
+
+The cheapest guard is the one already used here: a test asserting the retracted
+word is **absent** from the shipped label (`test_view_smoke.py`). That covers
+one site. Nothing covers the other eight.
+
+### The register snapshot
+
+**Nothing prevents it. Saying so plainly, because the alternative is a
+convention nobody executes.**
+
+The Totals snapshot read `141 / 69 / 72` from wave 10 close until wave 12
+session B — three waves, nineteen rows added, no reader noticing. It is F-131's
+shape in the one document the project plans from, and F-131's own cell has said
+since wave 8 that *nothing checks them*. That is still true. Session C did not
+add a check, because the maintainer's scope for this session is F-161, F-162 and
+the hashes, and quietly widening it is the failure mode the partial-closure
+convention exists to prevent.
+
+What would prevent it is small and known: the derivation is already written out
+in §"How this register is counted", it takes a few seconds to run, and a test
+that regenerates the table from the rows and compares it with the snapshot would
+be the same *derived, not enumerated* idiom as `test_study_input_freeze.py`'s
+coverage check and `test_wave12_measurement_freeze.py`'s fidelity check. **It is
+F-131's open half and it should be a named task in the next wave, not a habit.**
+A convention that says *remember to regenerate the totals* is worth nothing —
+three waves of evidence say so.
+
+## C5. Verification
+
+| Check | Result |
+|---|---|
+| Suite before session C | 1588 passed, 7 skipped |
+| **Suite after** | **1600 passed, 7 skipped** |
+| — the difference | +12: 7 in `test_flag_only.py`, 5 in `test_view_smoke.py` |
+| GUI smoke, run explicitly | 23 → **28 passed** — the four drill-down sites and the mainloop bound |
+| F-161 mutation | sixth list engine-side: **117 passed → 43 failed** (via the assembler), **→ 2 failed** (bypassing it) |
+| F-162 mutation | header bound reverted: **passes → fails, 18.99 s against a 2.86 s baseline** |
+| Goldens, both ways | **9/9 SHA-256 identical to `main`**; `git diff main..HEAD -- tests/golden/` and the reverse both empty |
+| `rekey_cache_goldens.py --verify` | clean — EL 170/170, IL 84/84, values unchanged since `c5e2100` |
+| `tools/check_encoding.py` | 218 paths, no BOM, no mojibake |
+| `tools/audit_imports.py plugins` | clean, 42 files |
+| `tools/audit_decorators.py plugins metascreener` | clean, 58 files |
+| `PENDING` placeholders remaining | **0** |
+
+The goldens not moving is the load-bearing check again, and it is doing real
+work this time rather than being a formality: session C changed the **engine**,
+routing all four `row_eval_lists` sites through a new assembler that raises.
+Nine byte-identical fixtures is the evidence that a refactor of the engine's
+output path changed nothing about its output.
+
+## C6. Commits
+
+| Hash | Subject |
+|---|---|
+| `8cc10d4` | `docs`: withdraw two closures the register could not support |
+| `2886d43` | `fix(F-161, F-162)`: both closures this wave claimed are now in place |
+
+## C7. Register
+
+**Four rows closed, none opened.**
+
+| Row | Severity | State |
+|---|---|---|
+| **F-156** | High | **closed** — six drill-downs now, not four; the guarantee moved to the producing site |
+| **F-157** | Medium | **closed** — the whole call is bounded, proven through a real mainloop |
+| **F-161** | Medium | **closed** |
+| **F-162** | High | **closed** |
+
+**Totals: 160 rows, 83 closed, 77 open.** The path through this wave was
+`81 closed → 79 → 83`: session B's count, session C's withdrawal, session C's
+close.
+
+**Two rows stay open for a later wave, named here so they are not lost:**
+
+- **F-160** (High, security/correctness) — a vendor key in the environment is
+  handed to the SDK whatever endpoint a stored keyless provider resolves to.
+  INV-1's mirror image. The documentation is corrected and tells the user to
+  unset the variable; the code fix is not attempted.
+- **F-163** (Medium, correctness/tooling) — `tools/measure_prompt_size.py`
+  selects criteria on stage alone where the engine also requires `enabled` and
+  `operator == "llm"`. EL is unaffected, which is why F-154's `calls_made: 34`
+  cross-check passed; IL reports double.
+
+Neither is wave 12's own damage, which is why session C's scope excluded them.
+**F-131's open half** — nothing checks the register totals — is named in §C4
+and is the third thing a later wave should take.
+
+## C8. Session C is complete
+
+- **F-161** fixed in all four parts and proven by mutation.
+- **F-162** fixed and proven through a real Tk mainloop, the way it was
+  measured.
+- **F-156 and F-157** re-closed, after their closure state was corrected first
+  so the register never asserted a fix that was not in place.
+- **All nineteen `PENDING` placeholders** resolved to verified ancestor
+  commits.
+- **Both conventions recorded** — the retraction sweep as a rule, and the
+  register snapshot as an admission that nothing prevents it.
+
+Everything the wave claims is now either in place or recorded as open. Nothing
+is merged, tagged or pushed; the branch is `docs/wave-12-measurement`.
