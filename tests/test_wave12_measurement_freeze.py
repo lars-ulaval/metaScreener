@@ -592,3 +592,135 @@ class TestTheFrozenBytesSurviveCheckout:
             "quoted abstracts; without a rule here a fresh clone rewrites them "
             "and every digest in the directory breaks at once."
         )
+
+
+# ---------------------------------------------------------------------------
+# .gitattributes, parsed and matched rather than substring-searched
+# ---------------------------------------------------------------------------
+
+def _gitattributes_rules():
+    """``[(pattern, [attr, ...])]`` in file order, comments and blanks
+    dropped."""
+    rules = []
+    text = (PROJECT_ROOT / ".gitattributes").read_text(encoding="utf-8")
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        pattern, _, attrs = line.partition(" ")
+        rules.append((pattern, attrs.split()))
+    return rules
+
+
+def _pattern_matches(pattern, rel):
+    """The pathspec subset this repository's ``.gitattributes`` uses.
+
+    ``**`` crosses ``/``, a single ``*`` does not, and a pattern containing
+    a ``/`` is anchored at the repository root. That third rule is the one
+    that matters here: it is why ``docs/data/*.csv`` leaves
+    ``docs/data/grids/partition_manifest.csv`` alone.
+    """
+    out, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    body = "".join(out)
+    if "/" not in pattern:
+        body = "(?:.*/)?" + body
+    return re.fullmatch(body, rel) is not None
+
+
+def _byte_pinning_attrs(rel):
+    """The attributes that stop ``* text=auto`` rewriting ``rel`` on
+    checkout. Last matching rule wins, as git resolves it."""
+    winning = []
+    for pattern, attrs in _gitattributes_rules():
+        if _pattern_matches(pattern, rel):
+            winning = attrs
+    return [a for a in winning if a == "binary" or a.startswith("eol=")]
+
+
+class TestTheProtectedSetsAreDeclaredInGitattributes:
+    """Every set of bytes something else pins must be pinned on checkout too.
+
+    Three modules already assert on ``.gitattributes`` —
+    ``test_golden_rekey.py``, ``test_study_input_freeze.py`` and this file's
+    ``TestTheFrozenBytesSurviveCheckout`` — and all three are the same two
+    lines: read the file, assert a hardcoded substring appears in it. That
+    is three copies of one pattern, and it is the shape F-99 is about: each
+    copy knows only its own directory, so a fourth protected set gets no
+    guard until someone remembers to type a fourth copy. Nobody did, twice
+    — ``docs/data/*.csv`` (wave 13a) and the corpus rule (wave 13a
+    continuation) both shipped unguarded.
+
+    So this is not a fourth copy. It **derives** the protected set from the
+    thing doing the pinning — the run manifests, and the published outputs
+    on disk — and asks what attribute actually resolves for each file,
+    matching patterns the way git does rather than searching for a
+    substring. A rule that is present but does not match, or is shadowed by
+    a later rule, passes the substring check and fails this one.
+    """
+
+    def test_every_hash_pinned_sample_is_pinned_on_checkout(self):
+        recorded = set()
+        for prefix in _RUN_PREFIXES:
+            recorded.update(_manifest(prefix).get("sha256", {}).values())
+
+        pinned = sorted(
+            p for p in SAMPLES.iterdir()
+            if p.is_file() and _sha256(p) in recorded
+        )
+        assert pinned, (
+            "No file under samples/ hashes to any digest recorded in the run "
+            "manifests. Either the corpus was checked out with different "
+            "bytes than the wave-12 runs consumed — which is exactly what "
+            "`samples/20260122_1654_aggregate.csv text eol=crlf` exists to "
+            "prevent — or the manifests moved. Both are serious; neither is "
+            "a reason to relax this test."
+        )
+
+        unprotected = [
+            p.name for p in pinned
+            if not _byte_pinning_attrs("samples/%s" % p.name)
+        ]
+        assert not unprotected, (
+            "These files under samples/ have their bytes pinned by a run "
+            "manifest but nothing in .gitattributes stops `* text=auto` "
+            "rewriting them on checkout: %s. On the platform whose native "
+            "line ending differs from the recorded bytes the digest breaks, "
+            "and the failure looks like tampering rather than like checkout "
+            "(F-99, cause 3 of the wave-10..12 red CI). Note the direction: "
+            "`binary` is the WRONG rule here, because it pins the index "
+            "bytes, which are LF, and the manifests recorded CRLF."
+            % unprotected
+        )
+
+    def test_every_published_eval_csv_is_pinned_on_checkout(self):
+        data_dir = PROJECT_ROOT / "docs" / "data"
+        csvs = sorted(
+            p for p in data_dir.iterdir() if p.is_file() and p.suffix == ".csv"
+        )
+        assert csvs, "No published CSV directly under docs/data/."
+
+        unprotected = [
+            p.name for p in csvs
+            if not _byte_pinning_attrs("docs/data/%s" % p.name)
+        ]
+        assert not unprotected, (
+            "These published artefacts are compared byte-for-byte against a "
+            "fresh run of tools/eval_ingest.py but are left to `* text=auto`: "
+            "%s. The ingestor writes LF on every platform, so a Windows "
+            "checkout rewrites them to CRLF and the comparison fails in any "
+            "fresh clone while passing in every working tree that predates "
+            "the rule (F-99, cause 2)." % unprotected
+        )
