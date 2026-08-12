@@ -22,3 +22,28 @@ docs/data/study_input/*.csv binary
 docs/data/wave12_local_runs/*.csv binary
 docs/data/wave12_local_runs/*.jsonl binary
 docs/data/wave12_local_runs/*.json binary
+
+# The *outputs* of the reproduction the rule above protects the inputs of
+# (F-99, cause 2 of the wave-10..12 red CI). These three are the published
+# artefacts that tests/test_study_input_freeze.py, class
+# TestTheFrozenInputReproducesThePublishedResults, compares byte-for-byte
+# against a fresh run of tools/eval_ingest.py.
+# The blobs are LF; the ingestor writes LF on every platform
+# (newline="" plus lineterminator="\n"); the only thing that produced CRLF
+# was this file's own `* text=auto` acting on checkout. So a fresh clone on
+# Windows failed three tests while every working tree that predated the rule
+# passed — which is why it survived two days and three wave wrap-ups.
+#
+# The glob is `*.csv` and must stay `*.csv`. `docs/data/*` would also catch
+# eval_summary_v1.txt, which is LF in the index, CRLF in this working tree,
+# and byte-identical on every platform *only* because its writer
+# (eval_ingest.py::write_summary_text) uses Path.write_text with no
+# newline= and is therefore platform-native — it matches whatever the
+# checkout produced. Pinning it to LF while its writer emits CRLF on Windows
+# would invert the failure rather than remove it. Measured both ways.
+#
+# Note that `*` does not cross `/` in a gitattributes pattern, so this rule
+# neither subsumes nor duplicates the two directory rules above, and
+# docs/data/grids/partition_manifest.csv stays `text: auto` deliberately:
+# it is an input to the reproduction, never one of its compared outputs.
+docs/data/*.csv binary
