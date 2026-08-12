@@ -842,3 +842,79 @@ class TestTheTargetableColumnsAreNotJustRetyped:
                 "%s is a corpus column but no inference branch can select it, "
                 "so naming it in a label is not evidence of a mis-pick." % col
             )
+
+
+class TestTheNarrowingsAreLoadBearing:
+    """Two mutations survived this wave's mutation battery. These close them.
+
+    A narrowing that no test can distinguish from its neighbour is a narrowing
+    that will be deleted by the next person who reads the code and sees it doing
+    nothing.
+    """
+
+    # A real `llm` row whose label names a TARGETABLE column. Hard to come by,
+    # because naming one usually trips a deterministic branch — "lang" is the
+    # exception: branch 1 needs "written in X", "language is X", "in X language"
+    # or a literal language name, and none of those is present.
+    LLM_ROW_NAMING_A_COLUMN = "EC-1 - Exclude records where lang is unreliable.\n"
+
+    def test_target_mismatch_really_does_skip_llm_rows(self):
+        """Mutation j: removing the `llm` skip survived the suite, because after
+        the _TARGETABLE narrowing none of the existing llm fixtures named a
+        targetable column any more."""
+        lint = _linter()
+        rows, cols = _harmonise_text(self.LLM_ROW_NAMING_A_COLUMN)
+        assert rows[0]["operator"] == "llm", rows[0]
+        assert rows[0]["target"] == "keywords", rows[0]
+        assert "lang" in rows[0]["label"].lower()
+
+        found = _by_check(lint.lint_criteria(rows, cols), "target-mismatch")
+        assert found == [], (
+            "An `llm` row's target cell is not honoured — the prompt packs "
+            "title/abstract/keywords regardless (F-175) — so reporting that it "
+            "'will never look at lang' states something the engine does not do."
+        )
+
+    def test_interval_operators_are_never_treated_as_discrete(self):
+        """Mutation c: adding gte/lte/between to the discrete set survived,
+        because every range label in the fixtures is ALSO caught by the
+        non-disjunctive regex ("2018 or later").
+
+        I could not construct a realistic criterion that separates the two
+        without introducing a different false positive, so the invariant is
+        asserted directly rather than through a fixture. An operator that
+        expresses an interval carries its own alternative and can never have a
+        dropped operand counted against it.
+        """
+        lint = _linter()
+        for operator in ("gte", "lte", "between"):
+            assert operator not in lint._DISCRETE_OPERATORS, (
+                "%s expresses an interval, so 'X or later' is the operator, "
+                "not a second operand." % operator
+            )
+        # and the ones that DO carry separate operands are all present
+        for operator in ("equals", "contains", "not_in", "in_list"):
+            assert operator in lint._DISCRETE_OPERATORS
+
+    def test_findings_are_ordered_most_urgent_first(self, rows, a_columns):
+        """Mutation m: deleting the sort survived the suite.
+
+        The ordering is a stated design property, not a nicety — the sentence a
+        user reads first must be the one that changes which papers are screened.
+        """
+        lint = _linter()
+        report = lint.lint_criteria(rows, a_columns)
+        ranks = [lint._SEVERITY_ORDER.index(f.severity) for f in report]
+        assert ranks == sorted(ranks), (
+            "Findings must be sorted MISTRANSLATED before INERT before NOTICE: %s"
+            % [(f.severity, f.criterion_id) for f in report]
+        )
+        assert report[0].severity == "MISTRANSLATED"
+        assert report[-1].severity == "INERT"
+
+    def test_ties_are_ordered_by_criterion_id(self, rows, a_columns):
+        """So the same table always reads the same way."""
+        lint = _linter()
+        report = lint.lint_criteria(rows, a_columns)
+        mistranslated = [f.criterion_id for f in report if f.severity == "MISTRANSLATED"]
+        assert mistranslated == sorted(mistranslated)
