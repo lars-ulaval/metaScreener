@@ -47,9 +47,15 @@ TAG_LINT = "lint"
 
 TAG_NONE = ""
 
-#: Precedence when a row qualifies for more than one. `error` first because it
-#: is the only one that stops anything.
-TAG_PRECEDENCE = (TAG_ERROR, TAG_WARN, TAG_LINT)
+#: Every tag this module can put on a row. `ui.py::HarmoniserView::_build_ui`
+#: binds a colour to each, and a renamed tag here would silently stop painting —
+#: `tests/test_harmoniser_validate_wiring.py` asserts the two agree.
+#:
+#: Precedence is NOT declared separately. An earlier version had a
+#: TAG_PRECEDENCE tuple that nothing read and one test restated, which is a
+#: third representation of a rule expressed twice already: the `if errs / elif
+#: warns` chain, and the `m.tag or ...` guard that refuses to overwrite it.
+ALL_TAGS = (TAG_ERROR, TAG_WARN, TAG_LINT)
 
 
 @dataclass(frozen=True)
@@ -119,10 +125,15 @@ def build_validation_report(
         )
 
     if not a_columns:
+        # `show_ok` is honoured here too. The export path asks for no dialog and
+        # must not be handed one to show; today `_validate` returns before this
+        # point, so nothing pops it, but the invariant the export path relies on
+        # was quietly untrue.
         return ValidationReport(
             ok=False, n_rows=len(rows), n_error_rows=0, n_warning_rows=0,
             marks=(),
-            dialog=Dialog("warning", "Missing A", "Load A vector first."),
+            dialog=(Dialog("warning", "Missing A", "Load A vector first.")
+                    if show_ok else None),
             log_line="",
         )
 
@@ -130,6 +141,15 @@ def build_validation_report(
     n_err = 0
     n_warn = 0
     for row in rows:
+        if not isinstance(row, Mapping):
+            # `linter.py` reports this as `unreadable-row`; this loop only has
+            # to not die on it. `_validate_row` does `row.get(...)`, so before
+            # this guard a malformed row raised AttributeError out of here,
+            # out of `_render_rows` and out of the GUI callback -- downstream
+            # of the very guard written to prevent exactly that.
+            marks.append(RowMark(criterion_id="", tag=TAG_NONE))
+            continue
+
         # ONE call per row. `_validate_row` is not a pure predicate — checks 6,
         # 7, 11 and 12 rewrite the row they inspect — so calling it a second
         # time to recount would apply those rewrites twice. The original had
@@ -154,7 +174,11 @@ def build_validation_report(
             tag = TAG_NONE
 
         marks.append(RowMark(
-            criterion_id=str(row.get("id", "") or ""),
+            # `.strip()`, the same normalisation `linter.py::_norm_row` applies.
+            # The tint join below is a set membership between these two ids; any
+            # id the two normalised differently produced a finding in the dialog
+            # and no tint on its row.
+            criterion_id=str(row.get("id", "") or "").strip(),
             tag=tag,
             errors=tuple(errs or ()),
             warnings=tuple(warns or ()),
@@ -249,7 +273,7 @@ def _plural(n: int, singular: str, plural: str) -> str:
     return singular if n == 1 else plural % n
 
 
-def _finding_lines(findings: Sequence[Finding]) -> List[str]:
+def _finding_lines(findings: Sequence[Finding], budget: int) -> List[str]:
     """Findings grouped by severity, most urgent first, capped at MAX_LISTED.
 
     Two things the first draft got wrong, both found by running the stress case
@@ -280,13 +304,18 @@ def _finding_lines(findings: Sequence[Finding]) -> List[str]:
         groups.append((None, unknown))
 
     lines: List[str] = []
-    budget = MAX_LISTED
     for index, (severity, group) in enumerate(groups):
         groups_after = len(groups) - index - 1
         allowance = max(1, budget - groups_after)
         take = min(len(group), allowance)
 
-        n_criteria = len({f.criterion_id for f in group})
+        # Distinct criterion ids -- but a BLANK id is not an identity. Every
+        # row with no id would otherwise collapse into one bucket and three
+        # different mistranslated rules would be announced as "1 criterion".
+        # Blank ids count one each: over-counting when one anonymous row trips
+        # two checks is far better than under-counting three rows as one.
+        named = {f.criterion_id for f in group if f.criterion_id}
+        n_criteria = len(named) + sum(1 for f in group if not f.criterion_id)
         singular, plural = _HEADINGS.get(severity, ("1 note:", "%d notes:"))
         lines.append("")
         lines.append(_plural(n_criteria, singular, plural))
@@ -306,7 +335,7 @@ def _finding_lines(findings: Sequence[Finding]) -> List[str]:
     return lines
 
 
-def _row_problem_lines(marks: Sequence[RowMark]) -> List[str]:
+def _row_problem_lines(marks: Sequence[RowMark], budget: List[int]) -> List[str]:
     """`_validate_row`'s own strings, by criterion id.
 
     F-173's other half: these were computed and discarded, so a user told
@@ -320,11 +349,13 @@ def _row_problem_lines(marks: Sequence[RowMark]) -> List[str]:
         lines.append(_plural(len(bad),
                              "1 row cannot be exported until it is fixed:",
                              "%d rows cannot be exported until they are fixed:"))
-        for mark in bad[:MAX_LISTED]:
+        take = max(0, min(len(bad), budget[0]))
+        budget[0] -= take
+        for mark in bad[:take]:
             lines.append("  • %s: %s" % (mark.criterion_id or "(no id)",
                                               "; ".join(mark.errors)))
-        if len(bad) > MAX_LISTED:
-            lines.append("  … and %d more." % (len(bad) - MAX_LISTED))
+        if len(bad) > take:
+            lines.append("  … and %d more." % (len(bad) - take))
 
     warned = [m for m in marks if m.warnings]
     if warned:
@@ -332,11 +363,13 @@ def _row_problem_lines(marks: Sequence[RowMark]) -> List[str]:
         lines.append(_plural(len(warned),
                              "1 row was adjusted or is worth a look:",
                              "%d rows were adjusted or are worth a look:"))
-        for mark in warned[:MAX_LISTED]:
+        take = max(0, min(len(warned), budget[0]))
+        budget[0] -= take
+        for mark in warned[:take]:
             lines.append("  • %s: %s" % (mark.criterion_id or "(no id)",
                                               "; ".join(mark.warnings)))
-        if len(warned) > MAX_LISTED:
-            lines.append("  … and %d more." % (len(warned) - MAX_LISTED))
+        if len(warned) > take:
+            lines.append("  … and %d more." % (len(warned) - take))
     return lines
 
 
@@ -359,8 +392,13 @@ def compose_dialog(
             n_error_rows,
             "1 row has an error and export is blocked until it is fixed.",
             "%d rows have errors and export is blocked until they are fixed."))
-    body.extend(_row_problem_lines(marks))
-    body.extend(_finding_lines(findings))
+    # ONE budget for the whole dialog, not one per section. There are up to
+    # five sections -- bad rows, warned rows, and three severity groups -- and
+    # a per-section cap let them each spend eight, which is how a "screenful"
+    # became forty lines.
+    budget = [MAX_LISTED]
+    body.extend(_row_problem_lines(marks, budget))
+    body.extend(_finding_lines(findings, max(1, budget[0])))
 
     if lint_error:
         body.append("")
@@ -373,6 +411,13 @@ def compose_dialog(
         return Dialog("info", "Validation OK", "All good.")
 
     if n_error_rows:
+        if findings:
+            # The findings are listed in this box too. Without this line the
+            # user reads a red "export is blocked" dialog with EC-4 inside it
+            # and has no way to tell which half is the gate and which is a note.
+            body.append("")
+            body.append("The criteria notes above do not block anything — only "
+                        "the row error does.")
         return Dialog("error", "Validation failed", "\n".join(body).strip("\n"))
 
     body.append("")

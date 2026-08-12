@@ -125,7 +125,8 @@ class TestTheShapeTheUiHandsTheLinter:
       - `ui.py::HarmoniserView._harmonise_no_llm` (free text, and the
         infer-missing-fields branch over already-loaded rows)
       - `parser.py::_normalize_structured_row` (a loaded CSV/XLSX table)
-      - `ui.py::HarmoniserView._begin_edit`'s inline `save` (a hand-edited cell)
+      - `ui.py::HarmoniserView._on_double_click`'s `save` closures (a hand-edited
+        cell) — there are three of them, one per editor widget
       - `llm_refine.py::_llm_refine` (the LLM refinement pass)
     """
 
@@ -194,8 +195,8 @@ class TestTheShapeTheUiHandsTheLinter:
                 )
 
     def test_a_hand_edited_what_cell_stays_a_list(self, rows):
-        """`_begin_edit`'s `save` writes `_parse_what_cell(...)`, so an edit
-        cannot turn `what` into a string behind the linter's back."""
+        """`_on_double_click`'s entry `save` writes `_parse_what_cell(...)`, so
+        an edit cannot turn `what` into a string behind the linter's back."""
         hp = _harm_parser()
         row = dict(rows[4])                      # EC-1, operator=equals
         row["what"] = hp._parse_what_cell(row["operator"], "French;Spanish")
@@ -652,9 +653,27 @@ class TestRowTints:
         assert report.findings, "the linter should still have something to say"
         assert report.marks[0].tag == vr.TAG_ERROR
 
-    def test_tag_precedence_is_declared_once(self):
+    def test_every_tag_this_module_emits_has_a_colour_bound_to_it(self):
+        """Load-bearing, where the old TAG_PRECEDENCE assertion was a tautology
+        restating a constant nothing read. A tag renamed on one side and not the
+        other stops painting silently."""
+        import ast
+
         vr = _report()
-        assert vr.TAG_PRECEDENCE == (vr.TAG_ERROR, vr.TAG_WARN, vr.TAG_LINT)
+        ui = _import_plugin("03_harmoniser", "ui")
+        source = Path(ui.__file__).read_text(encoding="utf-8")
+        bound = set()
+        for node in ast.walk(ast.parse(source)):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "tag_configure"
+                    and node.args
+                    and isinstance(node.args[0], ast.Constant)):
+                bound.add(node.args[0].value)
+        assert set(vr.ALL_TAGS) <= bound, (
+            "tags with no colour bound in ui.py: %s"
+            % sorted(set(vr.ALL_TAGS) - bound)
+        )
 
     def test_a_failed_linter_leaves_the_existing_tints_alone(self, rows, a_columns):
         vr = _report()
@@ -724,3 +743,280 @@ class TestALinterThatMisbehavesRatherThanThrows:
 
         with pytest.raises(KeyboardInterrupt):
             vr.build_validation_report(rows, a_columns, lint=interrupted)
+
+
+class TestWhatTheRefutationPassFound:
+    """Four behavioural defects, all reproduced before being accepted."""
+
+    def test_a_non_mapping_row_does_not_crash_the_validate_path(self, rows, a_columns):
+        """`linter.py::UNREADABLE_ROW` exists so a malformed row becomes a
+        finding rather than a crash — but `build_validation_report` looped
+        `_validate_row` over every row FIRST, and that does `row.get(...)`. The
+        guard was downstream of the thing it was guarding."""
+        vr = _report()
+        report = vr.build_validation_report(list(rows) + ["garbage"], a_columns)
+        assert report.n_rows == 9
+        assert report.ok is True
+        assert any(f.check == "unreadable-row" for f in report.findings)
+
+    def test_findings_in_the_error_dialog_say_they_are_not_what_blocks(
+            self, rows, a_columns):
+        """One malformed row put every criteria finding inside a red
+        "Validation failed / export is blocked" box with no statement anywhere
+        that the findings block nothing."""
+        vr = _report()
+        broken = [dict(r) for r in rows] + [{
+            "stage": "EH", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "x", "operator": "not_an_operator", "target": "lang",
+            "what": ["x"], "threshold": "", "enabled": True, "source_text": "",
+        }]
+        report = vr.build_validation_report(broken, a_columns)
+        assert report.dialog.kind == "error"
+        assert "EC-4" in report.dialog.body, "findings are listed here"
+        assert "EC-9" in report.dialog.body, "and so is the row that blocks"
+        assert "do not block" in report.dialog.body, (
+            "the dialog must say which half is the gate and which is a note"
+        )
+
+    def test_blank_criterion_ids_are_not_collapsed_into_one(self, rows, a_columns):
+        """Three different mistranslated rules, all with blank ids, were
+        announced as "1 criterion may not do what its wording says"."""
+        vr = _report()
+        blank = []
+        for src in rows:
+            if src["id"] in ("EC-1", "EC-4"):
+                copy = dict(src)
+                copy["id"] = ""
+                blank.append(copy)
+        report = vr.build_validation_report(blank, a_columns)
+        assert "1 criterion may not do what its wording says:" not in \
+            report.dialog.body, (
+            "two rules, both blank-id, must not be announced as one criterion"
+        )
+
+    def test_the_cap_is_on_the_dialog_not_on_each_section(self, rows, a_columns):
+        """MAX_LISTED was applied per section — bad rows, warned rows, and each
+        severity group — so five sections could each spend eight."""
+        vr = _report()
+        mixed = []
+        for i in range(3):
+            r = dict(rows[0]); r.update(id="ERR-%d" % i, operator="not_an_operator")
+            mixed.append(r)
+        for i in range(3):
+            r = dict(rows[1]); r.update(id="WARN-%d" % i, what=["English", "French"])
+            mixed.append(r)
+        ec4 = [r for r in rows if r["id"] == "EC-4"][0]
+        for i in range(9):
+            r = dict(ec4); r["id"] = "F-%d" % i
+            mixed.append(r)
+        body = vr.build_validation_report(mixed, a_columns).dialog.body
+        bullets = [l for l in body.splitlines() if l.strip().startswith("•")]
+        assert len(bullets) <= vr.MAX_LISTED, (
+            "%d bullets across the whole dialog" % len(bullets)
+        )
+        # Same wall threshold the findings-only volume test uses, applied to the
+        # worst case this module can produce: five sections, all populated.
+        assert body.count("\n") + 1 < 25, "the dialog has become a wall"
+
+
+class TestTheViewItself:
+    """The refutation pass's sharpest finding: NOTHING in the suite executed a
+    single line of `HarmoniserView`. Reverting `_validate` to its pre-session
+    body — linter never called, "All good. Warnings: 0" back — left all 1698
+    tests green, i.e. the wiring commit could be undone in its entirety and the
+    suite would not notice.
+
+    The View cannot be instantiated (conftest makes `tkinter` a MagicMock, so
+    `ttk.Frame.__init__` builds nothing real), but its METHODS are ordinary
+    functions. They are called here against a stub `self` carrying only the
+    attributes they touch, which is enough to execute the real bodies.
+    """
+
+    class _Tree:
+        def __init__(self):
+            self.rows = []
+
+        def insert(self, _parent, _where, values=(), tags=()):
+            self.rows.append((values, tags))
+
+        def delete(self, *_a, **_kw):
+            self.rows = []
+
+        def get_children(self, *_a, **_kw):
+            return []
+
+        def tag_configure(self, *_a, **_kw):
+            pass
+
+    class _Stub:
+        """Only what `_validate` and `_render_rows` actually touch."""
+
+        def __init__(self, rows, a_columns, tree):
+            from types import SimpleNamespace
+            self.state = SimpleNamespace(rows=rows, a_columns=a_columns)
+            self.tree = tree
+            self.logged = []
+
+        def _log(self, line):
+            self.logged.append(line)
+
+        def _clear_table(self):
+            self.tree.delete()
+
+        def _refresh_buttons(self):
+            pass
+
+        def _render_rows(self, with_validation=False, marks=None):
+            """`_validate` calls this. Bound to the REAL body by the caller, so
+            what is exercised is the shipped render, including whether
+            `_validate` hands its own marks down or lets a second evaluation
+            happen."""
+            return self._render_impl(
+                self, with_validation=with_validation, marks=marks)
+
+    @staticmethod
+    def _method(name):
+        """The real function body out of `ui.py`, bound to nothing.
+
+        `HarmoniserView` subclasses `ttk.Frame`, which conftest has replaced
+        with a `MagicMock`, so the class object is a mock and attribute access
+        on it returns mocks rather than the methods. The source is still real:
+        this lifts the named `def` out of the class by AST and compiles it
+        against `ui`'s own globals, so the code that runs is exactly the code
+        that ships.
+        """
+        import ast
+        import textwrap
+
+        ui = _import_plugin("03_harmoniser", "ui")
+        source = Path(ui.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == "HarmoniserView":
+                for item in node.body:
+                    if isinstance(item, ast.FunctionDef) and item.name == name:
+                        module = ast.Module(body=[item], type_ignores=[])
+                        ast.fix_missing_locations(module)
+                        namespace = dict(ui.__dict__)
+                        exec(compile(module, ui.__file__, "exec"), namespace)
+                        return namespace[name]
+        raise AssertionError("HarmoniserView.%s not found in ui.py" % name)
+
+    def _run_validate(self, rows, a_columns, monkeypatch):
+        ui = _import_plugin("03_harmoniser", "ui")
+        shown = []
+        for kind in ("showinfo", "showerror", "showwarning"):
+            monkeypatch.setattr(
+                ui.messagebox, kind,
+                lambda title, body, _k=kind: shown.append((_k, title, body)),
+                raising=False,
+            )
+        monkeypatch.setattr(ui, "_SHOW", {
+            "info": lambda t, b: shown.append(("showinfo", t, b)),
+            "error": lambda t, b: shown.append(("showerror", t, b)),
+            "warning": lambda t, b: shown.append(("showwarning", t, b)),
+        })
+        stub = self._Stub(rows, a_columns, self._Tree())
+        stub._render_impl = self._method("_render_rows")
+        ok = self._method("_validate")(stub)
+        return ok, shown, stub
+
+    def test_the_validate_button_really_calls_the_linter(
+            self, rows, a_columns, monkeypatch):
+        """Reverting `_validate` to its pre-session body must fail HERE."""
+        ok, shown, stub = self._run_validate(
+            [dict(r) for r in rows], a_columns, monkeypatch)
+        assert ok is True
+        assert len(shown) == 1
+        kind, title, body = shown[0]
+        assert kind == "showinfo"
+        assert title == "Criteria checked"
+        for crit_id in ("EC-1", "EC-4", "IC-5"):
+            assert crit_id in body
+        assert "All good" not in body
+
+    def test_the_validate_button_logs_the_finding_count(
+            self, rows, a_columns, monkeypatch):
+        _ok, _shown, stub = self._run_validate(
+            [dict(r) for r in rows], a_columns, monkeypatch)
+        assert stub.logged == ["Validate: 8 rows, errors=0, warnings=0, findings=4"]
+
+    def test_the_validate_button_uses_the_right_messagebox(
+            self, a_columns, monkeypatch):
+        """`_SHOW` maps kind to a messagebox call; sending an info dialog to
+        `showerror` would turn every note into an alarm."""
+        broken = [{
+            "stage": "EH", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "x", "operator": "not_an_operator", "target": "lang",
+            "what": ["x"], "threshold": "", "enabled": True, "source_text": "",
+        }]
+        ok, shown, _stub = self._run_validate(broken, a_columns, monkeypatch)
+        assert ok is False
+        assert shown[0][0] == "showerror"
+        assert shown[0][1] == "Validation failed"
+
+    def test_render_rows_paints_the_lint_tint(self, rows, a_columns):
+        stub = self._Stub([dict(r) for r in rows], a_columns, self._Tree())
+        self._method("_render_rows")(stub, with_validation=True)
+        painted = {vals[1]: (tags[0] if tags else "")
+                   for vals, tags in stub.tree.rows}
+        assert painted["EC-1"] == "lint"
+        assert painted["EC-4"] == "lint"
+        assert painted["IC-5"] == "lint"
+        assert painted["IC-3"] == ""
+
+    def test_render_rows_paints_nothing_without_validation(self, rows, a_columns):
+        stub = self._Stub([dict(r) for r in rows], a_columns, self._Tree())
+        self._method("_render_rows")(stub, with_validation=False)
+        assert all(tags == () for _vals, tags in stub.tree.rows)
+
+    def test_the_dialog_and_the_tints_agree(self, a_columns, monkeypatch):
+        """The two-pass defect: `_validate` built one report for the dialog and
+        `_render_rows` built a second for the tints. `_validate_row` REWRITES
+        the row it inspects, so the second pass saw a repaired table — a row
+        named in the dialog as "adjusted or worth a look" was then tinted
+        nothing at all."""
+        adjusted = [{
+            "stage": "EH", "id": "EC-9", "type": "exclude", "scope": "metadata",
+            "label": "The paper is written in French.", "operator": "equals",
+            "target": "lang", "what": ["French"], "threshold": "0.60",
+            "enabled": True, "source_text": "",
+        }]
+        _ok, shown, stub = self._run_validate(adjusted, a_columns, monkeypatch)
+        body = shown[0][2]
+        painted = {vals[1]: (tags[0] if tags else "")
+                   for vals, tags in stub.tree.rows}
+        if "EC-9" in body:
+            assert painted["EC-9"], (
+                "the dialog names EC-9 and the table gives the user nothing to "
+                "look at: dialog=%r tints=%r" % (body, painted)
+            )
+
+    def test_the_notice_heading_is_the_users_terms_too(self, rows):
+        """The NOTICE heading was rendered by no test, so it could be rewritten
+        into the engine's vocabulary and the suite would not notice. NOTICE is
+        reachable in production the moment the corpus lacks a column a criterion
+        targets, and it lands beside the other two headings."""
+        vr = _report()
+        without_lang = [c for c in _production_rows()[1] if c != "lang"]
+        report = vr.build_validation_report(rows, without_lang)
+        assert any(f.severity == "NOTICE" for f in report.findings)
+        body = report.dialog.body
+        assert "thing worth checking:" in body or "things worth checking:" in body
+        for engine_word in ("NOTICE", "MISTRANSLATED", "INERT", "severity",
+                            "unresolved-target", "target-mismatch"):
+            assert engine_word not in body, (
+                "%s is the engine's vocabulary, not the user's" % engine_word
+            )
+
+    def test_every_heading_the_module_can_emit_is_the_users_terms(self):
+        """A property rather than a blacklist: no heading may contain a check
+        name, a severity constant, or an underscore."""
+        vr = _report()
+        lint = _linter()
+        constants = (lint.MISTRANSLATED, lint.INERT, lint.NOTICE)
+        for singular, plural in vr._HEADINGS.values():
+            for text in (singular, plural % 3):
+                assert "_" not in text, text
+                for constant in constants:
+                    assert constant not in text, text

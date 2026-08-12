@@ -722,7 +722,12 @@ class HarmoniserView(ttk.Frame):
             self.state.rows, self.state.a_columns, show_ok=show_ok
         )
 
-        self._render_rows(with_validation=True)
+        # Hand the marks down rather than letting `_render_rows` build a SECOND
+        # report. `_validate_row` rewrites the row it inspects, so a second pass
+        # sees a repaired table: a row this dialog names as "adjusted or worth a
+        # look" was then tinted nothing at all, because the repair had already
+        # happened. The dialog and the tints now come from one evaluation.
+        self._render_rows(with_validation=True, marks=report.marks)
         self._log(report.log_line)
 
         if report.dialog is not None:
@@ -825,7 +830,7 @@ class HarmoniserView(ttk.Frame):
                 return r
         return None
 
-    def _render_rows(self, with_validation: bool = False) -> None:
+    def _render_rows(self, with_validation: bool = False, marks=None) -> None:
         self._clear_table()
         if not self.state.rows:
             self._refresh_buttons()
@@ -839,14 +844,26 @@ class HarmoniserView(ttk.Frame):
                 if not _safe_str(r.get("threshold")).strip():
                     r["threshold"] = f"{DEFAULT_THRESHOLD:.2f}"
 
-        # One source for the tints. `build_validation_report` already decides
+        # One source for the tints. `build_validation_report` decides
         # error/warn/lint per row and is tested; deciding it a second time here
         # would be two representations of one rule, which is F-69's shape.
-        marks = ()
-        if with_validation and self.state.a_columns:
-            marks = build_validation_report(
-                self.state.rows, self.state.a_columns, show_ok=False
-            ).marks
+        #
+        # `_validate` hands ITS report's marks down, so the dialog and the tints
+        # describe one evaluation. That matters because `_validate_row` REWRITES
+        # the row it inspects: a second evaluation runs against a repaired table
+        # and finds nothing, so a row the dialog named as "adjusted or worth a
+        # look" was tinted nothing at all. The threshold-blanking loop directly
+        # above is one of those repairs.
+        #
+        # Callers that render WITHOUT having validated get a report built here.
+        # That is genuinely a second evaluation, and it is fine, because there is
+        # no dialog for it to contradict.
+        if marks is None:
+            marks = ()
+            if with_validation and self.state.a_columns:
+                marks = build_validation_report(
+                    self.state.rows, self.state.a_columns, show_ok=False
+                ).marks
 
         for index, r in enumerate(self.state.rows):
             vals = (
