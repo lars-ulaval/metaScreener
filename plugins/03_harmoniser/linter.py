@@ -225,6 +225,86 @@ def _check_target_mismatch(row: Dict[str, Any], concepts: Mapping[str, str]) -> 
 
 
 # --------------------------------------------------------------------------
+# Check 2 — dropped-operand (F-167)
+#
+# Count the coordinating alternatives the label offers; compare against the
+# operands the rule carries. Two refinements are load-bearing, and without
+# either one the check fires on rows that are correct — which is the failure
+# mode that matters most, because a noisy linter gets ignored.
+#
+#   (i)  Only DISCRETE operators. `gte`/`lte`/`between` express an interval, so
+#        "2018 or later" is already carried by the operator (IC-4). For `llm`
+#        the whole sentence IS the single operand by design; without this
+#        exclusion IC-1 and EC-2 both false-positive.
+#   (ii) Discount an `or` that enumerates the row's OWN targets rather than
+#        values. IC-5's label is "The title, abstract, or keywords mention
+#        training OR vocational OR workplace." — three `or` tokens, one of
+#        which joins two field names this rule already reads.
+#
+# `07_criteria_parsing.md` §7.5 measured the naive form at 6 of 8 and called it
+# over-inclusive; this is what makes it 2 of 8.
+# --------------------------------------------------------------------------
+
+DROPPED_OPERAND = "dropped-operand"
+
+_DISCRETE_OPERATORS = frozenset({"equals", "contains", "not_in", "in_list"})
+
+# "2018 or later" is one bound, not two alternatives.
+_RANGE_TAIL = re.compile(
+    r"\bor\s+(?:later|earlier|more|less|above|below|greater|fewer|newer|older|"
+    r"after|before|higher|lower|beyond|onwards?)\b"
+)
+
+
+def _alternatives_offered(label: str, targets: Sequence[str]) -> int:
+    """How many alternatives does this sentence offer as VALUES?"""
+    text = _RANGE_TAIL.sub(" ", label.lower())
+    words = _WORD.findall(text)
+
+    own = set()
+    for t in targets:
+        own.add(t)
+        # a label may name a target by an alias ("journal" for venue)
+        for alias, canon in TARGET_ALIASES.items():
+            if _safe_str(canon).strip().lower() == t:
+                own.add(_safe_str(alias).strip().lower())
+
+    count = 1
+    for i, word in enumerate(words):
+        if word != "or":
+            continue
+        prev = words[i - 1] if i else ""
+        nxt = words[i + 1] if i + 1 < len(words) else ""
+        if prev in own and nxt in own:
+            continue        # enumerating the fields this rule reads, not values
+        count += 1
+    return count
+
+
+def _check_dropped_operand(row: Dict[str, Any]) -> Optional[Finding]:
+    if row["operator"] not in _DISCRETE_OPERATORS:
+        return None
+
+    offered = _alternatives_offered(row["label"], row["targets"])
+    carried = len(row["what"])
+    if carried >= offered:
+        return None
+
+    kept = ", ".join('"%s"' % w for w in row["what"]) or "nothing"
+    return Finding(
+        criterion_id=row["id"],
+        check=DROPPED_OPERAND,
+        severity=MISTRANSLATED,
+        message=(
+            "%s offers %d alternatives but the rule carries only %d: %s. The "
+            "rest of the sentence will not be applied to any record."
+            % (row["id"] or "This criterion", offered, carried, kept)
+        ),
+        detail="label offers %d alternative(s); what=%r" % (offered, row["what"]),
+    )
+
+
+# --------------------------------------------------------------------------
 
 
 def lint_criteria(
@@ -255,6 +335,13 @@ def lint_criteria(
                 findings.append(f)
     else:
         skipped.append(TARGET_MISMATCH)
+
+    # Decidable from the table alone — no corpus needed, so it always runs.
+    ran.append(DROPPED_OPERAND)
+    for row in normalised:
+        f = _check_dropped_operand(row)
+        if f is not None:
+            findings.append(f)
 
     findings.sort(key=lambda f: (f._rank, f.criterion_id))
     return LintReport(findings, ran=ran, skipped=skipped)

@@ -180,3 +180,72 @@ class TestTargetMismatch:
             "A skipped check must be visible, or a caller reads 'no findings' "
             "as 'checked and clean'. That is F-64's shape."
         )
+
+
+class TestDroppedOperand:
+    """Check 2 — the label offers more alternatives than the rule carries. F-167.
+
+    The naive form of this check — "the label contains a conjunction" — fires on
+    IC-5, which is correct, and `07_criteria_parsing.md` §7.5 predicted exactly
+    that over-inclusion. Two refinements make it clean and both are pinned below,
+    because a linter that fires on correct rows gets ignored.
+    """
+
+    CHECK = "dropped-operand"
+
+    def test_it_fires_on_EC_1_and_EC_4(self, rows, a_columns):
+        lint = _linter()
+        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        assert _ids(found) == ["EC-1", "EC-4"], (
+            "EC-1 is F-167 itself — 'French or Spanish' became one operand. "
+            "EC-4 drops both of its operands and so trips this check too."
+        )
+
+    def test_it_does_not_fire_on_IC_5_whose_three_operands_are_correct(self, rows, a_columns):
+        """The refinement that matters: an `or` between two field names is
+        enumerating TARGETS, not values."""
+        lint = _linter()
+        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        assert "IC-5" not in _ids(found), (
+            "IC-5's label is 'The title, abstract, or keywords mention training "
+            "OR vocational OR workplace.' — three `or` tokens, of which one "
+            "enumerates target fields and two enumerate operands. The rule "
+            "carries all three operands and is correct."
+        )
+
+    def test_it_does_not_fire_on_IC_4_whose_or_forms_a_range(self, rows, a_columns):
+        """`gte`/`lte`/`between` express an interval, so 'or later' is already
+        carried by the operator."""
+        lint = _linter()
+        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        assert "IC-4" not in _ids(found), (
+            "IC-4 is 'The publication year is 2018 or later.' rendered as "
+            "`gte year 2018`. The alternative is the operator."
+        )
+
+    def test_it_does_not_fire_on_the_llm_rows(self, rows, a_columns):
+        """For `llm` the whole sentence is the single operand by design.
+
+        Without this exclusion IC-1 and EC-2 both false-positive: each has two
+        alternatives in its label and one operand.
+        """
+        lint = _linter()
+        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        assert not ({"IC-1", "EC-2", "EC-3"} & set(_ids(found)))
+
+    def test_the_finding_names_the_operand_that_survived(self, rows, a_columns):
+        lint = _linter()
+        f = [x for x in _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+             if x.criterion_id == "EC-1"][0]
+        assert f.severity == "MISTRANSLATED"
+        assert "French" in f.message, (
+            "The user must be able to see which half survived without opening "
+            "the table."
+        )
+
+    def test_it_needs_no_corpus_columns(self, rows):
+        """Decidable from the table alone, so it must run without a corpus."""
+        lint = _linter()
+        report = lint.lint_criteria(rows)
+        assert self.CHECK in report.ran
+        assert _ids(_by_check(report, self.CHECK)) == ["EC-1", "EC-4"]
