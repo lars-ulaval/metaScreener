@@ -369,6 +369,101 @@ def _check_inert_at_stage(row: Dict[str, Any]) -> Optional[Finding]:
 
 
 # --------------------------------------------------------------------------
+# Checks 3, 5 and 6 — the quiet ones.
+#
+# None has a live instance: measured across the golden, the frozen study input
+# and the wave-12 local-run table, none fires. They are guards, at NOTICE, and
+# each bites on a table that did not come from this GUI — which is F-176's and
+# F-174's recorded arrival route, a hand-edited or externally-produced table
+# reaching `_parse_criteria_harmonized_csv`.
+# --------------------------------------------------------------------------
+
+UNRESOLVED_TARGET = "unresolved-target"
+DUPLICATE_ID = "duplicate-id"
+THRESHOLD = "threshold"
+
+
+def _check_unresolved_target(row: Dict[str, Any], columns: Sequence[str]) -> Optional[Finding]:
+    known = {_safe_str(c).strip().lower() for c in columns}
+    missing = [t for t in row["targets"] if t not in known]
+    if not missing:
+        return None
+    missing_txt = ", ".join('"%s"' % m for m in missing)
+    return Finding(
+        criterion_id=row["id"],
+        check=UNRESOLVED_TARGET,
+        severity=NOTICE,
+        message=(
+            "%s reads %s, which this corpus does not have. Every record will "
+            "come back unknown for it, and none will be included or excluded "
+            "by it." % (row["id"] or "This criterion", missing_txt)
+        ),
+        detail="missing targets %r" % (missing,),
+    )
+
+
+def _check_duplicate_ids(normalised: Sequence[Dict[str, Any]]) -> List[Finding]:
+    counts: Dict[str, int] = {}
+    for row in normalised:
+        cid = row["id"]
+        if cid:
+            counts[cid] = counts.get(cid, 0) + 1
+
+    out: List[Finding] = []
+    for cid, n in counts.items():
+        if n < 2:
+            continue
+        out.append(Finding(
+            criterion_id=cid,
+            check=DUPLICATE_ID,
+            severity=NOTICE,
+            message=(
+                "%s appears more than once (%d times). The LLM stages key their "
+                "results by criterion id, so only the last one will be kept and "
+                "the others will silently do nothing." % (cid, n)
+            ),
+            detail="%d rows share id %r" % (n, cid),
+        ))
+    return out
+
+
+def _check_threshold(row: Dict[str, Any]) -> Optional[Finding]:
+    raw = row["threshold"]
+    if not raw:
+        return None                     # blank is correct for EH/IH
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return Finding(
+            criterion_id=row["id"],
+            check=THRESHOLD,
+            severity=NOTICE,
+            message=(
+                "%s has a confidence threshold of \"%s\", which is not a number. "
+                "It will be read as 0.60 without saying so."
+                % (row["id"] or "This criterion", raw)
+            ),
+            detail="threshold=%r unparseable" % (raw,),
+        )
+    if not (0.0 <= value <= 1.0):
+        return Finding(
+            criterion_id=row["id"],
+            check=THRESHOLD,
+            severity=NOTICE,
+            message=(
+                "%s has a confidence threshold of %s, which is outside 0–1. A "
+                "threshold above 1 can never be met and one below 0 is always met."
+                % (row["id"] or "This criterion", raw)
+            ),
+            detail="threshold=%r out of [0,1]" % (raw,),
+        )
+    # A threshold that WAS silently defaulted is byte-identical to one the user
+    # chose (CL-2), so there is nothing here to report and this check does not
+    # pretend otherwise.
+    return None
+
+
+# --------------------------------------------------------------------------
 
 
 def lint_criteria(
@@ -397,8 +492,15 @@ def lint_criteria(
             f = _check_target_mismatch(row, concepts)
             if f is not None:
                 findings.append(f)
+
+        ran.append(UNRESOLVED_TARGET)
+        for row in normalised:
+            f = _check_unresolved_target(row, a_columns)
+            if f is not None:
+                findings.append(f)
     else:
         skipped.append(TARGET_MISMATCH)
+        skipped.append(UNRESOLVED_TARGET)
 
     # Decidable from the table alone — no corpus needed, so these always run.
     ran.append(DROPPED_OPERAND)
@@ -412,6 +514,15 @@ def lint_criteria(
         f = _check_inert_at_stage(row)
         if f is not None:
             findings.append(f)
+
+    ran.append(THRESHOLD)
+    for row in normalised:
+        f = _check_threshold(row)
+        if f is not None:
+            findings.append(f)
+
+    ran.append(DUPLICATE_ID)
+    findings.extend(_check_duplicate_ids(normalised))
 
     findings.sort(key=lambda f: (f._rank, f.criterion_id))
     return LintReport(findings, ran=ran, skipped=skipped)

@@ -303,6 +303,84 @@ class TestInertAtStage:
         assert "IC-3" in _ids(found)
 
 
+class TestTheQuietChecks:
+    """Checks 3, 5 and 6 — NOTICE severity, and none has a live instance.
+
+    All three are guards rather than findings-in-waiting: measured across the
+    golden, the frozen study input and the wave-12 local-run table, none fires.
+    They are tested by mutating a real harmoniser row rather than by inventing
+    one, so the shape under test is a shape the producer can actually make.
+    """
+
+    def test_unresolved_target_is_silent_on_a_clean_table(self, rows, a_columns):
+        lint = _linter()
+        assert _by_check(lint.lint_criteria(rows, a_columns), "unresolved-target") == []
+
+    def test_unresolved_target_fires_when_the_corpus_lacks_the_column(self, rows):
+        """The same rows against a corpus that has no `lang` column."""
+        lint = _linter()
+        without_lang = [c for c in _harmonised_rows()[1] if c != "lang"]
+        found = _by_check(lint.lint_criteria(rows, without_lang), "unresolved-target")
+        assert set(_ids(found)) == {"EC-1", "IC-3"}, (
+            "EC-1 and IC-3 both target `lang`. Against a corpus without it "
+            "they are MISSING for every record and silently survive."
+        )
+        assert found[0].severity == "NOTICE"
+
+    def test_duplicate_id_is_silent_on_a_clean_table(self, rows, a_columns):
+        lint = _linter()
+        assert _by_check(lint.lint_criteria(rows, a_columns), "duplicate-id") == []
+
+    def test_duplicate_id_fires_when_a_row_is_repeated(self, rows, a_columns):
+        """F-174: `crit_impacts` is a dict comprehension, so ids collapse."""
+        lint = _linter()
+        clash = dict(rows[1])
+        clash["id"] = rows[0]["id"]
+        found = _by_check(lint.lint_criteria(list(rows) + [clash], a_columns),
+                          "duplicate-id")
+        assert _ids(found) == [rows[0]["id"]]
+        assert "twice" in found[0].message or "more than once" in found[0].message
+
+    def test_threshold_is_silent_on_a_clean_table(self, rows, a_columns):
+        lint = _linter()
+        assert _by_check(lint.lint_criteria(rows, a_columns), "threshold") == []
+
+    def test_threshold_fires_on_an_unparseable_value(self, rows, a_columns):
+        lint = _linter()
+        mutated = []
+        for r in rows:
+            r = dict(r)
+            if r["id"] == "EC-2":       # an EL row, so it has a threshold
+                r["threshold"] = "abc"
+            mutated.append(r)
+        found = _by_check(lint.lint_criteria(mutated, a_columns), "threshold")
+        assert _ids(found) == ["EC-2"]
+
+    def test_threshold_fires_when_out_of_range(self, rows, a_columns):
+        lint = _linter()
+        mutated = []
+        for r in rows:
+            r = dict(r)
+            if r["id"] == "EC-2":
+                r["threshold"] = "1.4"
+            mutated.append(r)
+        found = _by_check(lint.lint_criteria(mutated, a_columns), "threshold")
+        assert _ids(found) == ["EC-2"]
+
+    def test_a_defaulted_threshold_is_indistinguishable_and_is_not_reported(self, rows, a_columns):
+        """CL-2, pinned as a known gap rather than left as a surprise.
+
+        `ui.py::_harmonise_no_llm` writes f"{DEFAULT_THRESHOLD:.2f}" — the
+        literal 0.60 — and a user who types 0.60 produces identical bytes. The
+        linter therefore cannot report "this gate was never chosen", and must
+        not pretend to.
+        """
+        lint = _linter()
+        el_rows = [r for r in rows if r["stage"] in {"EL", "IL"}]
+        assert el_rows and all(r["threshold"] == "0.60" for r in el_rows)
+        assert _by_check(lint.lint_criteria(rows, a_columns), "threshold") == []
+
+
 class TestTheExecutableSetIsNotJustRetyped:
     """The linter's executable-operator table, checked against the real executor.
 
