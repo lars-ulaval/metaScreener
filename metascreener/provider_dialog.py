@@ -155,11 +155,14 @@ class ProviderDialog(tk.Toplevel):
             frm, wraplength=520, justify="left", foreground="#555",
             text=("Measured on this project's own 85-record corpus: "
                   "gpt-4o-mini produced 1 exclusion and it was correct; "
-                  "llama3.2:3b produced 43 and qwen2.5:7b produced 4, and "
-                  "every one of those was unjustified — each with a real "
-                  "quote and a confidence above threshold. The quote check "
-                  "cannot tell whether a quote is relevant. Leave this off "
-                  "unless you have validated the model on your own corpus."))
+                  "llama3.2:latest produced 40 and 43 on two runs of the "
+                  "same configuration, and qwen2.5:7b produced 4 — every "
+                  "one of those unjustified, each with a real quote and a "
+                  "confidence above threshold. The quote check cannot tell "
+                  "whether a quote is relevant, and at temperature 0 the "
+                  "same model did not exclude the same papers twice. Leave "
+                  "this off unless you have validated the model on your "
+                  "own corpus."))
         self.lbl_exclude.grid(row=12, column=0, columnspan=3, sticky="w",
                               padx=10, pady=(0, 4))
 

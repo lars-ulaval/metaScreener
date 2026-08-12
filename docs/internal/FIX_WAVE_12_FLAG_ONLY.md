@@ -19,7 +19,8 @@ runs fully attributed by wave 10's provenance block:
 | Model | Exclusions | Audit |
 |---|---|---|
 | `gpt-4o-mini` (the golden) | **1** | correct |
-| `llama3.2:3b` | **43** | all 43 unjustified |
+| `llama3.2:latest` (run A) | **40** | all unjustified |
+| `llama3.2:latest` (run B) | **43** | all unjustified; same recorded configuration as run A |
 | `qwen2.5:7b` | **4** | all 4 unjustified, confirmed by the author |
 
 qwen's four were A286 and A301 (brain–computer interface), A310 (neuromotor

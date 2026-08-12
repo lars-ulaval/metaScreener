@@ -421,16 +421,19 @@ The findings reported above are bounded by several conditions:
 
   **This passage previously continued "so a degenerate run cannot
   silently exclude records", and wave 12 measured that claim false.**
-  Over this repository's own 85-record corpus and criteria,
-  `llama3.2:3b` produced 43 exclusions and `qwen2.5:7b` produced 4, all
-  unjustified — and every one of them *passed* the gate, with a
-  verbatim quote and a confidence above threshold. The gate verifies
-  that a quote is real; it cannot verify that a quote is relevant, and
-  nothing short of another model could. Nor was it a format failure:
-  llama3.2 answered 170 of 170 in perfect JSON with zero vocabulary
-  rejections. It simply asserted matches that were not there. A run can
+  Over this repository's own 85-record corpus and criteria, local models
+  produced 40, 43 and 4 exclusions across three runs, every one of them
+  unjustified — and every one of them *passed* the gate, with a verbatim
+  quote and a confidence above threshold. The gate verifies that a quote
+  is real; it cannot verify that a quote is relevant, and nothing short
+  of another model could. Nor was it a format failure: `llama3.2`
+  answered 170 of 170 in well-formed JSON with zero vocabulary
+  rejections. It asserted matches that were not there. A run can
   therefore look entirely healthy by every counter this pipeline keeps
-  and still be removing correct studies.
+  and still be removing correct studies. The measurement, its
+  distributions and its limits are reported in full under *Local models
+  on this corpus: a direct measurement* below, and are not restated
+  here.
 
   What follows is that a local model may annotate but may not exclude,
   which is what flag-only mode enforces (F-145): on a local or custom
@@ -439,6 +442,15 @@ The findings reported above are bounded by several conditions:
   is what makes a *malformed* verdict harmless — but it is not what
   makes a *confident and wrong* one harmless, and only the second of
   those was ever the interesting case.
+
+  The same measurement produced a second finding that bears on this
+  bullet directly, and on the paragraph above it. Two runs of the same
+  model, identical in every field the provenance block records, excluded
+  **40** and **43** records — so a run's decision set is not stable even
+  at `temperature 0.0`. The variance this bullet asks reviewers to
+  inspect is therefore not only a property of the corpus and the model;
+  part of it is run-to-run noise, and inspecting a single run cannot
+  separate the two.
 
   The other failure the gate cannot prevent is unchanged: a uniform,
   confident pass that examines nothing and sends the whole corpus
@@ -535,6 +547,290 @@ The findings reported above are bounded by several conditions:
   records from this version onward is per *run* — which engine
   produced a stage's decisions — not per response, so it does not
   close this gap either.
+
+## Local models on this corpus: a direct measurement
+
+*Added 2026-08-11 (wave 12). This section reports a measurement taken
+after the validation study above and describes a different question. It
+does not revise any figure, kappa or matrix reported earlier; those
+concern `gpt-4o-mini` against human raters, and nothing here touches
+them.*
+
+The question is narrower and more practical than the study's: **what
+happens when the same pipeline is pointed at a model running on the
+user's own machine?** metaScreener has supported an OpenAI-compatible
+local endpoint since v3.2, and until now nothing had been measured about
+what a local model does with these criteria.
+
+### What was measured
+
+One corpus, three runs of the EL stage, all reaching that stage through
+identical deterministic screening:
+
+    776 records → EH excludes 125 → 651 → IH excludes 566 → 85
+
+That funnel reproduced **exactly** in every run, record for record — see
+*Reproducibility of the demonstration funnel* below, which reports the
+same identity for the archived study runs.
+
+| | model | prompt | exclusions | notes |
+|---|---|---|---|---|
+| baseline | `gpt-4o-mini` | `EL_v1_jsonlist` | **1** | the committed golden capture; audited by the author, correct |
+| run A | `llama3.2:latest` | `EL_v1_jsonlist` | **40** | all unjustified |
+| run B | `llama3.2:latest` | `EL_v1_jsonlist` | **43** | all unjustified |
+| run C | `qwen2.5:7b` | `EL_v1_jsonlist` | **4** | all unjustified, author-confirmed |
+
+Runs A, B and C were taken at `temperature 0.0`, `trunc_chars 1500`,
+`batch_size 5`, against `http://localhost:11434/v1`, and each is fully
+attributed by the provenance block wave 10 added. **The baseline was
+captured at `trunc_chars 4000`** (`tools/capture_el_il_goldens.py`), and
+that difference is treated as a limitation below rather than glossed.
+
+Every figure in this section was re-derived from the bundles themselves
+rather than transcribed from a report; where a figure and a bundle
+disagreed, the bundle was taken as correct.
+
+### The distributions behind the counts
+
+Per run, over the 170 record–criterion judgments (85 records × EC-2,
+EC-3):
+
+| | `meet` | `not_meet` | `uncertain` | quote valid | answered |
+|---|---|---|---|---|---|
+| run A `llama3.2:latest` | 82 | 36 | 52 | 81/170 (47.6%) | 170/170 |
+| run B `llama3.2:latest` | 81 | 35 | 54 | 80/170 (47.1%) | 170/170 |
+| run C `qwen2.5:7b` | 8 | 129 | 33 | 117/170 (68.8%) | 137/170 |
+
+`meet` is the excluding verdict here: EC-2 and EC-3 are exclusion
+criteria, so a record "meets" them by being the kind of study the review
+excludes.
+
+Two features are worth naming. The `llama3.2` runs produced **zero**
+records with a clean pass — every one of the 85 was either excluded or
+flagged — where the baseline produced 77 clean passes out of 85. And
+`qwen2.5` left 33 judgments unanswered, which the pipeline correctly
+routed to human review; that is the fail-safe path working exactly as
+designed, and it is not the failure this section is about.
+
+### The four `qwen2.5` exclusions
+
+Named individually because the pattern matters more than the count. All
+four were excluded against **EC-2**, which asks whether the paper's
+primary focus is spatial navigation in a virtual maze:
+
+| record | subject | confidence | quoted field | quote valid |
+|---|---|---|---|---|
+| A286 | brain–computer interfaces for augmented reality | 0.7 | abstract | yes |
+| A301 | review of EEG-based BCI paradigms | 0.9 | abstract | yes |
+| A310 | TRAVEE multimodal neuromotor rehabilitation | 0.9 | abstract | yes |
+| A423 | *Teens, Social Media & Technology 2018* | **1.0** | title | yes |
+
+None is a maze-navigation study. A423 is the clearest case and the one
+to look at closely: a Pew Research Center report on adolescent social
+media use, excluded from a virtual-reality navigation review at
+**confidence 1.0**, with the quote supplied being the report's own title.
+
+The gate was satisfied. The title is verbatim, present in the field the
+model named, and every check the software performs returned true.
+
+### The central finding
+
+**Every false exclusion in every run passed the evidence gate.**
+
+That gate is metaScreener's principal defence on the LLM path: a verdict
+is acted on only when the model supplies a confidence at or above
+threshold *and* a quotation that can be found, character for character,
+in the text the model was shown. It is a good defence and it is doing its
+job. But its job is narrower than it looks:
+
+> A verbatim-quote gate defends against **fabrication**. It is silent
+> about **irrelevance**.
+
+Verifying that a span is present in the source is a string operation.
+Verifying that the span *supports the verdict* is an inference, and
+nothing short of a second model could perform it. A423 makes the gap
+concrete: quoting a paper's title proves the paper exists and says
+nothing whatever about whether its primary focus is a virtual maze.
+
+This generalises beyond metaScreener, and is the part of this section
+most likely to be useful to someone building a different tool.
+Quote-grounding, citation-checking and span-extraction gates are common
+answers to LLM unreliability, and they all share this boundary: they
+convert *unverifiable assertions* into *verifiable citations*, which
+eliminates one failure mode entirely and leaves a second untouched. A
+system that treats a passing quote check as evidence that a verdict is
+sound has mistaken the first for the second.
+
+The failure is **not** a formatting failure, which is worth stating
+because that is the comfortable explanation. Wave 8's counters record
+`llama3.2` answering **170 of 170** judgments in well-formed JSON with
+**zero** vocabulary rejections, zero failed calls and zero failed
+batches. The model was not confused about what to emit. It asserted
+matches that were not there.
+
+### The same model, the same input, a different answer
+
+**This is the more generalisable result of the two**, and it was not
+what the runs were taken to find.
+
+Runs A and B are the same model on the same input. Every field the
+provenance block records is identical:
+
+| field | run A | run B |
+|---|---|---|
+| `model` | `llama3.2:latest` | `llama3.2:latest` |
+| `endpoint` | `http://localhost:11434/v1` | `http://localhost:11434/v1` |
+| `temperature` | `0.0` | `0.0` |
+| `prompt_version` | `EL_v1_jsonlist` | `EL_v1_jsonlist` |
+| `trunc_chars` | `1500` | `1500` |
+| `batch_size` | `5` | `5` |
+
+They differ only in when they ran — 21:47 and 22:10 UTC on the same
+machine, twenty-three minutes apart.
+
+They excluded **40** and **43** records respectively:
+
+- the 40 are a **strict subset** of the 43; nothing excluded in A was
+  kept in B;
+- three records — **A312, A322, A570** — moved from `PASS_FLAGGED` to
+  `OUT`;
+- **8 of 170 judgments (4.7%) changed decision** between the runs;
+- even the internal counters differ: `fields_rejected` was 1 in A and 3
+  in B.
+
+**Practitioners routinely treat `temperature = 0` as a reproducibility
+guarantee. On this server and this hardware, it is not one.** Greedy
+decoding is deterministic given identical logits, but the logits are not
+identical across runs: batching, kernel selection, memory layout and
+floating-point reduction order all vary, and a near-tie between two
+tokens resolves differently. metaScreener's own code has said as much
+since wave 7 — `llm_client.py`'s docstring records that "strict
+determinism is not guaranteed even at 0.0 due to hardware-level
+floating-point non-determinism in model inference" — but that was a
+statement of principle. This is a measurement of it, at fixed settings,
+with the size of the effect attached.
+
+**What this does not undermine.** The deterministic half of the pipeline
+reproduced exactly across all three runs and across the archived study
+runs: 776 → 125 → 651 → 566 → 85, the same records every time. The
+variability is confined entirely to the LLM stages. That is consistent
+with what this document's *Reproducibility of the demonstration funnel*
+section has said since wave 6 — the deterministic share reproduces, the
+LLM share does not — and it is the first measurement of the LLM share's
+variability under *fixed* settings rather than across executions that
+also differed in configuration.
+
+**What this means for the replay goldens.** The committed EL/IL caches
+pin **recorded** answers, not **reproducible** ones. Replaying a golden
+proves that the pipeline turns a given set of model answers into a given
+set of outputs, byte for byte — which is a real and useful guarantee,
+and is what those tests are for. It does **not** prove that a fresh run
+against the same model would produce those answers again. No claim to
+the contrary is made anywhere in this repository, and both
+`docs/llm-evaluation.md` and `docs/internal/diagnostic/02_quality.md`
+§6.5 already draw the distinction correctly; this measurement supplies
+the evidence they were reasoning about in the abstract.
+
+**What this means for flag-only.** It is a stronger argument than
+accuracy, and it does not depend on adjudicating a single verdict:
+
+> The same model, on the same input, in the same recorded configuration,
+> excludes a different set of papers each time it is run.
+
+A component that behaves that way should not be permitted to remove a
+paper from a systematic review, whatever its accuracy. Removal is the
+one irreversible act in the pipeline — a flagged record is read by a
+human, an excluded record is gone — and irreversible acts should not be
+delegated to a process that will not repeat itself.
+
+### What is not established
+
+This section reports what was observed. It does not support the
+following, and several of these are the questions a reader will most want
+answered:
+
+- **The hosted baseline is n = 1.** One correct exclusion is a thin basis
+  for comparison, and nothing here demonstrates that `gpt-4o-mini` is
+  *generally* more accurate on this task. It demonstrates that on this
+  corpus it excluded one record and was right, while the local models
+  excluded 40–43 and 4 and were wrong every time.
+- **The comparison is not like-for-like.** The baseline was captured at
+  `trunc_chars = 4000` and the local runs at `1500`. Measured on this
+  corpus: no abstract exceeds 4000 characters, so the baseline saw every
+  abstract in full, while **28 of 85 (33%)** were truncated for the local
+  runs, losing a median of 364 characters each. Titles and keywords are
+  unaffected. This does not explain a confident wrong exclusion — a model
+  shown less text has less evidence, not more — but the runs are not a
+  controlled comparison and should not be described as one.
+- **Quantisation is not recorded.** The provenance block has six fields
+  and none of them is quantisation, so these runs **cannot be fully
+  specified from their own artefacts**. Ollama serves quantised weights
+  by default, so the local runs are near-certainly not the models at full
+  precision, but which quantisation was used is not recoverable from the
+  bundles. That is a gap in the provenance block, not a detail omitted
+  from this write-up.
+- **`llama3.2:latest` is a mutable tag.** It names whatever weights that
+  tag pointed at on 2026-08-11. It may point elsewhere later, which makes
+  it a weak value for a field whose purpose is identifying what produced
+  a result (F-154).
+- **The context window was measured and is not a factor.** metaScreener
+  never sets `num_ctx`, so these runs inherited the server's default of
+  4096 tokens, and an OpenAI-compatible server truncates rather than
+  errors when a prompt exceeds its window. That raised the possibility
+  that the models were answering about records they had been only partly
+  shown. **It did not happen.** Rendering the real prompt for this corpus
+  at `batch_size 5` gives a worst case of 2,170–3,256 tokens depending on
+  the tokenizer assumption, and a worst observed reply of 509–764, for a
+  worst total of 2,679–4,020 against 4,096. The prompts fit. The
+  explanation below is therefore not confounded by truncation.
+  (`tools/measure_prompt_size.py` re-derives these; at `batch_size 10` the
+  same corpus *does* overflow, which is F-154's open half.)
+- **EC-2's own wording has not been tested.** Its parenthetical — *"(no
+  social interaction or collaboration)"* — is plausibly readable as an
+  independent second condition rather than as a gloss on the primary
+  clause, and all four `qwen2.5` exclusions are consistent with a model
+  that read it that way: BCI, rehabilitation and social-media papers are
+  all things one might exclude under a standalone "no social interaction"
+  test. **This is a candidate explanation and nothing here demonstrates
+  it.** The criteria in this corpus were written for human readers and
+  have never been tested for machine-readability. Whether criterion
+  phrasing accounts for a material share of local-model error is an open
+  question and a good one.
+- **No claim about local models in general.** Two models, one corpus, one
+  criteria set, one stage, one machine. `llama3.2` and `qwen2.5` at these
+  sizes are small models; nothing here speaks to larger local models,
+  other quantisations, other prompting strategies, or other review
+  domains.
+
+### Why flag-only is the default
+
+metaScreener therefore ships **flag-only** for local and custom
+providers: an LLM verdict may flag a record for human review, and may not
+remove it. Exclusion remains permitted by default for OpenAI, the
+configuration the validation study above measured, and the setting is
+user-changeable for any provider from the provider dialog, where this
+measurement is restated.
+
+**The argument does not depend on resolving anything in the previous
+section.** Suppose the criterion wording is at fault; suppose
+quantisation is; suppose it is model size. The observation stands
+regardless: *a default configuration, reachable by following this
+project's own documentation, produced 40 to 43 false exclusions that
+passed every check the software performs, and produced a different set of
+them on each run.* Whatever the cause, that is not a component that
+should be permitted to delete studies from a review unattended.
+
+The cost is small on this pipeline, and it is worth stating precisely
+rather than reassuringly. Of 703 exclusions in the demonstration funnel,
+the deterministic stages account for 691 — EH 125 and IH 566 — and the
+LLM stages for the remainder; in the committed goldens EL removes 1 and
+IL removes 4. Flag-only therefore changes the reviewer's workload from
+80 records to 85: **five more abstracts**, in exchange for removing the
+false-exclusion class entirely while keeping everything the model is good
+at — the reasons, the quotes, and the ordering of what to read first.
+
+A user who has validated a local model on their own corpus can turn
+exclusion on. The default is chosen for the user who has not.
 
 ## Reproducibility of the demonstration funnel
 

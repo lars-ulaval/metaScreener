@@ -540,7 +540,7 @@ additional API cost"*). Audit:
 
 | Source of nondeterminism | Present? | Detail |
 |---|---|---|
-| **LLM sampling** | Yes, unavoidable | `temperature=0.0` default (`llm_client.py:138`), and the docstring at lines 150-155 is admirably honest: *"strict determinism is not guaranteed even at 0.0 due to hardware-level floating-point non-determinism in model inference; the cache layer … is the primary reproducibility safeguard."* Correct framing. |
+| **LLM sampling** | Yes, unavoidable | `temperature=0.0` default (`llm_client.py:138`), and the docstring at lines 150-155 is admirably honest: *"strict determinism is not guaranteed even at 0.0 due to hardware-level floating-point non-determinism in model inference; the cache layer … is the primary reproducibility safeguard."* Correct framing — **and measured in wave 12.** Two runs of `llama3.2:latest`, identical in all six fields the provenance block records, excluded **40** and **43** records of 85; 8 of 170 judgments (4.7%) changed decision. This row was written from a docstring; it now rests on an observation. See `docs/llm-evaluation.md` § *Local models on this corpus*. |
 | **Cache stale-on-criterion-edit** | Yes — §6.4 | The one place where the cache actively *breaks* reproducibility rather than guaranteeing it. |
 | **Iteration order** | No | Every set is used for membership only. `_detect_contradictions_simple:446` sorts before emitting. `_dump_cache_to_jsonl` iterates a dict in insertion order, which is deterministic given a deterministic build order. `discover()` uses `sorted(root.iterdir())`. Criteria and rows preserve file order throughout. |
 | **Floating point** | Negligible | The only comparison is `confidence >= float(c.threshold)`. Both sides come from decimal literals with exact `float()` round-trips (`"0.60"` → the same double as `0.6`). No accumulation, no summation. |
@@ -556,8 +556,12 @@ corpus. Kept by decision Q-A, documented in `docs/usage.md`, and pinned by
 `tests/test_corpus_parser.py::TestCarriageReturnCanonicalisation`.
 
 **Verdict.** The reproducibility claim is **substantially true for the artefacts that carry
-the science** — the report CSVs are byte-reproducible, and the golden tests prove it on
-every CI run across 16 platform cells. It is **not** true for the manifest or the ZIP
+the science** — the report CSVs are byte-reproducible *from the recorded answers*, and the
+golden tests prove it on every CI run across 16 platform cells. Wave 12 sharpens the
+italics: the replay caches pin **recorded** answers, not **reproducible** ones, so a green
+golden proves the pipeline processes a given set of model answers correctly and does not
+prove a fresh run would obtain them. That was always the intended reading of this section
+and of §6.5's LLM-sampling row; it is stated explicitly now because a measurement exists. It is **not** true for the manifest or the ZIP
 container, and it has one real hole (criterion-edit cache staleness). The README's phrasing
 ("exact re-runs") is defensible; a reviewer who diffed two bundle ZIPs and found them
 different would be looking at timestamps, not at drift, and the documentation does not say

@@ -800,7 +800,8 @@ class TestTheExclusionPolicyHasAControl:
         d = PD.ProviderDialog(_root, settings={"provider": "local"})
         text = d.lbl_exclude.cget("text")
         print("len=" + str(len(text)))
-        for fragment in ("43", "gpt-4o-mini", "unjustified", "quote"):
+        for fragment in ("40", "43", "gpt-4o-mini", "llama3.2:latest",
+                         "unjustified", "quote", "temperature 0"):
             assert fragment in text, fragment
         d.destroy()
         ''')

@@ -15,7 +15,7 @@ same 85-record EL corpus and the same criteria as the committed goldens,
 both runs fully attributed by wave 10's provenance block::
 
     gpt-4o-mini (golden):   1 exclusion.  Audited by the author: correct.
-    llama3.2:3b          :  43 exclusions. All 43 unjustified.
+    llama3.2:latest      :  40 and 43 exclusions, two runs. All unjustified.
     qwen2.5:7b           :   4 exclusions. All 4 unjustified, author-confirmed.
 
 qwen's four were A286 and A301 (brain-computer interface), A310 (neuromotor
