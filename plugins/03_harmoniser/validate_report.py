@@ -174,8 +174,20 @@ def build_validation_report(
     findings: Tuple[Finding, ...] = ()
     lint_error = ""
     try:
-        findings = tuple((lint or lint_criteria)(rows, a_columns))
+        returned = (lint or lint_criteria)(rows, a_columns)
+        # The result is CONSUMED inside the try, not after it. A linter that
+        # returns something unusable — None, a string, a list of anything that
+        # is not a Finding — is a failed check, not a crash, and the first
+        # version of this let that AttributeError escape because the
+        # consumption happened a few lines below.
+        findings = tuple(returned)
+        for candidate in findings:
+            _ = (candidate.criterion_id, candidate.severity, candidate.message)
+    except KeyboardInterrupt:
+        # A user pressing Ctrl-C is not a linter defect. Never swallowed.
+        raise
     except Exception as exc:                      # noqa: BLE001 - deliberate
+        findings = ()
         lint_error = "%s: %s" % (type(exc).__name__, exc)
 
     # A row the linter flagged, which `_validate_row` passed clean, gets its own
@@ -257,6 +269,16 @@ def _finding_lines(findings: Sequence[Finding]) -> List[str]:
         if group:
             groups.append((severity, group))
 
+    # Anything whose severity this module does not know about still gets shown.
+    # The first version iterated `_SEVERITY_ORDER` only, so a finding with an
+    # unrecognised severity was counted, tinted, and then SILENTLY DROPPED from
+    # the dialog — leaving the user reading "All good." with a finding
+    # outstanding, which is the one outcome worse than no linter at all.
+    known = set(_SEVERITY_ORDER)
+    unknown = [f for f in findings if f.severity not in known]
+    if unknown:
+        groups.append((None, unknown))
+
     lines: List[str] = []
     budget = MAX_LISTED
     for index, (severity, group) in enumerate(groups):
@@ -272,7 +294,10 @@ def _finding_lines(findings: Sequence[Finding]) -> List[str]:
             # The linter's own message already opens with the criterion id and
             # already says what the rule will DO. Repeating the id here, or
             # naming the check that fired, would be the engine's vocabulary.
-            lines.append("  • %s" % finding.message)
+            # `str()` because a Finding is a plain dataclass and nothing stops
+            # a caller constructing one with message=None; rendering "None" as
+            # a bullet would be worse than rendering nothing.
+            lines.append("  • %s" % (finding.message or "(no description)"))
         if len(group) > take:
             lines.append("  … and %d more of these. All of them are in the log "
                          "below the table, and every affected row is tinted."

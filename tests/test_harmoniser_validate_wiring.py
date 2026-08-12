@@ -664,3 +664,63 @@ class TestRowTints:
 
         report = vr.build_validation_report(rows, a_columns, lint=exploding)
         assert all(m.tag == "" for m in report.marks)
+
+
+class TestALinterThatMisbehavesRatherThanThrows:
+    """Found by this session's own adversarial probe, after the wiring commit.
+
+    `lint_criteria` returns `Finding`s. The defensive wrapper was written for a
+    linter that RAISES and did not cover one that returns something unusable —
+    and the consumption of the result happens outside the `try`, so it escaped.
+    """
+
+    def test_a_result_that_is_not_findings_does_not_raise(self, rows, a_columns):
+        vr = _report()
+        for name, bad in (
+            ("None", lambda *a, **k: None),
+            ("a string", lambda *a, **k: "oops"),
+            ("strings", lambda *a, **k: ["a", "b"]),
+            ("ints", lambda *a, **k: [1, 2]),
+            ("dicts", lambda *a, **k: [{"criterion_id": "EC-1"}]),
+        ):
+            report = vr.build_validation_report(rows, a_columns, lint=bad)
+            assert report.ok is True, name
+            assert report.findings == (), name
+            assert report.lint_error, (
+                "%s must be reported as a failed check, not swallowed" % name
+            )
+            assert "could not run" in report.dialog.body, name
+
+    def test_a_finding_with_an_unknown_severity_is_still_shown(self, rows, a_columns):
+        """The worst failure available here: a finding exists, is counted, and
+        the user is told "All good." because no heading matched its severity."""
+        vr = _report()
+        linter = _linter()
+
+        def odd(*_a, **_kw):
+            return [linter.Finding("EC-1", "x", "SOMETHING_NEW", "EC-1 is odd.", "")]
+
+        report = vr.build_validation_report(rows, a_columns, lint=odd)
+        assert len(report.findings) == 1
+        assert "All good" not in report.dialog.body
+        assert "EC-1 is odd." in report.dialog.body
+
+    def test_a_finding_with_no_message_does_not_render_as_none(self, rows, a_columns):
+        vr = _report()
+        linter = _linter()
+
+        def blank(*_a, **_kw):
+            return [linter.Finding("EC-1", "x", "INERT", None, "")]
+
+        report = vr.build_validation_report(rows, a_columns, lint=blank)
+        assert "None" not in report.dialog.body
+
+    def test_keyboard_interrupt_is_not_swallowed(self, rows, a_columns):
+        """A user pressing Ctrl-C must not be reported as a linter defect."""
+        vr = _report()
+
+        def interrupted(*_a, **_kw):
+            raise KeyboardInterrupt()
+
+        with pytest.raises(KeyboardInterrupt):
+            vr.build_validation_report(rows, a_columns, lint=interrupted)
