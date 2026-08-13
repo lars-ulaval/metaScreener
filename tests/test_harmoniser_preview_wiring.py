@@ -264,6 +264,33 @@ class TestItRefusesPolitelyRatherThanCrashing:
         assert warned, "a missing corpus file must reach the user as a dialog"
 
 
+class TestTheButtonIsHonestAboutSkippedRecords:
+    """`parse.skipped` was dropped in the first cut; the review found it."""
+
+    def test_records_the_parser_rejected_are_reported(self, rows_and_columns,
+                                                      monkeypatch, tmp_path):
+        rows, cols = rows_and_columns
+        csv = tmp_path / "a.csv"
+        csv.write_text(chr(10).join([
+            "local_id,lang,year,venue,title,abstract,keywords",
+            "A001,en,2020,X,t,a,k",
+            "A001,en,2021,X,t,a,k",       # duplicate local_id
+            ",en,2022,X,t,a,k",           # missing local_id
+        ]), encoding="utf-8")
+        stub = _Stub([dict(r) for r in rows], cols, str(csv))
+        ok, shown, _w = _run_preview(stub, monkeypatch)
+        assert ok is True
+        assert "skipped" in shown[0][2].lower(), (
+            "2 of the 3 rows were rejected by the parser and the dialog must say so")
+
+    def test_a_clean_corpus_says_nothing_about_skipping(self, rows_and_columns,
+                                                        monkeypatch):
+        rows, cols = rows_and_columns
+        stub = _Stub([dict(r) for r in rows], cols, str(CORPUS))
+        _ok, shown, _w = _run_preview(stub, monkeypatch)
+        assert "skipped" not in shown[0][2].lower()
+
+
 class TestItNeverBlocks:
     """Wave 13c session B's constraint, carried forward: warn, never block."""
 

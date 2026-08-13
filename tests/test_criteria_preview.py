@@ -496,3 +496,353 @@ class TestTheLogLineAndDialogShape:
         rep = _preview().build_criteria_preview(harmonised, ["local_id"], [])
         assert rep.corpus_n == 0
         assert rep.survivors_n == 0
+
+# --- what the wave 13e B adversarial review found -----------------------------
+# Every class below pins a defect an independent review pass found in the first
+# cut of this module. Each was reproduced before it was fixed.
+
+def _row(**kw):
+    d = {"stage": "EH", "id": "X-1", "type": "exclude", "scope": "metadata",
+         "label": "l", "operator": "equals", "target": "lang", "what": ["en"],
+         "threshold": "", "enabled": True, "source_text": "s"}
+    d.update(kw)
+    return d
+
+
+class TestAnInertOperatorIsNotBlamedOnTheCorpus:
+    """An `llm` rule parked at EH is never evaluated by EH -- F-65's mirror case.
+
+    The first cut ran it through `_eval_criterion`, got `UNKNOWN` for all 775
+    ordinary titles, and rendered "check the `title` column ... records have no
+    value there at all". That tells the user to fix their data when the fault is the
+    rule, and it breaks this module's own stated principle that `removes 0` must not
+    stand in for `was not run`.
+    """
+
+    @pytest.fixture(scope="class")
+    def parked(self, corpus):
+        header, rows = corpus
+        return _preview().build_criteria_preview(
+            [_row(id="IC-1", stage="EH", type="include", operator="llm",
+                  target="title", what=["is about readmission"])], header, rows)
+
+    def test_it_is_not_evaluated(self, parked):
+        c = _crit(parked, "IC-1")
+        assert c.evaluated is False
+        assert c.removed_n is None and c.unknown_n is None
+
+    def test_the_reason_names_the_stage_and_the_operator(self, parked):
+        reason = _crit(parked, "IC-1").not_evaluated_reason
+        assert "never run" in reason
+        assert "EH" in reason and "llm" in reason
+
+    def test_the_corpus_is_not_blamed(self, parked):
+        kinds = {n.kind for n in parked.notes}
+        assert "zero-removal" not in kinds
+        assert "uncomparable" not in kinds
+        assert "no value there at all" not in parked.dialog.body
+
+    def test_the_executable_set_is_derived_from_the_linter_not_restated(self):
+        """One source of truth for which operators run where."""
+        lint = _import_plugin("03_harmoniser", "linter")
+        p = _preview()
+        for stage in ("EH", "IH", "EL", "IL"):
+            assert set(p._executable_operators(stage)) == set(
+                lint.executable_operators(stage)), stage
+
+    def test_a_deterministic_operator_at_a_deterministic_stage_still_runs(
+            self, corpus):
+        header, rows = corpus
+        rep = _preview().build_criteria_preview(
+            [_row(id="EC-1", operator="in_list", target="lang",
+                  what=["French", "Spanish"])], header, rows)
+        assert _crit(rep, "EC-1").evaluated is True
+
+
+class TestAStageThatRemovesNearlyEverythingIsNotable:
+    """Individually modest criteria can be collectively lethal.
+
+    Two include rules partitioning `year` leave 1 record of 776. The first cut
+    checked removal only per criterion against `stage_in_n`, so neither cleared the
+    bar, no note fired, and the dialog was `info` -- the most alarming thing a
+    preview can discover, delivered without a warning icon.
+    """
+
+    @pytest.fixture(scope="class")
+    def wipeout(self, corpus):
+        header, rows = corpus
+        return _preview().build_criteria_preview(
+            [_row(id="IC-A", type="include", operator="gte", target="year",
+                  what=["2015"]),
+             _row(id="IC-B", type="include", operator="lte", target="year",
+                  what=["2014"])], header, rows)
+
+    def test_the_stage_wipeout_is_flagged(self, wipeout):
+        assert "stage-wipeout" in {n.kind for n in wipeout.notes}
+
+    def test_the_dialog_is_a_warning_not_information(self, wipeout):
+        assert wipeout.dialog.kind == "warning"
+
+    def test_the_note_says_how_many_are_left(self, wipeout):
+        note = [n for n in wipeout.notes if n.kind == "stage-wipeout"][0]
+        assert "1" in note.text and "776" in note.text
+
+    def test_no_criterion_individually_cleared_the_bar(self, wipeout):
+        """Proves the stage-level check caught it, not the per-criterion one."""
+        for c in wipeout.stages[0].criteria:
+            assert c.removed_fraction < 0.75
+        assert "high-removal" not in {n.kind for n in wipeout.notes}
+
+    def test_the_reference_corpus_is_not_flagged_as_a_wipeout(self, report):
+        assert "stage-wipeout" not in {n.kind for n in report.notes}, (
+            "IH removes 81%, which is notable per criterion but not a wipeout")
+
+
+class TestDuplicateCriterionIdsAreCalledOut:
+    """`run_screen` keys impacts by criterion id, so two rows sharing one merge.
+
+    The first cut rendered `met_n=4` against `stage_in_n=3` -- arithmetically
+    impossible -- attributed each rule's removals to the other's records, and
+    reported `overlap_n=0`, which suppressed the very note that would have warned the
+    reader not to add the numbers up.
+    """
+
+    CORPUS = [{"local_id": "a", "doc_type": "thesis", "lang": "en"},
+              {"local_id": "b", "doc_type": "journal", "lang": "de"},
+              {"local_id": "c", "doc_type": "journal", "lang": "en"}]
+    HEADER = ["local_id", "doc_type", "lang"]
+
+    @pytest.fixture(scope="class")
+    def dup(self):
+        return _preview().build_criteria_preview(
+            [_row(id="IC-1", type="include", operator="equals",
+                  target="doc_type", what=["journal"]),
+             _row(id="IC-1", type="include", operator="equals",
+                  target="lang", what=["en"])], self.HEADER, self.CORPUS)
+
+    def test_the_duplicate_is_flagged(self, dup):
+        assert ("IC-1", "duplicate-id") in {(n.criterion_id, n.kind)
+                                            for n in dup.notes}
+
+    def test_the_note_warns_that_the_counts_are_merged(self, dup):
+        note = [n for n in dup.notes if n.kind == "duplicate-id"][0]
+        assert "merged" in note.text.lower() or "combined" in note.text.lower()
+
+    def test_the_dialog_is_a_warning(self, dup):
+        assert dup.dialog.kind == "warning"
+
+    def test_no_criterion_claims_more_verdicts_than_the_stage_had_records(self, dup):
+        for s in dup.stages:
+            for c in s.criteria:
+                if c.evaluated:
+                    assert (c.removed_n + c.missing_n + c.unknown_n
+                            + c.met_n) == c.stage_in_n, (
+                        "%s reports verdicts for more records than reached the stage"
+                        % c.criterion_id)
+
+    def test_a_unique_table_raises_no_such_note(self, report):
+        assert "duplicate-id" not in {n.kind for n in report.notes}
+
+
+class TestTheOvercountIsCarriedSeparatelyFromTheRecordCount:
+    """`overlap_n` counts records; the arithmetic overstatement is a different number.
+
+    They coincide only when every overlapping record fails exactly two criteria,
+    which is true on the reference corpus and false in general. The first cut's
+    docstring asserted they were the same, and this suite pinned 619/613/6 -- a
+    coincidence generalised into a claim.
+    """
+
+    HEADER = ["local_id", "lang", "doc_type", "venue"]
+    CORPUS = [{"local_id": "z", "lang": "fr", "doc_type": "thesis", "venue": "X"}]
+
+    @pytest.fixture(scope="class")
+    def triple(self):
+        return _preview().build_criteria_preview(
+            [_row(id="E1", operator="equals", target="lang", what=["fr"]),
+             _row(id="E2", operator="equals", target="doc_type", what=["thesis"]),
+             _row(id="E3", operator="equals", target="venue", what=["X"])],
+            self.HEADER, self.CORPUS)
+
+    def test_one_record_fails_three_criteria(self, triple):
+        s = triple.stages[0]
+        assert sum(c.removed_n for c in s.criteria) == 3
+        assert s.removed_n == 1
+
+    def test_the_record_count_is_one(self, triple):
+        assert triple.stages[0].overlap_n == 1
+
+    def test_the_overstatement_is_two(self, triple):
+        assert triple.stages[0].overcount_n == 2
+
+    def test_they_differ_here_and_coincide_on_the_reference_corpus(self, triple,
+                                                                   report):
+        assert triple.stages[0].overlap_n != triple.stages[0].overcount_n
+        ih = _stage(report, "IH")
+        assert ih.overlap_n == ih.overcount_n == 6, (
+            "the coincidence that made the first cut's docstring look true")
+
+    def test_the_body_states_the_true_shortfall(self, triple):
+        assert "do not add up to 1" in triple.dialog.body
+
+
+class TestTheOverlapSentenceNamesOnlyTheGuiltyCriteria:
+    HEADER = ["local_id", "lang", "doc_type", "venue"]
+    CORPUS = [{"local_id": "a", "lang": "fr", "doc_type": "thesis", "venue": "Q"},
+              {"local_id": "b", "lang": "fr", "doc_type": "book", "venue": "Q"},
+              {"local_id": "c", "lang": "en", "doc_type": "book", "venue": "Z"}]
+
+    @pytest.fixture(scope="class")
+    def rep(self):
+        return _preview().build_criteria_preview(
+            [_row(id="C1", operator="equals", target="lang", what=["fr"]),
+             _row(id="C2", operator="equals", target="doc_type", what=["thesis"]),
+             _row(id="C3", operator="equals", target="venue", what=["Z"])],
+            self.HEADER, self.CORPUS)
+
+    def test_only_the_criteria_that_co_removed_a_record_are_named(self, rep):
+        line = [l for l in rep.dialog.body.splitlines()
+                if "removed by more than one" in l][0]
+        assert "C1" in line and "C2" in line
+        assert "C3" not in line, (
+            "C3 removed only record c, which no other criterion touched")
+
+    def test_a_single_overlapping_record_reads_in_the_singular(self, rep):
+        assert "1 record is removed by more than one" in rep.dialog.body
+
+
+class TestCriteriaTheStagesNeverSawAreReported:
+    """A blank or unrecognised `stage` cell makes a row vanish.
+
+    `parser.py::_normalize_structured_row` writes `stage=""` for any stage it does
+    not recognise, so this is the mainline result of importing a criteria table with
+    a typo. The row stays visible in the Harmonised-criteria table while the preview
+    reports on the others and closes with a total that reads as complete.
+    """
+
+    HEADER = ["local_id", "doc_type"]
+    CORPUS = [{"local_id": "a", "doc_type": "thesis"},
+              {"local_id": "b", "doc_type": "journal"}]
+
+    @pytest.mark.parametrize("bad_stage", ["", "   ", "XX", "eh_typo"])
+    def test_it_is_named_rather_than_dropped(self, bad_stage):
+        rep = _preview().build_criteria_preview(
+            [_row(id="GOOD", operator="equals", target="doc_type",
+                  what=["thesis"]),
+             _row(id="LOST", stage=bad_stage, operator="equals",
+                  target="doc_type", what=["journal"])],
+            self.HEADER, self.CORPUS)
+        assert "uncovered" in {n.kind for n in rep.notes}
+        assert "LOST" in rep.dialog.body
+
+    def test_a_fully_covered_table_raises_no_such_note(self, report):
+        assert "uncovered" not in {n.kind for n in report.notes}
+
+
+class TestTheZeroRemovalNoteDoesNotBlameAColumnThatIsNotThere:
+    def test_an_absent_column_is_named_as_absent(self):
+        rep = _preview().build_criteria_preview(
+            [_row(id="EC-8", operator="equals", target="study_design",
+                  what=["rct"])],
+            ["local_id", "doc_type"],
+            [{"local_id": "a", "doc_type": "thesis"}])
+        body = rep.dialog.body
+        assert "does not have" in body
+        assert "have no value there at all" not in body, (
+            "the column is absent; the records are not missing a value in it")
+
+    def test_a_present_but_empty_column_still_reads_as_empty_values(self, report):
+        note = [n for n in report.notes
+                if n.kind == "zero-removal" and n.criterion_id == "EC-4"][0]
+        assert "126" in note.text and "no value there at all" in note.text
+
+    def test_a_criterion_with_no_target_at_all_says_so(self):
+        rep = _preview().build_criteria_preview(
+            [_row(id="EC-7", operator="equals", target="", what=["x"])],
+            ["local_id", "doc_type"], [{"local_id": "a", "doc_type": "t"}])
+        assert "no target" in rep.dialog.body.lower()
+        assert "``" not in rep.dialog.body, "empty backticks are a rendering bug"
+
+
+class TestLoaderWarningsReachTheUser:
+    """`_load_criteria_from_text` computes them on the same call; they were dropped."""
+
+    def test_a_contradiction_is_surfaced(self):
+        rep = _preview().build_criteria_preview(
+            [_row(id="IC-9", type="include", operator="equals",
+                  target="doc_type", what=["journal"]),
+             _row(id="EC-9", type="exclude", operator="equals",
+                  target="doc_type", what=["journal"])],
+            ["local_id", "doc_type"],
+            [{"local_id": "a", "doc_type": "journal"}])
+        assert "loader-warning" in {n.kind for n in rep.notes}
+        assert "contradiction" in rep.dialog.body.lower()
+
+    def test_an_invalid_threshold_is_surfaced(self):
+        rep = _preview().build_criteria_preview(
+            [_row(id="EC-5", operator="equals", target="doc_type",
+                  what=["x"], threshold="not-a-number")],
+            ["local_id", "doc_type"], [{"local_id": "a", "doc_type": "x"}])
+        assert any(n.kind == "loader-warning" for n in rep.notes)
+
+    def test_a_clean_table_produces_none(self, report):
+        assert "loader-warning" not in {n.kind for n in report.notes}
+
+
+class TestAWhatCellThatIsAStringIsNotExplodedIntoCharacters:
+    """`list("abc")` is `['a','b','c']`, which no `what` cell ever means.
+
+    Not reachable through the GUI -- `_parse_what_cell` always yields a list -- but
+    the LLM listing reads the raw row dicts, so an externally-built row reaches it
+    unconverted.
+    """
+
+    def test_a_string_becomes_a_single_operand(self, corpus):
+        header, rows = corpus
+        rep = _preview().build_criteria_preview(
+            [_row(id="IC-1", stage="IL", type="include", operator="llm",
+                  target="keywords", what="randomised controlled trial",
+                  threshold="0.60")], header, rows[:5])
+        assert _crit(rep, "IC-1").what == ["randomised controlled trial"]
+
+    def test_an_empty_string_becomes_no_operands(self, corpus):
+        header, rows = corpus
+        rep = _preview().build_criteria_preview(
+            [_row(id="IC-1", stage="IL", type="include", operator="llm",
+                  target="keywords", what="", threshold="0.60")], header, rows[:5])
+        assert _crit(rep, "IC-1").what == []
+
+    def test_none_operands_are_dropped(self, corpus):
+        header, rows = corpus
+        rep = _preview().build_criteria_preview(
+            [_row(id="IC-1", stage="IL", type="include", operator="llm",
+                  target="keywords", what=["a", None, "b"], threshold="0.60")],
+            header, rows[:5])
+        assert _crit(rep, "IC-1").what == ["a", "b"]
+
+
+class TestTheReportDoesNotSmuggleTheCorpusOut:
+    """CL-3 tripwire: caching a report must not thereby cache 776 corpus rows."""
+
+    def test_no_stage_retains_survivor_rows(self, report):
+        for s in report.stages:
+            leaked = [(k, len(v)) for k, v in vars(s).items()
+                      if isinstance(v, list) and v and isinstance(v[0], dict)]
+            assert not leaked, "StagePreview %s retains %r" % (s.stage, leaked)
+
+
+class TestTheCorpusCountIsHonestAboutSkippedRecords:
+    def test_records_the_parser_dropped_are_reported(self):
+        cp = _cparser()
+        text = "local_id,doc_type\na,thesis\na,journal\n,journal\n"
+        parse = cp._parse_csv_tolerant_text(text)
+        assert len(parse.skipped) == 2, "the fixture must actually skip rows"
+        rep = _preview().build_criteria_preview(
+            [_row(id="EC-1", operator="equals", target="doc_type",
+                  what=["thesis"])],
+            parse.header, parse.rows, skipped_n=len(parse.skipped))
+        assert "2" in rep.dialog.body
+        assert "skipped" in rep.dialog.body.lower()
+
+    def test_it_is_silent_when_nothing_was_skipped(self, report):
+        assert "skipped" not in report.dialog.body.lower()

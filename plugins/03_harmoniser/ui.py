@@ -777,8 +777,14 @@ class HarmoniserView(ttk.Frame):
                 "Could not read the A vector: %s" % e)
             return False
 
+        # `parse.skipped` is passed rather than dropped: without it the dialog
+        # opens with "N records in the corpus", which is a claim about the user's
+        # file and not about what will be screened. A vector with no `local_id`
+        # column loses every row to `missing_local_id` and would otherwise report
+        # "0 records in the corpus" for a full file with no explanation.
         report = build_criteria_preview(
-            self.state.rows, parse.header, parse.rows)
+            self.state.rows, parse.header, parse.rows,
+            skipped_n=len(parse.skipped))
         self._log(report.log_line)
         _SHOW[report.dialog.kind](report.dialog.title, report.dialog.body)
         return True

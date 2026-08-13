@@ -832,6 +832,92 @@ explanation. `test_harmoniser_validate_wiring.py` does not trip on this only bec
 it patches `ui.messagebox`, which conftest installed once in `sys.modules` and is
 shared across instances; `_SHOW` is a module-level dict and is not.
 
+## B-6. The adversarial review, and the twelve things it found
+
+An independent review pass was run against commits `de5d288` and `9919ba9` with a
+single instruction: execute, do not reason. It ran thirteen probe scripts and reported
+twelve candidate defects. **Every one of the top four was reproduced independently
+before anything was changed**, per the standing rule that a sub-agent's correction is
+a claim and not a result.
+
+It also confirmed three things I had claimed, which is worth recording because a
+review that only finds faults is not calibrated: **no crashes** across empty criteria,
+empty corpus, both empty, a corpus with no `local_id` column, duplicate `local_id`s,
+`what` as a string, `what` containing `None`, an empty target, an unknown operator and
+an absent target column; **no read-only violations**, by an independent stat-walk of
+the tree; and **no preview-versus-real-run divergence** on the deterministic path,
+replayed criterion by criterion.
+
+### The four that mattered
+
+**1. An `llm` rule parked at EH was evaluated, reported as `removes 0`, and blamed on
+the user's data.** `stage` and `operator` are both read-only comboboxes in
+`_on_cell_edit`, so this is two clicks away. The rule went down the deterministic path,
+`_eval_criterion` returned `UNKNOWN` for all 775 ordinary titles, and the preview said
+*"check the `title` column: 1 of 776 records have no value there at all"* plus *"775
+records could not be compared"*. **This breaks the module's own stated principle** —
+its docstring says `removes 0` "would be a different and worse claim than `was not
+run`" — and `linter.py` already had the right sentence one module away. Fixed by asking
+`linter.executable_operators(stage)` which operators run where, in *both* directions,
+rather than special-casing EL/IL. Derived, not restated.
+
+**2. A stage that removes 99.9% of the corpus produced no note and an `info` dialog.**
+Two include rules partitioning `year` leave **1 record of 776**, and neither clears the
+per-criterion bar because the removals are 63% and 37%. The most alarming thing a
+preview can discover arrived with no warning icon. Fixed with a funnel-level check at a
+separate, higher threshold: `DEFAULT_STAGE_WIPEOUT_FRACTION = 0.95`, deliberately well
+above the per-criterion 0.75 because the reference corpus's IH removes 81% and is a
+normal intended screen. A test pins that the reference corpus is *not* flagged.
+
+**3. Duplicate criterion ids produced arithmetically impossible numbers.** `run_screen`
+keys `crit_impacts` by criterion id, so two rows sharing one both read the merged
+bucket: `met_n=4` against `stage_in_n=3`, each rule credited with the other's removed
+records, and `overlap_n=0` — which **suppressed the very note** that tells the reader
+not to add the counts up. The arrival route is documented: `linter.py`'s `DUPLICATE_ID`
+check exists for hand-edited tables, and Preview is a separate button from Validate.
+Un-merging would mean changing `run_screen`, which is outside this wave's fence, so the
+preview now **detects the collision and reports those rows as not attributable**:
+*"cannot be reported on its own: another criterion has the id `IC-1`, and results are
+keyed by id, so their counts are merged. Give them distinct ids to see either one."*
+
+**4. `overlap_n`'s docstring was arithmetically false, and this suite generalised a
+coincidence.** It claimed the record count was "exactly the amount by which that sum
+overstates the truth". Those are equal only when every overlapping record fails exactly
+two criteria. One record failing three gives `overlap_n=1` and an overstatement of
+`2`. The reference corpus happens to satisfy the special case — `619 - 613 == 6` — and
+`test_the_overlap_is_real_on_this_corpus` pinned all three numbers, so the suite
+confirmed the coincidence rather than the claim. The code even computed the right
+ingredient and threw it away: `fail_counts[rid] = len(failed)` stored the per-record
+count and only `len()` and `sorted()` were ever read. `StagePreview` now carries
+**both** `overlap_n` (records) and `overcount_n` (overstatement), with a test that pins
+them differing on a three-way overlap and coinciding on the reference corpus.
+
+### The other eight
+
+| # | finding | fix |
+|---|---|---|
+| 5 | a criterion whose `stage` is blank or unrecognised vanished with no mention — and `_normalize_structured_row` writes `stage=""` for any stage it does not recognise, so that is the mainline result of importing a table with a typo | `uncovered` note naming every such id |
+| 6 | the zero-removal note said "check the `study_design` column: 2 of 2 records have no value there at all" when the corpus **has no such column**, and rendered empty backticks for a criterion with no target at all | three distinct wordings: no target, absent column, empty values |
+| 7 | every warning `_load_criteria_from_text` produced was dropped — including the include/exclude contradiction, which is the *diagnosis* for finding 2, computed on the same call | `loader-warning` notes |
+| 8 | the overlap sentence named every criterion that removed anything, including ones that took no part in the overlap; and "1 records are" | only criteria whose removals intersect the overlap set; singular/plural |
+| 9 | "776 records in the corpus" silently excluded everything the parser rejected — and an A vector with no `local_id` column reports "0 records in the corpus" for a full file | `skipped_n` threaded from `ui._preview`, reported when non-zero |
+| 10 | `_enabled`'s docstring claimed it matched `parser._truthy` and it did not, in both directions | rewritten to mirror what the CSV writer actually does; see PV-6 |
+| 11 | `list("randomised controlled trial")` exploded a string `what` into 27 single characters | `_as_list` |
+| 12 | `object.__setattr__(stage, "_out_rows", out)` survived into the returned report, so a caller caching a `PreviewReport` cached 492 corpus rows — a CL-3 tripwire | survivors returned, not stashed |
+
+### Verification of the fixes
+
+**82 preview tests and 15 wiring tests**, every one of them written against a
+reproduction before the fix. A fresh **sixteen-mutation battery** over the rewritten
+module — including "stage total becomes the sum", "inert-at-stage check removed",
+"executable set restated instead of derived", "wipeout threshold dropped to the
+per-criterion bar", "duplicate-id detection removed", "overcount collapsed onto the
+record count" and "survivors stashed on the frozen stage again" — **all sixteen
+caught**, one of them only after adding the test its survival exposed.
+
+Suite **1880 passed, 7 skipped**. The reference-corpus output is byte-for-byte what it
+was before the fixes: none of this changed the normal case, which is the point.
+
 ## Candidate findings (session B)
 
 ### PV-5 — a `regex` criterion with more than one operand loses all but the first, silently, and the linter does not fire
@@ -885,3 +971,27 @@ sit next to this wave's fence.
 
 Session B builds the pure function so that either wiring consumes it unchanged, and
 wires option (1) only — see B-5.
+
+
+### PV-6 — `_export_csv` writes `enabled=1` for a row whose `enabled` cell is the string `"0"`
+
+`03_harmoniser/exporters.py::_criteria_csv_text` writes
+`1 if bool(r.get("enabled", True)) else 0`, and **`bool("0")` is `True`**. So a
+criteria row carrying a string-falsy `enabled` value — `"0"`, `"false"`, `"no"` — is
+exported **enabled** and will run, while `parser._truthy`, which reads the CSV back,
+would have called the same cell disabled had it survived as a string.
+
+Found while fixing review finding 10: the preview's `_enabled` helper claimed in its
+docstring to match `_truthy` and did not, which made the preview disagree with *itself*
+— the deterministic half reads the exported CSV and showed such a row, the LLM listing
+reads the raw dicts and hid it. `preview.py::_enabled` now mirrors the writer, so the
+two halves agree and the preview faithfully reports what a real run will do.
+
+**Reachability is narrow and was checked rather than assumed.**
+`parser.py::_normalize_structured_row`, `llm_refine.py` and two sites in `ui.py` all
+coerce `enabled` to a real `bool` before it reaches the writer, so no GUI path produces
+this today. It is a latent trap on a byte-identity-critical writer, not a live defect.
+
+**Not fixed here.** Changing `_criteria_csv_text`'s coercion would move the bytes of a
+SHA-pinned artefact, which is an argued decision and not a side effect. Suggested
+severity **Low**. Cross-ref PV-4, F-98, F-109.
