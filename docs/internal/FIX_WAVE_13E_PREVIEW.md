@@ -476,12 +476,17 @@ runtime, on a field that every criterion has. This is the F-109 enumeration-rot
 pattern in dataclass form, and it is a trap for any future code that spans the
 deterministic and LLM halves — which the preview, by design, does. Cross-ref F-109.
 
-### PV-4 — `_export_csv` has no text variant, so the preview cannot screen the bytes the bundle will carry
+### PV-4 — `_export_csv` has no text variant *(DISCHARGED in session B, `ea1d562`)*
 
 `plugins/03_harmoniser/exporters.py::_export_csv(rows, path)` couples serialisation to
 writing. Any consumer needing the text must restate the byte-identity-critical
 11-column schema. See section (e) for the proposed extraction and why it is a fence
 question rather than a side effect.
+
+**Discharged.** Session B extracted `_criteria_csv_text(rows) -> str` in `ea1d562`
+after measuring the premise (B-4). `_export_csv` is now a two-line write over it, the
+extraction is pinned byte-for-byte by `tests/test_criteria_csv_text.py`, and the
+preview screens **1991 bytes byte-identical** to what the exported bundle carries.
 
 ## What was not done in this commit
 
@@ -706,60 +711,6 @@ A fixture without a multi-operand `regex` row therefore could not tell
 `_what_to_export` from a bare join, and a writer that dropped it entirely would have
 passed every assertion in the file. One row closed it, and the mutation is now caught.
 
-## Candidate findings (session B)
-
-### PV-5 — a `regex` criterion with more than one operand loses all but the first, silently, and the linter does not fire
-
-Found by the mutation battery above, then confirmed directly. EXECUTED, three
-operands in:
-
-```
-  exported `what` cell    : 'FIRST-KEPT'
-  what_list after round trip: ['FIRST-KEPT']
-  operands in: 3   operands out: 1
-  linter findings: NONE
-```
-
-`03_harmoniser/parser.py::_what_to_export` returns `what_list[0]` for `regex`
-regardless of how many operands the row carries. Two of three are discarded at
-serialisation with no warning, no `input_errors` entry, and — the part that matters —
-**`linter.py::lint_criteria` returns no finding at all**, even though its
-`dropped-operand` check is exactly the check that caught F-167.
-
-**This is F-167's class in a different mechanism.** F-167 was the *inference* dropping
-operands while translating prose; this is the *exporter* dropping them while
-serialising a row the user may have typed themselves.
-
-Reachability, stated honestly: no inference branch emits `regex`
-(`07_criteria_parsing.md` §2.5), so this cannot arise from the free-text path. It
-requires a hand-edited or externally-produced criteria table — which
-`_load_structured_criteria_table` exists to load, so the path is real but narrow.
-
-**Not fixed here, deliberately.** `_what_to_export` feeds a SHA-pinned artefact and
-`linter.py` is outside this wave's fence. Suggested severity **High** (silent operand
-loss in a rule the user wrote, with no surfacing anywhere) rather than Critical, on
-the ground that it cannot be reached from the free-text path that produced every
-published run. Cross-ref F-167, F-109, CL-2.
-
-### HO-13E-1 — where the preview attaches, now that the display is known to exist
-
-Session A's section (e) offered three attachment options on the assumption that the
-per-criterion display had to be built. B-2 establishes it already exists in
-`04_eh/ui.py` and `05_ih/ui.py`, gated behind `if not pre_run`. That adds a fourth
-option and changes the cost of the others, and it is the human's call because EH/IH
-sit next to this wave's fence.
-
-- **(1) Harmoniser button** — the criteria are authored there and a change is cheap at
-  that moment. Costs a 117 ms corpus re-read per press (CL-3 keeps no rows) and a
-  second modal.
-- **(4, new) Fill the existing EH/IH columns before a run** — no new display at all;
-  the four columns already exist and are already wired to `crit_impacts`. But by the
-  time the user is in EH they have already exported a bundle, so the feedback arrives
-  after the expensive step, and it touches two plugins the fence brushes against.
-
-Session B builds the pure function so that either wiring consumes it unchanged, and
-wires option (1) only — see B-5.
-
 ## B-5. What was built
 
 `plugins/03_harmoniser/preview.py::build_criteria_preview` — pure, no IO, the caller
@@ -881,3 +832,56 @@ explanation. `test_harmoniser_validate_wiring.py` does not trip on this only bec
 it patches `ui.messagebox`, which conftest installed once in `sys.modules` and is
 shared across instances; `_SHOW` is a module-level dict and is not.
 
+## Candidate findings (session B)
+
+### PV-5 — a `regex` criterion with more than one operand loses all but the first, silently, and the linter does not fire
+
+Found by the mutation battery above, then confirmed directly. EXECUTED, three
+operands in:
+
+```
+  exported `what` cell    : 'FIRST-KEPT'
+  what_list after round trip: ['FIRST-KEPT']
+  operands in: 3   operands out: 1
+  linter findings: NONE
+```
+
+`03_harmoniser/parser.py::_what_to_export` returns `what_list[0]` for `regex`
+regardless of how many operands the row carries. Two of three are discarded at
+serialisation with no warning, no `input_errors` entry, and — the part that matters —
+**`linter.py::lint_criteria` returns no finding at all**, even though its
+`dropped-operand` check is exactly the check that caught F-167.
+
+**This is F-167's class in a different mechanism.** F-167 was the *inference* dropping
+operands while translating prose; this is the *exporter* dropping them while
+serialising a row the user may have typed themselves.
+
+Reachability, stated honestly: no inference branch emits `regex`
+(`07_criteria_parsing.md` §2.5), so this cannot arise from the free-text path. It
+requires a hand-edited or externally-produced criteria table — which
+`_load_structured_criteria_table` exists to load, so the path is real but narrow.
+
+**Not fixed here, deliberately.** `_what_to_export` feeds a SHA-pinned artefact and
+`linter.py` is outside this wave's fence. Suggested severity **High** (silent operand
+loss in a rule the user wrote, with no surfacing anywhere) rather than Critical, on
+the ground that it cannot be reached from the free-text path that produced every
+published run. Cross-ref F-167, F-109, CL-2.
+
+### HO-13E-1 — where the preview attaches, now that the display is known to exist
+
+Session A's section (e) offered three attachment options on the assumption that the
+per-criterion display had to be built. B-2 establishes it already exists in
+`04_eh/ui.py` and `05_ih/ui.py`, gated behind `if not pre_run`. That adds a fourth
+option and changes the cost of the others, and it is the human's call because EH/IH
+sit next to this wave's fence.
+
+- **(1) Harmoniser button** — the criteria are authored there and a change is cheap at
+  that moment. Costs a 117 ms corpus re-read per press (CL-3 keeps no rows) and a
+  second modal.
+- **(4, new) Fill the existing EH/IH columns before a run** — no new display at all;
+  the four columns already exist and are already wired to `crit_impacts`. But by the
+  time the user is in EH they have already exported a bundle, so the feedback arrives
+  after the expensive step, and it touches two plugins the fence brushes against.
+
+Session B builds the pure function so that either wiring consumes it unchanged, and
+wires option (1) only — see B-5.
