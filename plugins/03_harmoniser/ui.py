@@ -34,6 +34,7 @@ from .llm_refine import STAGE as LLM_STAGE, _llm_refine, _sdk_importable
 from .exporters import BUNDLE_ROOT_NAME
 from .bundle import export_screen_a_bundle
 from .validate_report import build_validation_report
+from .preview import build_criteria_preview
 
 #: Dispatch for `validate_report.Dialog.kind`. A dict rather than an if/elif so
 #: an unknown kind raises here instead of silently showing nothing.
@@ -51,6 +52,7 @@ from plugins._common.provider_detect import (
     model_choices,
     refresh as pd_refresh,
 )
+from plugins._common.parser import _parse_csv_tolerant_text
 from plugins._common.widgets import RecheckButton, Tooltip
 from plugins._common.settings import (
     apply_stage_fields,
@@ -237,11 +239,18 @@ class HarmoniserView(ttk.Frame):
         self.btn_validate = ttk.Button(btns, text="Validate", command=self._validate)
         self.btn_validate.grid(row=0, column=2, padx=(0, 6), pady=(0, 6), sticky="w")
 
+        # Wave 13e. Beside Validate rather than inside it: Validate answers whether
+        # a rule is well-formed, Preview answers what it will do, and merging them
+        # would make one dialog answer two questions -- and would screen the corpus
+        # on every _load_a_csv, which calls _validate(show_ok=False).
+        self.btn_preview = ttk.Button(btns, text="Preview…", command=self._preview)
+        self.btn_preview.grid(row=0, column=3, padx=(0, 6), pady=(0, 6), sticky="w")
+
         self.btn_export = ttk.Button(btns, text="Export bundle…", command=self._export_bundle)
-        self.btn_export.grid(row=0, column=3, padx=(0, 6), pady=(0, 6), sticky="w")
+        self.btn_export.grid(row=0, column=4, padx=(0, 6), pady=(0, 6), sticky="w")
 
         self.btn_pick_target = ttk.Button(btns, text="Pick target(s)…", command=self._pick_targets)
-        self.btn_pick_target.grid(row=0, column=4, padx=(0, 6), pady=(0, 6), sticky="w")
+        self.btn_pick_target.grid(row=0, column=5, padx=(0, 6), pady=(0, 6), sticky="w")
 
         table_frame = ttk.LabelFrame(right, text="Harmonised criteria")
         table_frame.grid(row=1, column=0, sticky="nsew")
@@ -419,6 +428,7 @@ class HarmoniserView(ttk.Frame):
 
         self.btn_harmonise_llm.configure(state=("normal" if (can_h and llm_ok) else "disabled"))
         self.btn_validate.configure(state=("normal" if (bool(self.state.rows) and has_a and self._worker is None) else "disabled"))
+        self.btn_preview.configure(state=("normal" if (bool(self.state.rows) and has_a and self._worker is None) else "disabled"))
         self.btn_export.configure(state=("normal" if (bool(self.state.rows) and has_a and self._worker is None) else "disabled"))
         self.btn_pick_target.configure(state=("normal" if (bool(self.state.rows) and has_a and self._worker is None) else "disabled"))
 
@@ -734,6 +744,44 @@ class HarmoniserView(ttk.Frame):
             _SHOW[report.dialog.kind](report.dialog.title, report.dialog.body)
 
         return report.ok
+
+    def _preview(self) -> bool:
+        """Show what each criterion will do to the corpus, before any stage runs.
+
+        The decision lives in `preview.build_criteria_preview`, which is pure and
+        therefore testable; this method is the part that needs a widget and the part
+        that does the IO. Same shape as `_validate`.
+
+        The corpus is re-read on every press rather than cached on `_UiState`. That
+        costs about 120 ms and is deliberate: CL-3 is the constraint that the View
+        holds a path and a column list, never 776 records, and a preview is not a
+        reason to relax it. The parsed rows are local to this call and are gone when
+        it returns.
+
+        **Warn, never block.** A flagged preview still returns True -- it reports,
+        it does not veto -- so no caller can grow to treat it as a gate.
+        """
+        if not self.state.rows:
+            messagebox.showwarning("Nothing to preview", "Harmonise criteria first.")
+            return False
+        if not self.state.a_path or not self.state.a_columns:
+            messagebox.showwarning("Missing A", "Load A vector first.")
+            return False
+
+        try:
+            text = Path(self.state.a_path).read_text(encoding="utf-8-sig")
+            parse = _parse_csv_tolerant_text(text)
+        except Exception as e:
+            messagebox.showerror(
+                "Preview failed",
+                "Could not read the A vector: %s" % e)
+            return False
+
+        report = build_criteria_preview(
+            self.state.rows, parse.header, parse.rows)
+        self._log(report.log_line)
+        _SHOW[report.dialog.kind](report.dialog.title, report.dialog.body)
+        return True
 
     def _export_bundle(self) -> None:
         if not self.state.rows:

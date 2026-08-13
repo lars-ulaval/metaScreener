@@ -458,7 +458,28 @@ class TestTheLogLineAndDialogShape:
     """`_validate`'s contract, so the existing `_SHOW` dispatch works unchanged."""
 
     def test_the_dialog_kind_is_one_the_view_can_dispatch(self, report):
-        assert report.dialog.kind in ("showinfo", "showwarning", "showerror")
+        """Derived from `ui._SHOW`, not restated beside it.
+
+        This assertion was written against invented keys ("showinfo") and passed,
+        because nothing checked it against the dispatch table it has to satisfy.
+        `_SHOW[kind]` would have raised KeyError the first time a user pressed the
+        button. F-109 is the row about restating a vocabulary instead of deriving it.
+        """
+        ui = _import_plugin("03_harmoniser", "ui")
+        assert report.dialog.kind in ui._SHOW, (
+            "%r is not a key of ui._SHOW (%r)"
+            % (report.dialog.kind, sorted(ui._SHOW)))
+
+    def test_a_clean_table_is_info_and_a_flagged_one_is_a_warning(self, report,
+                                                                  corpus):
+        assert report.dialog.kind == "warning", "EC-4 and IC-4 are both flagged"
+        header, rows = corpus
+        clean = [{"stage": "EH", "id": "EC-1", "type": "exclude",
+                  "scope": "metadata", "label": "x", "operator": "in_list",
+                  "target": "lang", "what": ["French", "Spanish"], "threshold": "",
+                  "enabled": True, "source_text": "x"}]
+        rep = _preview().build_criteria_preview(clean, header, rows)
+        assert rep.dialog.kind == "info", "16 of 776 is neither extreme"
 
     def test_the_log_line_names_the_chain(self, report):
         assert report.log_line == (

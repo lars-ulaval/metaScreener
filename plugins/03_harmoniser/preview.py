@@ -142,7 +142,10 @@ class PreviewNote:
 
 @dataclass(frozen=True)
 class PreviewDialog:
-    kind: str          # showinfo | showwarning -- dispatched by the View's _SHOW
+    #: One of the keys of `ui._SHOW` -- "info", "warning" or "error". NOT the
+    #: messagebox function name: `_SHOW[kind]` is how the View dispatches, so
+    #: "showinfo" here raises KeyError at the moment a user presses the button.
+    kind: str
     title: str
     body: str
 
@@ -454,7 +457,7 @@ def _dialog(corpus_n, survivors_n, stages, notes, max_ids_shown) -> PreviewDialo
             lines.append("  o %s" % n.text)
 
     return PreviewDialog(
-        kind=("showwarning" if flagged else "showinfo"),
+        kind=("warning" if flagged else "info"),
         title="Criteria preview",
         body="\n".join(lines),
     )
