@@ -760,3 +760,124 @@ sit next to this wave's fence.
 Session B builds the pure function so that either wiring consumes it unchanged, and
 wires option (1) only — see B-5.
 
+## B-5. What was built
+
+`plugins/03_harmoniser/preview.py::build_criteria_preview` — pure, no IO, the caller
+reads the corpus:
+
+```python
+def build_criteria_preview(
+    rows, corpus_header, corpus_rows, *,
+    high_removal_fraction=0.75, max_ids_shown=10, id_column="local_id",
+) -> PreviewReport
+```
+
+Measured on the reference corpus: **27.3 ms**, and the chain it reports is wave 13d's
+exactly — 776 → 760 → 147.
+
+### What a user now sees
+
+```
+776 records in the corpus.
+
+EH - 776 in, 760 out (16 removed)
+     EC-1   in_list   lang     removes 16 of 776
+            removes: A030, A194, A380, A381, A400, A439, A440, A442, A443, A445, and 6 more
+     EC-4   contains  venue    removes 0 of 776
+            (126 records have no venue)
+
+IH - 760 in, 147 out (613 removed)
+     IC-3   equals    lang     removes 8 of 760
+            removes: A078, A374, A376, A382, A385, A646, A770, A776
+     IC-4   gte       year     removes 611 of 760
+            (1 record has no year)
+            removes: A001, A002, A003, A004, A005, A006, A007, A008, A010, A012, and 601 more
+
+     6 records are removed by more than one of IC-3 and IC-4 (A376, A382, A385,
+     A646, A770, A776), so the counts above overlap and do not add up to 613.
+
+EL - not evaluated by this preview
+     EC-2   llm  keywords  not evaluated: EL asks a language model, and the preview
+                           makes no model calls
+     ...
+IL - not evaluated by this preview
+     IC-5   contains  title,abstract,keywords  will never run: IL evaluates only
+                      `llm` criteria, so a `contains` rule at this stage is marked
+                      UNCERTAIN without being evaluated (F-65)
+
+147 of 776 records survive the deterministic stages.
+
+  ! EC-4 removed no records. If you expected it to remove some, check the `venue`
+    column: 126 of 776 records have no value there at all, and a record with no
+    value is kept. A criterion that removes nothing may still be exactly right.
+  ! IC-4 removed 611 of the 760 records that reached it (80%). That is most of your
+    corpus removed by one rule -- confirm it is what you meant.
+```
+
+Both extremes read as notable and neither is asserted to be a defect — a criterion
+that removes nothing may be exactly right, and the wording says so. Warn, never block:
+the dialog is a `warning` and `_preview` still returns `True`.
+
+### The overlap, encoded in the type rather than in a convention
+
+`CriterionPreview` carries `stage_in_n` and **no** cumulative field — no `out_n`, no
+`running_total`, no `remaining`. `StagePreview.removed_n` is `in_n - out_n`, the
+funnel, never a sum. A test asserts the absence of the tempting field names by name,
+and another asserts that **`619` never appears in the rendered body**. Mutating the
+body to print the naive sum as the stage total is caught by that test.
+
+### Verification
+
+Test-first throughout. First runs, transcribed: `FileNotFoundError: Plugin not found:
+preview.py` (42 tests), `AttributeError: module 'plugins.03_harmoniser.exporters' has
+no attribute '_criteria_csv_text'` (4 tests), `HarmoniserView._preview not found in
+ui.py` (13 tests).
+
+**A ten-mutation battery on `preview.py`**, because 39 tests passing on the first run
+is a claim and not evidence. Four survived the first pass; three were real test gaps
+and are now closed — a disabled criterion listed as pending evaluation, F-65's reason
+collapsed into the generic `llm` one, and the high-removal share computed against the
+corpus rather than the stage. All ten are now caught.
+
+**Six reverts, each confirmed red**: the `_preview` body, the button, its
+`_refresh_buttons` entry, the dialog dispatch, `_criteria_csv_text`, and
+`build_criteria_preview`. The dialog-dispatch revert first reported *still green*;
+that was my anchor matching `_validate`'s more-indented copy of the same line rather
+than a vacuous test, and it goes red against a unique anchor. Recorded because a
+silent anchor miss reads exactly like a passing check.
+
+**Read-only, at filesystem level**: 337 files snapshotted by size, mtime and content
+hash around three consecutive previews — **none added, removed, changed or touched**,
+and neither the criteria rows nor the corpus rows mutated.
+
+**The whole button press**, measured through the lifted `_preview` rather than through
+the pure function alone — five repeats: **152, 156, 153, 151, 148 ms**. Within session
+A's ~200 ms budget, and `_UiState` holds no corpus rows afterwards.
+
+But state the margin honestly rather than quoting the flattering number: the screening
+is 27 ms and the **corpus read and parse are the other ~120 ms**, and that part scales
+linearly with corpus size. At roughly 1,300 records this crosses 200 ms, and at 2,500
+it would be a visible freeze. The View already owns `_start_worker`/`_poll_worker` for
+exactly this, so the remedy exists and is cheap; it is not needed at 776 records and
+was not built on speculation. **Whoever first previews a corpus of a few thousand
+records should move this onto the worker rather than wonder why the window stopped
+repainting.**
+
+### The defect the View test found that 42 pure-function tests could not
+
+`build_criteria_preview` returned a dialog `kind` of `"showinfo"`, and its own tests
+asserted exactly that and passed. `ui._SHOW` is keyed `"info"`, `"warning"`, `"error"`,
+so `_SHOW[report.dialog.kind]` would have raised `KeyError` **the first time anyone
+pressed the button**. The tests had invented the vocabulary instead of reading it —
+F-109's lesson applied to a dispatch table — and no test that avoids the View could
+have caught it. This is precisely what wave 13c session B built the AST-lift for, and
+the assertion now derives the valid set from `ui._SHOW` rather than restating it.
+
+One harness fact worth recording for whoever writes the next View test:
+**`conftest._import_plugin` calls `exec_module` on every call and returns a fresh
+module object.** Patching `ui._SHOW` on one instance and lifting the method against
+another patches nothing, and the failure surfaces as an empty list with no
+explanation. `test_harmoniser_validate_wiring.py` does not trip on this only because
+it patches `ui.messagebox`, which conftest installed once in `sys.modules` and is
+shared across instances; `_SHOW` is a module-level dict and is not.
+
