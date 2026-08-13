@@ -645,7 +645,11 @@ produces 17 prompts per criterion × 2 criteria = **34**, exactly the
 `calls_made: 34` all three bundles record.
 
 **They did not overflow.** Worst batch-5 prompt plus reply is 2,679–4,020
-tokens against 4,096, depending on the tokenizer assumption. The truncation
+tokens against 4,096, depending on the tokenizer assumption. *Retracted
+2026-08-13 (wave 14a):* that figure is superseded by **2,497–3,747**, re-derived
+from the frozen artefacts — see corrections item 3 at the end of this document,
+and `docs/llm-evaluation.md` § *“What is not established”*, which is the
+authority; the margin is wider and the verdict here is unchanged. The truncation
 hypothesis is dead and the measurement stands.
 
 **But the recommended range is already unsafe.** At batch 10 — inside
