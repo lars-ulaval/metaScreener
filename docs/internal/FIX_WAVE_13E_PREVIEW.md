@@ -492,3 +492,93 @@ plugin's behaviour are as `a790f9d` left them.
 
 Per the brief, this session **stops here**. Building begins in session B, if the human
 accepts the GO.
+
+---
+
+# Wave 13e session B — building the deterministic preview
+
+**Branch:** `fix/wave-13e-b-preview` off `main` @ `3e2d635`, working tree clean,
+`origin/main` in sync (0 ahead, 0 behind). **Date:** 2026-08-12.
+**Gate:** 1765 passed, 7 skipped — read from the run. Golden baseline taken with
+`git ls-files -s tests/golden` and kept for re-verification at wrap-up; no aggregate
+hash was used, for the reason given under "Retiring the golden aggregate" below.
+
+## B-1. IC-4's 611 removals are real — the hypothesis is refuted, twice
+
+The brief raised a reasonable suspicion: `IC-4` is `gte year 2018` and removes 611 of
+the 760 records reaching IH, and CL-1 already records that `UNKNOWN` conflates
+"unsupported operator" with "uncomparable value". If a meaningful share of those 611
+had a missing or unparseable year, the preview would be displaying correct arithmetic
+about a wrong evaluation.
+
+**It is not happening, and it cannot happen.** Both halves EXECUTED.
+
+**Empirically**, across the 760 records reaching IH:
+
+```
+=== year-value classes across the 760 records reaching IH ===
+  PARSEABLE     759   verdicts: {'failed': 611, 'met': 148}
+  EMPTY           1   verdicts: {'missing': 1}
+
+  any failed record with an EMPTY year?       0
+  any failed record with UNPARSEABLE year?    0
+  max failing year: 2017  (must be < 2018)
+```
+
+Every one of the 611 has a parseable year and every one is genuinely below 2018 — the
+maximum is 2017. The distribution is an ordinary literature tail: 5 records in 1962,
+rising through 38 in 2014, 48 in 2015, 48 in 2016, 34 in 2017. The single record with
+an empty year is `MISSING`, and `MISSING` keeps the record. **The corpus really is
+80% pre-2018.**
+
+**Structurally**, the feared mechanism cannot occur for `gte` at all. Injecting the
+shapes this corpus happens not to contain:
+
+```
+  year='2020'     a clear pass       -> MET      note='gte:2018.0'      KEPT
+  year='2017'     a clear fail       -> FAILED   note='gte:2018.0'      REMOVED
+  year=''         empty              -> MISSING  note='empty_value'     KEPT
+  year='n.d.'     unparseable text   -> UNKNOWN  note='gte_non_numeric' KEPT
+  year='2018-03'  a year-month       -> UNKNOWN  note='gte_non_numeric' KEPT
+  year='in press' prose              -> UNKNOWN  note='gte_non_numeric' KEPT
+  year='  2019  ' padded             -> MET      note='gte:2018.0'      KEPT
+  year='2018.0'   a float            -> MET      note='gte:2018.0'      KEPT
+```
+
+`_eval_criterion`'s `gte` branch returns `UNKNOWN` when `_as_float` yields `None`, and
+`run_screen` **keeps** `UNKNOWN` and `MISSING` records. An uncomparable year therefore
+fails safe: it can never remove a record. **No candidate finding is warranted, and
+`IC-4` should be displayed exactly as it measures.**
+
+One thing the injection did surface, which is a reason to build the preview rather
+than a defect in the engine: `year='2018-03'` — an entirely ordinary bibliographic
+form — is `UNKNOWN`, so the year filter silently **does not apply** to such a record
+and it passes unfiltered. On this corpus that count is zero. On a corpus that used
+year-month strings it would be 100%, and the criterion would appear to work while
+filtering nothing. **The preview must therefore show `unknown` and `missing`
+alongside `removed`, not just the removal count** — those two columns are what would
+reveal a whole-corpus format mismatch. This is now a design requirement.
+
+## B-2. The display the preview wants already exists, and is switched off before a run
+
+Found while establishing where B-1's numbers would be shown. `04_eh/ui.py` and
+`05_ih/ui.py` both contain:
+
+```python
+def _refresh_criteria_table(self, pre_run: bool):
+    cols = ["id", "type", "targets", "operator", "what", "status", "notes"]
+    if not pre_run:
+        cols += ["n_failed", "n_missing", "n_met", "n_unknown"]
+```
+
+The per-criterion counts the preview exists to show are **already implemented, already
+populated from `crit_impacts`, and already rendered** — but only once `self.full_rows`
+is non-empty, i.e. only after a run. Before a run the same table shows `status` and
+`notes`, which answer the *linter's* question (is this rule well-formed?) and not the
+preview's (what will it do?).
+
+So the honest framing of this feature is not "build a display". It is: **the pre-run
+state of an existing table is empty by construction, and the data needed to fill it
+costs 26 ms.** That materially affects the attachment decision in session A's
+section (e), and it is raised as HO-13E-1 rather than decided here.
+
