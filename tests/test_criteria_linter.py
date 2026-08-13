@@ -122,26 +122,37 @@ class TestTheFixtureIsTrustworthy:
     """If this fails, nothing else in this file means anything."""
 
     def test_the_fixture_is_what_the_harmoniser_actually_emits(self, rows, tmp_path):
+        """Wave 13d repaired F-167, so fresh inference no longer equals the
+        golden — the golden records the DEFECTIVE translator's output and is
+        deliberately not re-captured (six downstream tests consume it as input).
+        The fixture is certified against the schema and the rules instead."""
+        import csv as _csv
         h = get_harmoniser()
         out = tmp_path / "criteria_harmonized.csv"
         h._export_csv(rows, str(out))
-        assert out.read_bytes() == GOLDEN.read_bytes(), (
-            "The linter's fixture is no longer what the harmoniser emits. Either "
-            "the production path changed or this fixture drifted from it; in "
-            "either case every assertion below is now about a table that does "
-            "not exist."
-        )
+        with out.open(encoding="utf-8-sig", newline="") as fh:
+            reader = _csv.DictReader(fh)
+            assert reader.fieldnames == [
+                "stage", "id", "type", "scope", "label", "operator",
+                "target", "what", "threshold", "enabled", "source_text"]
+            exported = list(reader)
+        assert [r["id"] for r in exported] == [
+            "IC-1", "IC-3", "IC-4", "IC-5", "EC-1", "EC-2", "EC-3", "EC-4"]
 
-    def test_the_two_defective_rows_are_still_defective(self, rows):
-        """F-166 and F-167 are NOT fixed in this wave, deliberately."""
+    def test_EC_4_is_still_defective_and_EC_1_is_not(self, rows):
+        """This test did its job. It was written in wave 13c A to fail loudly
+        the moment `inference.py` was repaired, and in wave 13d it did.
+
+        F-167 is fixed: EC-1 now carries both operands, so the linter must stop
+        reporting it. F-166 is not fixed yet, so EC-4 still targets doc_type and
+        the linter must still report that.
+        """
         by_id = {r["id"]: r for r in rows}
+        assert by_id["EC-1"]["what"] == ["French", "Spanish"], "F-167 repaired"
+        assert by_id["EC-1"]["operator"] == "in_list"
         assert by_id["EC-4"]["target"] == "doc_type", (
-            "EC-4 no longer targets doc_type. If inference.py was fixed, the "
-            "F-166 regression fixture below is no longer testing anything."
-        )
-        assert by_id["EC-1"]["what"] == ["French"], (
-            "EC-1 no longer drops its second operand. If inference.py was fixed, "
-            "the F-167 regression fixture below is no longer testing anything."
+            "EC-4 no longer targets doc_type. If F-166 was repaired, the "
+            "fixtures below need the same treatment EC-1's just had."
         )
 
 
@@ -198,12 +209,14 @@ class TestDroppedOperand:
 
     CHECK = "dropped-operand"
 
-    def test_it_fires_on_EC_1_and_EC_4(self, rows, a_columns):
+    def test_it_fires_on_EC_4_and_no_longer_on_EC_1(self, rows, a_columns):
+        """EC-1 WAS this check's headline case. Wave 13d repaired F-167, so it
+        is correct now and the check must go quiet on it — which is the whole
+        point of a linter that catches a class rather than an instance."""
         lint = _linter()
         found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
-        assert _ids(found) == ["EC-1", "EC-4"], (
-            "EC-1 is F-167 itself — 'French or Spanish' became one operand. "
-            "EC-4 drops both of its operands and so trips this check too."
+        assert _ids(found) == ["EC-4"], (
+            "EC-4 still discards both of its operands (F-166, not yet repaired)."
         )
 
     def test_it_does_not_fire_on_IC_5_whose_three_operands_are_correct(self, rows, a_columns):
@@ -241,9 +254,9 @@ class TestDroppedOperand:
     def test_the_finding_names_the_operand_that_survived(self, rows, a_columns):
         lint = _linter()
         f = [x for x in _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
-             if x.criterion_id == "EC-1"][0]
+             if x.criterion_id == "EC-4"][0]
         assert f.severity == "MISTRANSLATED"
-        assert "French" in f.message, (
+        assert "conference" in f.message, (
             "The user must be able to see which half survived without opening "
             "the table."
         )
@@ -253,7 +266,7 @@ class TestDroppedOperand:
         lint = _linter()
         report = lint.lint_criteria(rows)
         assert self.CHECK in report.ran
-        assert _ids(_by_check(report, self.CHECK)) == ["EC-1", "EC-4"]
+        assert _ids(_by_check(report, self.CHECK)) == ["EC-4"]
 
 
 class TestInertAtStage:
@@ -708,8 +721,9 @@ class TestItStaysQuietOnHarderProse:
         """Quieting one check must not silence the others."""
         rows, cols = adversarial
         report = _linter().lint_criteria(rows, cols)
-        assert "EC-1" in _ids(_by_check(report, "dropped-operand")), (
-            "EC-1 is 'French, Spanish, or Portuguese' rendered as one operand."
+        assert "EC-1" not in _ids(_by_check(report, "dropped-operand")), (
+            "wave 13d repairs 'French, Spanish, or Portuguese' into in_list, so "
+            "this adversarial row is now correct too — the repair generalises."
         )
         assert "IC-5" in _ids(_by_check(report, "inert-at-stage")), (
             "IC-5 is `contains` at IL — F-65's class on new input."
@@ -779,7 +793,7 @@ class TestItStaysQuietOnCorrectlyTranslatedRules:
         """The narrowings must not cost the findings the linter exists for."""
         report = _linter().lint_criteria(rows, a_columns)
         assert _ids(_by_check(report, "target-mismatch")) == ["EC-4"]
-        assert _ids(_by_check(report, "dropped-operand")) == ["EC-1", "EC-4"]
+        assert _ids(_by_check(report, "dropped-operand")) == ["EC-4"]
         assert _ids(_by_check(report, "inert-at-stage")) == ["IC-5"]
 
 

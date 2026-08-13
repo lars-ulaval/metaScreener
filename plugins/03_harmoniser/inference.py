@@ -98,17 +98,39 @@ def _infer_criterion_details(
         r"in\s+([a-zA-Z]+)\s+language",
         r"\b(english|french|spanish|german|portuguese|italian)\b",
     ]
+    # F-167. This used to take `m.group(1)` from the FIRST pattern that matched
+    # and return, so "written in French or Spanish" became `equals lang French`
+    # and the two Spanish records the criterion names survived it.
+    #
+    # Every pattern is now scanned for every match, and the results are unioned
+    # in order of appearance. The union matters: the first three patterns capture
+    # an arbitrary word after "written in" / "language is" / "in ... language",
+    # while the fourth matches a known language name anywhere. Scanning only the
+    # known names would turn "Dutch or German" into `German` alone -- swapping
+    # which operand is lost rather than keeping both -- because Dutch is not in
+    # the alternation.
+    found = {}
     for pattern in lang_patterns:
-        m = re.search(pattern, label_lower)
-        if m:
-            lang = m.group(1).strip().capitalize()
-            lang_target = pick_col(["language", "lang", "publication_language"])
-            if lang_target:
-                target = lang_target
-                operator = "equals"
-                what = [lang]
-                stage = "IH" if crit_type == "include" else "EH"
-                return {"stage": stage, "operator": operator, "target": target, "what": what}
+        for m in re.finditer(pattern, label_lower):
+            token = m.group(1).strip().capitalize()
+            if token and token not in found:
+                found[token] = m.start(1)
+    langs = sorted(found, key=found.get)
+
+    if langs:
+        lang_target = pick_col(["language", "lang", "publication_language"])
+        if lang_target:
+            target = lang_target
+            # `equals` reads `what_list_norm[0]` alone in
+            # `plugins/_common/evaluator.py::_eval_criterion`, so it cannot
+            # express two operands however many it is given. `in_list` is exact
+            # membership over the normalised forms, which is what a language
+            # column holds -- characterised in `tests/test_in_list_operator.py`
+            # before this branch was allowed to emit it.
+            operator = "in_list" if len(langs) > 1 else "equals"
+            what = langs
+            stage = "IH" if crit_type == "include" else "EH"
+            return {"stage": stage, "operator": operator, "target": target, "what": what}
 
     # 2) Year criteria
     year_target = pick_col(["year", "publication_year", "pub_year", "date_year"])

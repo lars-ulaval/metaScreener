@@ -105,13 +105,19 @@ class TestInferCriterionDetails:
         assert r["what"] == ["English"]
 
     def test_language_exclusion_maps_to_eh(self, aggregate_columns):
-        """'written in French or Spanish' → EH, operator=equals."""
+        """'written in French or Spanish' → EH, operator=in_list (F-167).
+
+        This asserted `equals` until wave 13d, and that assertion was pinning
+        the defect: `equals` reads only its first operand, so the rule excluded
+        French and let Spanish through. Both languages are now carried.
+        """
         r = _h()._infer_criterion_details("EC-1", "exclude",
                           "The paper is written in French or Spanish.",
                           aggregate_columns)
         assert r["stage"] == "EH"
-        assert r["operator"] == "equals"
+        assert r["operator"] == "in_list"
         assert r["target"] == "lang"
+        assert r["what"] == ["French", "Spanish"]
 
     def test_year_gte_maps_to_ih(self, aggregate_columns):
         """'publication year is 2018 or later' → IH, operator=gte."""

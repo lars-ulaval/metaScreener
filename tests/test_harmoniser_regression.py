@@ -7,12 +7,17 @@
 test_harmoniser_regression.py — Golden-file regression for Plugin 03.
 
 Drives the same engine functions that the Harmoniser tab's "Harmonise (no-LLM)"
-button calls and writes a `criteria_harmonized.csv` that must be byte-identical
-to `tests/golden/criteria_harmonized_v3.1.0.csv`.
+button calls, and asserts the rule emitted for each criterion of
+`samples/ic_ec_12.txt` — row by row, so a change shows WHICH rule moved.
 
-The golden file is the contract that the EH/IH/EL/IL plugins downstream consume.
-This test guards the schema and inference output against silent drift across
-the Plugin 03 module-decomposition refactor (Conv 4) and any subsequent change.
+Until wave 13d this asserted byte-identity against
+`tests/golden/criteria_harmonized_v3.1.0.csv`. Repairing F-166 and F-167 breaks
+that by construction, because the golden records what the DEFECTIVE translator
+emitted. The golden file is deliberately NOT regenerated: it is the criteria
+input for six downstream tests whose expected outputs were captured from those
+rules. See `TestTheGoldenIsStillTheDownstreamInput` for the whole argument, and
+the schema assertion in `TestTheRuleEmittedForEachCriterion` for the other half
+of what byte-identity used to guard.
 
 Rebuilding the golden file (only when output changes are deliberate)
 -------------------------------------------------------------------
@@ -120,8 +125,8 @@ EXPECTED_RULES = {
     # F-65: `contains` at an LLM stage, never evaluated. Not this wave's.
     "IC-5": ("IL", "contains", "title,abstract,keywords",
              ["training", "vocational", "workplace"]),
-    # F-167: "written in French or Spanish" -> one operand. DEFECT.
-    "EC-1": ("EH", "equals", "lang", ["French"]),
+    # F-167 REPAIRED in wave 13d: both languages the label names.
+    "EC-1": ("EH", "in_list", "lang", ["French", "Spanish"]),
     "EC-2": ("EL", "llm", "keywords", 1),
     "EC-3": ("EL", "llm", "keywords", 1),
     # F-166: the label names `venue`; the rule reads `doc_type` and both
@@ -171,19 +176,54 @@ class TestTheRuleEmittedForEachCriterion:
                 assert len(list(reader)) == 8
 
 
-class TestHarmoniserGolden:
-    """Byte-identity regression for criteria_harmonized.csv."""
+class TestTheGoldenIsStillTheDownstreamInput:
+    """The golden keeps its other job, and the divergence from fresh inference
+    is deliberate and asserted rather than left to be discovered.
 
-    def test_byte_identical_to_golden(self):
+    THIS CLASS REPLACED A BYTE-IDENTITY ASSERTION. Until wave 13d this module
+    asserted that fresh inference reproduced
+    `tests/golden/criteria_harmonized_v3.1.0.csv` byte for byte. Repairing F-166
+    and F-167 breaks that by construction: the golden records the rules the
+    DEFECTIVE translator emitted.
+
+    The golden file is nonetheless NOT regenerated, and the reason is stronger
+    than "the fence says so". It is the criteria INPUT consumed by
+    `test_eh_regression`, `test_ih_regression`, `test_el_regression`,
+    `test_il_regression`, `test_eval_grid_generator` and `test_eval_ingest`,
+    whose own expected outputs were captured FROM these rules. Regenerating it
+    would move six downstream goldens with it. Those six load the FILE rather
+    than fresh inference, so they are untouched by the repair and stay green.
+
+    Separately: this file is not one of the F-98-frozen study artefacts. Those
+    live under `docs/data/study_input/` with their own `SHA256SUMS` and are not
+    this wave's to touch either — see F-168, which exists because a code repair
+    cannot correct them.
+    """
+
+    def test_the_golden_still_exists_and_still_parses(self):
+        import csv as _csv
         assert GOLDEN.exists(), f"Golden file missing: {GOLDEN}"
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "criteria_harmonized.csv"
-            _harmonise_to_csv(out)
-            actual = out.read_bytes()
-        expected = GOLDEN.read_bytes()
-        assert actual == expected, (
-            f"criteria_harmonized.csv changed.\n"
-            f"  expected {len(expected)} bytes, got {len(actual)} bytes.\n"
-            f"  Schema or inference output drifted; this breaks downstream EH/IH/EL/IL.\n"
-            f"  If the change is intentional, rebuild the golden file deliberately."
-        )
+        with GOLDEN.open(encoding="utf-8-sig", newline="") as fh:
+            rows = list(_csv.DictReader(fh))
+        assert len(rows) == 8
+
+    def test_the_golden_records_the_pre_repair_rules(self):
+        """Asserted, so nobody later reads the divergence as drift."""
+        import csv as _csv
+        with GOLDEN.open(encoding="utf-8-sig", newline="") as fh:
+            by_id = {r["id"]: r for r in _csv.DictReader(fh)}
+        assert (by_id["EC-1"]["operator"], by_id["EC-1"]["target"],
+                by_id["EC-1"]["what"]) == ("equals", "lang", "French")
+        assert (by_id["EC-4"]["operator"], by_id["EC-4"]["target"],
+                by_id["EC-4"]["what"]) == ("equals", "doc_type", "conference")
+
+    def test_fresh_inference_now_deliberately_differs_from_it(self):
+        """The divergence itself, pinned. If a later wave re-captures the golden
+        this test is where that decision announces itself."""
+        import csv as _csv
+        with GOLDEN.open(encoding="utf-8-sig", newline="") as fh:
+            by_id = {r["id"]: r for r in _csv.DictReader(fh)}
+        fresh = {r["id"]: r for r in _build_rows()}
+        # F-167: `equals` -> `in_list`, and a second operand.
+        assert fresh["EC-1"]["operator"] != by_id["EC-1"]["operator"]
+        assert len(fresh["EC-1"]["what"]) == 2
