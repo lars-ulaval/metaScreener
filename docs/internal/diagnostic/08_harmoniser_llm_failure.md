@@ -10,7 +10,17 @@
 **Date:** 2026-08-12. **Mode:** read-only. No source, test, golden, sample, register
 row or user-facing document was modified. This file is the only one added.
 **Test baseline:** 1602 → **1714 passed, 7 skipped** — before and after.
-**Golden listing aggregate:** `9b7fe3e2`.
+**Goldens:** `tests/golden` tree object `050b3575` (`git rev-parse
+HEAD:tests/golden`), unchanged. *Retracted 2026-08-12 (wave 13e session B):*
+this line previously read **Golden listing aggregate:** `9b7fe3e2`. That figure
+was never derivable. It entered the tree in `770c8f3` and was copied forward
+into every subsequent gate without anyone establishing how it was computed; 71
+candidate derivations were tried (content hashes, name+digest listings, `git
+ls-files`/`ls-files -s`/`ls-tree` in several forms, `sha256sum`/`md5sum` listing
+styles, sizes, per-file digests, over sha256/sha1/md5/sha512/blake2b/crc32) and
+**none reproduces it**. The goldens have not moved since `770c8f3`, so a
+derivable figure would still derive. It was a hand-carried number that rotted.
+Use the tree object above, or `git diff main...HEAD -- tests/golden/`.
 
 **Gate exception, reported rather than waved through.** `git status --porcelain` was
 **not** empty at session start. One untracked file:

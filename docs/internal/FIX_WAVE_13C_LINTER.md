@@ -5,7 +5,18 @@
 
 **Branch:** `fix/wave-13c-linter` off `main` @ `7591fc2` (tag `post-wave-13b`), working tree
 clean, `origin/main` in sync (0 ahead, 0 behind). **Date:** 2026-08-12.
-**Test baseline:** 1602 passed, 7 skipped. **Golden listing aggregate:** `9b7fe3e2`.
+**Test baseline:** 1602 passed, 7 skipped.
+**Goldens:** `tests/golden` tree object `050b3575` (`git rev-parse
+HEAD:tests/golden`), unchanged. *Retracted 2026-08-12 (wave 13e session B):*
+this line previously read **Golden listing aggregate:** `9b7fe3e2`. That figure
+was never derivable. It entered the tree in `770c8f3` and was copied forward
+into every subsequent gate without anyone establishing how it was computed; 71
+candidate derivations were tried (content hashes, name+digest listings, `git
+ls-files`/`ls-files -s`/`ls-tree` in several forms, `sha256sum`/`md5sum` listing
+styles, sizes, per-file digests, over sha256/sha1/md5/sha512/blake2b/crc32) and
+**none reproduces it**. The goldens have not moved since `770c8f3`, so a
+derivable figure would still derive. It was a hand-carried number that rotted.
+Use the tree object above, or `git diff main...HEAD -- tests/golden/`.
 **Mode for this commit:** design only. **No code was written.** No source, test, golden,
 sample, register row or user-facing document was modified; this file is the only one added.
 **Network:** none. No LLM endpoint was contacted, local or remote. No Ollama daemon was

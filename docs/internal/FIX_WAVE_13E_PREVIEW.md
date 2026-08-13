@@ -6,12 +6,12 @@
 **Branch:** `fix/wave-13e-preview` off `main` @ `a790f9d`, working tree clean,
 `origin/main` in sync (0 ahead, 0 behind). **Date:** 2026-08-12.
 **Test baseline:** 1765 passed, 7 skipped (read from the run, not predicted).
-**Goldens:** `git diff --stat main -- tests/golden` is **empty** — all nine files
-byte-identical to `main`. (Earlier wave docs carry a "golden aggregate `9b7fe3e2`"
-whose derivation I could not reproduce with any of `git ls-files`, `ls-files -s`,
-`ls-tree -r`, or a content hash; rather than repeat a number I cannot recompute, the
-check above is stated because it is the one that was actually run. Worth pinning down
-or dropping in a later wave.)
+**Goldens:** `tests/golden` tree object `050b3575` (`git rev-parse HEAD:tests/golden`),
+and `git diff --stat main -- tests/golden` empty — all nine files byte-identical to
+`main`. (This paragraph originally flagged the undocumented "golden aggregate
+`9b7fe3e2`" carried by earlier wave docs. Session B swept it: 71 derivations tried,
+none reproduces it, and it is now retracted everywhere it appears. The tree object
+above is the reproducible replacement.)
 **Mode for this commit:** read, execute, measure. **No feature code was written.**
 No source, test, golden, sample, register row or user-facing document was modified;
 this file is the only one added.
@@ -500,8 +500,8 @@ accepts the GO.
 **Branch:** `fix/wave-13e-b-preview` off `main` @ `3e2d635`, working tree clean,
 `origin/main` in sync (0 ahead, 0 behind). **Date:** 2026-08-12.
 **Gate:** 1765 passed, 7 skipped — read from the run. Golden baseline taken with
-`git ls-files -s tests/golden` and kept for re-verification at wrap-up; no aggregate
-hash was used, for the reason given under "Retiring the golden aggregate" below.
+`git ls-files -s tests/golden` and kept for re-verification at wrap-up; the
+undocumented aggregate hash was retired rather than reused — see B-3.
 
 ## B-1. IC-4's 611 removals are real — the hypothesis is refuted, twice
 
@@ -581,4 +581,54 @@ So the honest framing of this feature is not "build a display". It is: **the pre
 state of an existing table is empty by construction, and the data needed to fill it
 costs 26 ms.** That materially affects the attachment decision in session A's
 section (e), and it is raised as HO-13E-1 rather than decided here.
+
+## B-3. Retiring the golden aggregate
+
+`9b7fe3e2` has appeared in every step-0 gate since wave 13c and is now in committed
+diagnostic appendices. Nobody established how it was derived. This is the
+coordinator's own recorded failure mode — a supplied figure treated as fact, and a
+hand-maintained number that rots (F-109's pattern, applied to a gate rather than a
+vocabulary).
+
+**Provenance, EXECUTED.** `git log -S"9b7fe3e2" --reverse` gives four commits:
+`770c8f3` (wave 13c A, where it first appears), `65561b2`, `d5b6d6f`, `3e2d635`.
+There is **no wave 13a report in the tree containing it** — the belief that it came
+from one is itself unverified. It was introduced by a design document and copied
+forward three times.
+
+**Derivation attempt, EXECUTED — 71 methods, none reproduces it.** Concatenated file
+contents; concatenated per-file digests; `name + digest` and `digest + name` listings
+across three separators; incremental hashing of names with raw digests; basenames and
+posix paths; `git ls-files`, `ls-files -s`, `ls-files --stage`, `ls-tree -r`,
+`ls-tree`, `--name-only`, `git hash-object`, `git rev-parse HEAD:tests/golden`, each
+raw, stripped and CRLF-converted; `sha256sum`/`md5sum` listing styles in three
+formats; byte sizes; total size; and every individual golden's own digest — each over
+sha256, sha1, md5, sha512, blake2b and crc32.
+
+```
+methods tried: 71
+MATCHES: NONE — '9b7fe3e2' is not reproducible by any of these
+```
+
+**And the goldens have not moved since it was written**, so this is not a case of a
+once-correct figure going stale: `git diff --stat 770c8f3 HEAD -- tests/golden/` is
+empty, and the `tests/golden` tree object is `050b3575…` at `770c8f3`, `65561b2`,
+`d5b6d6f`, `3e2d635` and `main` — **one distinct value across all five**. A derivable
+figure would still derive. This one never did.
+
+**What replaces it.** Two checks, both single commands, both reproducible by anyone:
+
+| | command | what it answers |
+|---|---|---|
+| identity | `git rev-parse HEAD:tests/golden` → `050b3575…` | *which bytes are the goldens* |
+| movement | `git diff main...HEAD -- tests/golden/` | *did this branch move them* |
+
+The tree object is git's own content hash of the directory. It is strictly better than
+what it replaces: one stable token, derivable in one command, and it changes if and
+only if a golden changes.
+
+**Swept, not spot-fixed.** All four instances were replaced with a retraction naming
+the real value: `FIX_WAVE_13C_LINTER.md`, `FIX_WAVE_13D_INFERENCE.md`,
+`diagnostic/08_harmoniser_llm_failure.md`, and this document's own session A header.
+`git grep 9b7fe3e2` returns only the retraction notices themselves.
 
