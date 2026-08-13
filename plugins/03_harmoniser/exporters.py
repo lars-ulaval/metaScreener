@@ -28,6 +28,7 @@ the byte-identity contract.
 """
 
 import csv
+import io
 import hashlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -55,7 +56,21 @@ BUNDLE_SCHEMA = "screenA_bundle_v1"
 BUNDLE_ROOT_NAME = "ScreenA_Bundle"
 
 
-def _export_csv(rows: List[Dict[str, Any]], path: str) -> None:
+def _criteria_csv_text(rows: List[Dict[str, Any]]) -> str:
+    """Serialise harmonised criteria rows to `criteria_harmonized.csv` text.
+
+    Extracted from `_export_csv` in wave 13e session B so that a consumer needing
+    the CSV *without* writing a file gets the same bytes rather than a second
+    hand-maintained copy of this schema. The preview
+    (`plugins/03_harmoniser/preview.py`) is the first such consumer: it must screen
+    the bytes the bundle will carry, and `_load_criteria_from_text` only accepts
+    text.
+
+    This is byte-identity-critical -- `plugins/03_harmoniser/bundle.py` records this
+    file's SHA in the manifest -- so the extraction is pinned by
+    `tests/test_criteria_csv_text.py`, whose lock class asserts the same bytes
+    before and after.
+    """
     cols = [
         "stage",
         "id",
@@ -70,23 +85,35 @@ def _export_csv(rows: List[Dict[str, Any]], path: str) -> None:
         "source_text",
     ]
 
+    # csv emits its own CRLF terminator and StringIO does not translate on write,
+    # so this buffer already holds the exact bytes `_export_csv` puts on disk --
+    # which opens with `newline=""` for the same reason. `newline=""` here is
+    # explicit rather than load-bearing: wave 13e B measured the three StringIO
+    # newline settings to be byte-identical for csv output, so no test can
+    # distinguish them and none pretends to.
+    buf = io.StringIO(newline="")
+    w = csv.DictWriter(buf, fieldnames=cols)
+    w.writeheader()
+    for r in rows:
+        w.writerow({
+            "stage": r.get("stage", ""),
+            "id": r.get("id", ""),
+            "type": r.get("type", ""),
+            "scope": r.get("scope", "metadata"),
+            "label": r.get("label", ""),
+            "operator": r.get("operator", ""),
+            "target": r.get("target", ""),
+            "what": _what_to_export(r.get("operator", ""), r.get("what", []) or []),
+            "threshold": r.get("threshold", ""),
+            "enabled": 1 if bool(r.get("enabled", True)) else 0,
+            "source_text": r.get("source_text", ""),
+        })
+    return buf.getvalue()
+
+
+def _export_csv(rows: List[Dict[str, Any]], path: str) -> None:
     with open(path, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=cols)
-        w.writeheader()
-        for r in rows:
-            w.writerow({
-                "stage": r.get("stage", ""),
-                "id": r.get("id", ""),
-                "type": r.get("type", ""),
-                "scope": r.get("scope", "metadata"),
-                "label": r.get("label", ""),
-                "operator": r.get("operator", ""),
-                "target": r.get("target", ""),
-                "what": _what_to_export(r.get("operator", ""), r.get("what", []) or []),
-                "threshold": r.get("threshold", ""),
-                "enabled": 1 if bool(r.get("enabled", True)) else 0,
-                "source_text": r.get("source_text", ""),
-            })
+        f.write(_criteria_csv_text(rows))
 
 
 def _export_pipe(rows: List[Dict[str, Any]], path: str) -> None:

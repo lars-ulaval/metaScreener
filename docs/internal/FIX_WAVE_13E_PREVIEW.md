@@ -632,3 +632,131 @@ the real value: `FIX_WAVE_13C_LINTER.md`, `FIX_WAVE_13D_INFERENCE.md`,
 `diagnostic/08_harmoniser_llm_failure.md`, and this document's own session A header.
 `git grep 9b7fe3e2` returns only the retraction notices themselves.
 
+## B-4. The CSV question: premise confirmed, conclusion not
+
+The brief asked me to check a premise before extracting anything: wave 13c B reported
+zero divergence between the Harmoniser's in-memory rows and the round-tripped CSV, and
+if the rows are equivalent for screening purposes then the preview does not need the
+CSV path at all.
+
+**The premise is confirmed. The conclusion does not follow from it.**
+
+Confirmed, EXECUTED: an ad-hoc writer of the kind a preview would otherwise carry
+produces **1991 bytes, byte-identical** to `_export_csv`'s output, and the round trip
+`rows -> CSV -> Criterion` preserves everything — **56 fields checked across 8
+criteria, 0 differing**.
+
+But equivalence of *content* is not the reason the CSV is needed.
+`plugins/_common/parser.py::_load_criteria_from_text` is **the only supported way to
+build a `Criterion`**, and it takes text. It is also monolithic — CSV parsing, the
+`_truthy` gate that silently drops disabled rows, stage filtering, `_split_targets`,
+`_split_what_list`, threshold parsing with a warning, `ctype` validation with a
+warning, the missing-target warning and `_detect_contradictions_simple` are one
+function with no per-row helper. A preview that built `Criterion` objects directly
+would reimplement all of that and would diverge from what a real run does, which is a
+larger restatement than the writer, not a smaller one.
+
+So the preview needs the text. The only question left is who writes it, and there the
+byte-identity measurement cuts the other way: a second writer that agrees today is
+precisely the F-109 shape — two hand-maintained copies of an eleven-column
+byte-identity-critical schema, correct on the day they are written.
+
+**`_criteria_csv_text(rows) -> str` was therefore extracted** from
+`03_harmoniser/exporters.py::_export_csv`, which becomes a two-line file write over
+it. `tests/test_criteria_csv_text.py` locks the result: `TestTheBytesAreWhatTheyWere`
+characterises the writer and passes **unchanged** before and after the split;
+`TestTheTextFunctionIsTheSameWriter` failed before it with
+`AttributeError: module 'plugins.03_harmoniser.exporters' has no attribute
+'_criteria_csv_text'` and passes after. 18 tests, and the goldens did not move.
+
+### The lock was vacuous in one place, and a mutation battery found it
+
+Six mutations were applied to the extracted writer. Three were caught immediately;
+**three survived**, and all three were worth chasing rather than papering over.
+
+| mutation | first run | after | why |
+|---|---|---|---|
+| `scope` default dropped | CAUGHT | CAUGHT | |
+| `enabled` emitted as a bool | CAUGHT | CAUGHT | |
+| two columns swapped | CAUGHT | CAUGHT | |
+| **`_what_to_export` replaced by a plain join** | **SURVIVED** | CAUGHT | a real gap — see below |
+| `StringIO(newline="")` -> `StringIO()` | SURVIVED | SURVIVED | **equivalent mutant, measured** |
+| absent cells become `None` | SURVIVED | SURVIVED | **equivalent mutant, measured** |
+
+The two remaining survivors are not test weaknesses and no assertion was added to
+chase them, because none could exist. EXECUTED: `StringIO()`, `StringIO(newline="")`
+and `StringIO(newline="
+")` produce byte-identical csv output — the parameter is
+explicit, not load-bearing, and the comment beside it now says so rather than claiming
+a translation it does not prevent. EXECUTED: `csv.writer` renders `None` as an empty
+field, so `r.get(k)` and `r.get(k, "")` cannot be distinguished through the file.
+
+The third survivor was a genuine hole. `_what_to_export`'s four branches turn out to
+be **behaviourally identical to a plain `";".join`** for every shape the original
+fixture contained — `equals`/`gte` with one operand return `what_list[0]`, which *is*
+the join of a one-element list, and `between` with two returns `f"{a};{b}"`, which is
+the join. Measured, the branches differ in exactly one case:
+
+```
+   regex ['^\d{4}$', 'SECOND-IGNORED']  _what_to_export='^\d{4}$'
+                                         join='^\d{4}$;SECOND-IGNORED'   <-- DIFFERS
+```
+
+A fixture without a multi-operand `regex` row therefore could not tell
+`_what_to_export` from a bare join, and a writer that dropped it entirely would have
+passed every assertion in the file. One row closed it, and the mutation is now caught.
+
+## Candidate findings (session B)
+
+### PV-5 — a `regex` criterion with more than one operand loses all but the first, silently, and the linter does not fire
+
+Found by the mutation battery above, then confirmed directly. EXECUTED, three
+operands in:
+
+```
+  exported `what` cell    : 'FIRST-KEPT'
+  what_list after round trip: ['FIRST-KEPT']
+  operands in: 3   operands out: 1
+  linter findings: NONE
+```
+
+`03_harmoniser/parser.py::_what_to_export` returns `what_list[0]` for `regex`
+regardless of how many operands the row carries. Two of three are discarded at
+serialisation with no warning, no `input_errors` entry, and — the part that matters —
+**`linter.py::lint_criteria` returns no finding at all**, even though its
+`dropped-operand` check is exactly the check that caught F-167.
+
+**This is F-167's class in a different mechanism.** F-167 was the *inference* dropping
+operands while translating prose; this is the *exporter* dropping them while
+serialising a row the user may have typed themselves.
+
+Reachability, stated honestly: no inference branch emits `regex`
+(`07_criteria_parsing.md` §2.5), so this cannot arise from the free-text path. It
+requires a hand-edited or externally-produced criteria table — which
+`_load_structured_criteria_table` exists to load, so the path is real but narrow.
+
+**Not fixed here, deliberately.** `_what_to_export` feeds a SHA-pinned artefact and
+`linter.py` is outside this wave's fence. Suggested severity **High** (silent operand
+loss in a rule the user wrote, with no surfacing anywhere) rather than Critical, on
+the ground that it cannot be reached from the free-text path that produced every
+published run. Cross-ref F-167, F-109, CL-2.
+
+### HO-13E-1 — where the preview attaches, now that the display is known to exist
+
+Session A's section (e) offered three attachment options on the assumption that the
+per-criterion display had to be built. B-2 establishes it already exists in
+`04_eh/ui.py` and `05_ih/ui.py`, gated behind `if not pre_run`. That adds a fourth
+option and changes the cost of the others, and it is the human's call because EH/IH
+sit next to this wave's fence.
+
+- **(1) Harmoniser button** — the criteria are authored there and a change is cheap at
+  that moment. Costs a 117 ms corpus re-read per press (CL-3 keeps no rows) and a
+  second modal.
+- **(4, new) Fill the existing EH/IH columns before a run** — no new display at all;
+  the four columns already exist and are already wired to `crit_impacts`. But by the
+  time the user is in EH they have already exported a bundle, so the feedback arrives
+  after the expensive step, and it touches two plugins the fence brushes against.
+
+Session B builds the pure function so that either wiring consumes it unchanged, and
+wires option (1) only — see B-5.
+
