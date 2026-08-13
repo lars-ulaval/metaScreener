@@ -113,6 +113,29 @@ def _findings(report):
     return sorted((f.criterion_id, f.check) for f in report)
 
 
+def _pre_repair_rows():
+    """The rules the translator emitted BEFORE wave 13d repaired F-166/F-167.
+
+    `tests/golden/criteria_harmonized_v3.1.0.csv`, which was captured from the
+    defective translator and is deliberately not re-captured -- it is the
+    criteria input for six downstream replay tests. It is the repository's own
+    record of the two defects, and the fixture for proving the wired path still
+    surfaces them now that the live table no longer contains an instance.
+    """
+    import csv as _csv
+    hp = _import_plugin("03_harmoniser", "parser")
+    with GOLDEN.open(encoding="utf-8-sig", newline="") as fh:
+        rows = list(_csv.DictReader(fh))
+    # Back to the IN-MEMORY shape the View holds: `what` a list, `enabled` a
+    # bool. Reading the CSV raw would leave `what` a string, which makes
+    # `_validate_row` emit "'what' was not a list; coerced" for every row and
+    # drowns the findings under eight warnings.
+    for r in rows:
+        r["what"] = hp._parse_what_cell(r.get("operator", "contains"), r.get("what", ""))
+        r["enabled"] = str(r.get("enabled", "1")).strip() not in {"0", "false", "no", ""}
+    return rows
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -243,16 +266,20 @@ class TestTheLinterReadsAllThreeShapesIdentically:
     def test_the_three_defective_rows_are_found_in_every_shape(self, rows, a_columns):
         lint = _linter()
         found = _findings(lint.lint_criteria(rows, a_columns))
-        assert ("EC-4", "target-mismatch") in found     # F-166, not yet repaired
-        assert ("IC-5", "inert-at-stage") in found      # F-65, its own wave
-        # F-167 was repaired in wave 13d, so EC-1 is silent now.
-        assert not [f for f in found if f[0] == "EC-1"]
+        assert found == [("IC-5", "inert-at-stage")], (
+            "F-166 and F-167 are repaired in wave 13d; only F-65's row remains, "
+            "and it is its own wave's"
+        )
+        # ...and the CLASS is still caught, on the pre-repair table:
+        pre = _findings(lint.lint_criteria(_pre_repair_rows(), a_columns))
+        assert ("EC-4", "target-mismatch") in pre        # F-166
+        assert ("EC-1", "dropped-operand") in pre        # F-167
 
     def test_the_five_correct_rows_are_silent(self, rows, a_columns):
         lint = _linter()
         noisy = {cid for cid, _ in _findings(lint.lint_criteria(rows, a_columns))}
-        assert noisy == {"EC-4", "IC-5"}, (
-            "everything except F-166's row and F-65's is correctly translated "
+        assert noisy == {"IC-5"}, (
+            "after wave 13d every row except F-65's is correctly translated "
             "and must produce nothing: %s" % sorted(noisy)
         )
 
@@ -294,19 +321,19 @@ class TestValidateAsItStandsToday:
         "4 things worth a look." Now: each finding, in the user's terms."""
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
+        report = vr.build_validation_report(_pre_repair_rows(), a_columns)
         body = report.dialog.body
-        assert len(report.findings) == 3
-        for crit_id in ("EC-4", "IC-5"):
+        assert len(report.findings) == 4
+        for crit_id in ("EC-1", "EC-4", "IC-5"):
             assert crit_id in body
-        assert "EC-1" not in body, "F-167 repaired in wave 13d"
-        # One criterion, two findings — EC-4 trips two checks.
-        assert "1 criterion may not do what its wording says:" in body
+        # Two criteria, three findings — EC-4 trips two checks.
+        assert "2 criteria may not do what their wording says:" in body
         assert "1 criterion will not run at all:" in body
 
     def test_the_dialog_says_what_the_rule_will_do_not_which_check_fired(
             self, rows, a_columns):
         vr = _report()
-        body = vr.build_validation_report(rows, a_columns).dialog.body
+        body = vr.build_validation_report(_pre_repair_rows(), a_columns).dialog.body
         assert 'the rule reads "doc_type" instead' in body
         assert "will never be evaluated" in body
         for check_name in ("target-mismatch", "dropped-operand",
@@ -432,7 +459,7 @@ class TestValidateAsItStandsToday:
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         assert report.log_line == (
-            "Validate: 8 rows, errors=0, warnings=0, findings=3")
+            "Validate: 8 rows, errors=0, warnings=0, findings=1")
 
 
 class TestTheLinterIsWiredInAndBlocksNothing:
@@ -444,33 +471,35 @@ class TestTheLinterIsWiredInAndBlocksNothing:
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         found = sorted((f.criterion_id, f.check) for f in report.findings)
-        assert found == [
-            ("EC-4", "dropped-operand"),
-            ("EC-4", "target-mismatch"),      # F-166, not yet repaired
-            ("IC-5", "inert-at-stage"),       # F-65, its own wave
-        ], "F-167 was repaired in wave 13d, so EC-1 no longer appears"
+        assert found == [("IC-5", "inert-at-stage")], (
+            "F-166 and F-167 are repaired; F-65's row is not this wave's"
+        )
+        pre = vr.build_validation_report(_pre_repair_rows(), a_columns)
+        pre_found = sorted((f.criterion_id, f.check) for f in pre.findings)
+        assert ("EC-4", "target-mismatch") in pre_found
+        assert ("EC-1", "dropped-operand") in pre_found
 
     def test_the_five_correct_rows_produce_nothing_through_the_wired_path(
             self, rows, a_columns):
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         noisy = {f.criterion_id for f in report.findings}
-        assert noisy == {"EC-4", "IC-5"}
-        for quiet in ("IC-1", "IC-3", "IC-4", "EC-1", "EC-2", "EC-3"):
+        assert noisy == {"IC-5"}
+        for quiet in ("IC-1", "IC-3", "IC-4", "EC-1", "EC-2", "EC-3", "EC-4"):
             assert quiet not in noisy
 
     def test_findings_do_not_change_the_verdict(self, rows, a_columns):
         """`ok` is what gates export. Four findings, and it is still True."""
         vr = _report()
-        report = vr.build_validation_report(rows, a_columns)
-        assert len(report.findings) == 3
+        report = vr.build_validation_report(_pre_repair_rows(), a_columns)
+        assert len(report.findings) == 4
         assert report.ok is True
 
     def test_a_table_of_nothing_but_findings_still_passes(self, a_columns):
         """Every row mistranslated, and export is still permitted."""
         vr = _report()
-        rows, cols = _production_rows()
-        bad = [r for r in rows if r["id"] in {"EC-1", "EC-4", "IC-5"}]
+        _rows, cols = _production_rows()
+        bad = [r for r in _pre_repair_rows() if r["id"] in {"EC-1", "EC-4", "IC-5"}]
         report = vr.build_validation_report(bad, cols)
         assert len(report.findings) >= 3
         assert report.ok is True
@@ -550,8 +579,8 @@ class TestTheDialogUnderVolume:
 
     @staticmethod
     def _many(n_copies):
-        rows, cols = _production_rows()
-        bad = [r for r in rows if r["id"] in {"EC-1", "EC-4", "IC-5"}]
+        _rows, cols = _production_rows()
+        bad = [r for r in _pre_repair_rows() if r["id"] in {"EC-1", "EC-4", "IC-5"}]
         out = []
         for i in range(n_copies):
             for r in bad:
@@ -564,7 +593,7 @@ class TestTheDialogUnderVolume:
         vr = _report()
         rows, cols = self._many(12)
         report = vr.build_validation_report(rows, cols)
-        assert len(report.findings) == 36
+        assert len(report.findings) == 48
         bullets = [l for l in report.dialog.body.splitlines()
                    if l.strip().startswith("•")]
         assert len(bullets) <= vr.MAX_LISTED
@@ -587,19 +616,19 @@ class TestTheDialogUnderVolume:
         vr = _report()
         rows, cols = self._many(12)
         body = vr.build_validation_report(rows, cols).dialog.body
-        assert "and 17 more of these" in body
+        assert "and 29 more of these" in body
         assert "and 11 more of these" in body
         assert "in the log below the table" in body
 
     def test_the_headings_count_criteria_not_findings(self, rows, a_columns):
         """EC-4 trips two checks. The heading said "3 criteria" for two."""
         vr = _report()
-        report = vr.build_validation_report(rows, a_columns)
+        report = vr.build_validation_report(_pre_repair_rows(), a_columns)
         mistranslated = [f for f in report.findings
                          if f.severity == "MISTRANSLATED"]
-        assert len(mistranslated) == 2
-        assert len({f.criterion_id for f in mistranslated}) == 1
-        assert "1 criterion may not do what its wording says:" in report.dialog.body
+        assert len(mistranslated) == 3
+        assert len({f.criterion_id for f in mistranslated}) == 2
+        assert "2 criteria may not do what their wording says:" in report.dialog.body
 
     def test_a_wall_of_findings_still_does_not_block(self):
         vr = _report()
@@ -628,13 +657,13 @@ class TestRowTints:
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         tinted = {m.criterion_id for m in report.marks if m.tag == vr.TAG_LINT}
-        assert tinted == {"EC-4", "IC-5"}
+        assert tinted == {"IC-5"}
 
     def test_the_five_correct_rows_are_not_tinted(self, rows, a_columns):
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         untinted = {m.criterion_id for m in report.marks if not m.tag}
-        assert untinted == {"IC-1", "IC-3", "IC-4", "EC-1", "EC-2", "EC-3"}
+        assert untinted == {"IC-1", "IC-3", "IC-4", "EC-1", "EC-2", "EC-3", "EC-4"}
 
     def test_every_finding_has_a_tinted_row(self, rows, a_columns):
         """The dialog's promise, asserted."""
@@ -774,10 +803,10 @@ class TestWhatTheRefutationPassFound:
         "Validation failed / export is blocked" box with no statement anywhere
         that the findings block nothing."""
         vr = _report()
-        broken = [dict(r) for r in rows] + [{
+        broken = _pre_repair_rows() + [{
             "stage": "EH", "id": "EC-9", "type": "exclude", "scope": "metadata",
             "label": "x", "operator": "not_an_operator", "target": "lang",
-            "what": ["x"], "threshold": "", "enabled": True, "source_text": "",
+            "what": "x", "threshold": "", "enabled": "1", "source_text": "",
         }]
         report = vr.build_validation_report(broken, a_columns)
         assert report.dialog.kind == "error"
@@ -940,15 +969,16 @@ class TestTheViewItself:
         kind, title, body = shown[0]
         assert kind == "showinfo"
         assert title == "Criteria checked"
-        for crit_id in ("EC-4", "IC-5"):
-            assert crit_id in body
+        assert "IC-5" in body, "F-65's row is the one finding that survives 13d"
+        assert "EC-4" not in body, "F-166 repaired"
+        assert "EC-1" not in body, "F-167 repaired"
         assert "All good" not in body
 
     def test_the_validate_button_logs_the_finding_count(
             self, rows, a_columns, monkeypatch):
         _ok, _shown, stub = self._run_validate(
             [dict(r) for r in rows], a_columns, monkeypatch)
-        assert stub.logged == ["Validate: 8 rows, errors=0, warnings=0, findings=3"]
+        assert stub.logged == ["Validate: 8 rows, errors=0, warnings=0, findings=1"]
 
     def test_the_validate_button_uses_the_right_messagebox(
             self, a_columns, monkeypatch):
@@ -969,10 +999,10 @@ class TestTheViewItself:
         self._method("_render_rows")(stub, with_validation=True)
         painted = {vals[1]: (tags[0] if tags else "")
                    for vals, tags in stub.tree.rows}
-        assert painted["EC-4"] == "lint"
-        assert painted["IC-5"] == "lint"
+        assert painted["IC-5"] == "lint", "F-65's row, still flagged"
         assert painted["IC-3"] == ""
         assert painted["EC-1"] == "", "F-167 repaired in wave 13d"
+        assert painted["EC-4"] == "", "F-166 repaired in wave 13d"
 
     def test_render_rows_paints_nothing_without_validation(self, rows, a_columns):
         stub = self._Stub([dict(r) for r in rows], a_columns, self._Tree())

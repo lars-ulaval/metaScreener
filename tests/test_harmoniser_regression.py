@@ -129,9 +129,8 @@ EXPECTED_RULES = {
     "EC-1": ("EH", "in_list", "lang", ["French", "Spanish"]),
     "EC-2": ("EL", "llm", "keywords", 1),
     "EC-3": ("EL", "llm", "keywords", 1),
-    # F-166: the label names `venue`; the rule reads `doc_type` and both
-    # operands are discarded. DEFECT.
-    "EC-4": ("EH", "equals", "doc_type", ["conference"]),
+    # F-166 REPAIRED in wave 13d: the column the label names, both operands.
+    "EC-4": ("EH", "contains", "venue", ["ICRA", "IROS"]),
 }
 
 
@@ -227,3 +226,6 @@ class TestTheGoldenIsStillTheDownstreamInput:
         # F-167: `equals` -> `in_list`, and a second operand.
         assert fresh["EC-1"]["operator"] != by_id["EC-1"]["operator"]
         assert len(fresh["EC-1"]["what"]) == 2
+        # F-166: `doc_type` -> `venue`, and the operands the label names.
+        assert fresh["EC-4"]["target"] != by_id["EC-4"]["target"]
+        assert fresh["EC-4"]["what"] == ["ICRA", "IROS"]

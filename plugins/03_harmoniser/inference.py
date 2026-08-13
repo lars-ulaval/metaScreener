@@ -74,6 +74,29 @@ def _infer_criterion_details(
     """
     label_lower = (label or "").lower()
 
+    # F-166. A parenthetical is a GLOSS, not the criterion's subject.
+    #
+    # "The publication venue contains "ICRA" OR "IROS" (robotics conference
+    # proceedings)." used to become `equals doc_type conference`, because the
+    # word *conference* — present only inside that gloss — reached branch 3
+    # before branch 4 was tried, and then `doc_type_map`'s own "conference" key
+    # matched from the same gloss. Target, operator and both operands were all
+    # substitutions, and it removed 112 of 776 records.
+    #
+    # The rule this encodes: a gloss may still let a branch IN (the guards stay
+    # on the full label, permissive), but it may not DECIDE which value the rule
+    # takes — that must come from the main clause. Guard permissive, value
+    # strict. Stripping parentheticals from the guards as well regressed
+    # "Systematic reviews and meta-analyses (any type).", whose only trigger
+    # word is in the gloss but whose map key is in the main clause; it fell all
+    # the way to `llm`. Both cases are pinned in
+    # `tests/test_inference_repairs.py`.
+    #
+    # Reordering branch 4 ahead of branch 3 was the other candidate and is
+    # WRONG: `conference` is in both guards, so it turns "Exclude conference
+    # proceedings." into `contains venue conference`.
+    label_main = re.sub(r"\([^)]*\)", " ", label_lower)
+
     # Defaults: semantic rule
     stage = "IL" if crit_type == "include" else "EL"
     operator = "llm"
@@ -192,14 +215,16 @@ def _infer_criterion_details(
         }
 
         for key, value in doc_type_map.items():
-            if key in label_lower:
+            # `label_main`, not `label_lower`: the value a doc-type rule takes
+            # must come from the criterion, not from an aside describing it.
+            if key in label_main:
                 target = doc_type_target
                 operator = "equals"
                 what = [value]
                 stage = "IH" if crit_type == "include" else "EH"
                 return {"stage": stage, "operator": operator, "target": target, "what": what}
 
-        if "conference" in label_lower or "proceedings" in label_lower:
+        if "conference" in label_main or "proceedings" in label_main:
             target = doc_type_target
             operator = "contains"
             what = ["proceedings"] if "proceedings" in label_lower else ["conference"]
@@ -207,14 +232,28 @@ def _infer_criterion_details(
             return {"stage": stage, "operator": operator, "target": target, "what": what}
 
     # 4) Venue/Journal criteria
-    if any(k in label_lower for k in ["venue", "journal", "conference", "published in"]):
+    if any(k in label_main for k in ["venue", "journal", "conference", "published in"]):
         venue_target = pick_col(["venue", "journal", "source", "conference"])
         if venue_target:
             target = venue_target
             operator = "contains"
             # extract after "published in" or "in"
-            m = re.search(r"(published in|in)\s+(.+)$", label, re.IGNORECASE)
-            what = [m.group(2).strip()] if m else [label]
+            # A researcher who quotes strings is naming operands. This is the
+            # half of F-166 that reaching branch 4 does NOT fix: without it
+            # EC-4 becomes `contains venue ["<the whole sentence>"]`, a rule
+            # that can only match a venue field containing the entire
+            # criterion. Straight and typographic quotes both count.
+            quoted = re.findall(
+                r"[\"“‘']([^\"“”‘’']+)[\"”’']",
+                label)
+            quoted = [q.strip() for q in quoted if q.strip()]
+            if quoted:
+                what = quoted
+            else:
+                # Unquoted operands are still taken whole (WD-1). Splitting
+                # prose on "or" is the class of guess that produced F-166.
+                m = re.search(r"(published in|in)\s+(.+)$", label, re.IGNORECASE)
+                what = [m.group(2).strip()] if m else [label]
             stage = "IH" if crit_type == "include" else "EH"
             return {"stage": stage, "operator": operator, "target": target, "what": what}
 

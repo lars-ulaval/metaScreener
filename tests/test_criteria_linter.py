@@ -107,6 +107,36 @@ def a_columns(harmonised):
     return harmonised[1]
 
 
+def _pre_repair_rows():
+    """The rules the translator emitted BEFORE wave 13d repaired F-166/F-167.
+
+    Not hand-typed: this is `tests/golden/criteria_harmonized_v3.1.0.csv`,
+    captured from the defective translator and deliberately not re-captured --
+    it is the criteria input for six downstream replay tests.
+
+    It is therefore the repository's own record of the two defects, and the
+    right fixture for proving the linter still catches the CLASS now that the
+    reference contract no longer contains an INSTANCE.
+    """
+    import csv as _csv
+    hp = _import_plugin("03_harmoniser", "parser")
+    with GOLDEN.open(encoding="utf-8-sig", newline="") as fh:
+        rows = list(_csv.DictReader(fh))
+    # Back to the IN-MEMORY shape the View holds: `what` a list, `enabled` a
+    # bool. Reading the CSV raw would leave `what` a string, which makes
+    # `_validate_row` emit "'what' was not a list; coerced" for every row and
+    # drowns the findings under eight warnings.
+    for r in rows:
+        r["what"] = hp._parse_what_cell(r.get("operator", "contains"), r.get("what", ""))
+        r["enabled"] = str(r.get("enabled", "1")).strip() not in {"0", "false", "no", ""}
+    return rows
+
+
+@pytest.fixture(scope="module")
+def pre_repair(a_columns):
+    return _pre_repair_rows(), a_columns
+
+
 def _by_check(findings, check):
     return [f for f in findings if f.check == check]
 
@@ -139,7 +169,7 @@ class TestTheFixtureIsTrustworthy:
         assert [r["id"] for r in exported] == [
             "IC-1", "IC-3", "IC-4", "IC-5", "EC-1", "EC-2", "EC-3", "EC-4"]
 
-    def test_EC_4_is_still_defective_and_EC_1_is_not(self, rows):
+    def test_both_defective_rows_are_repaired(self, rows):
         """This test did its job. It was written in wave 13c A to fail loudly
         the moment `inference.py` was repaired, and in wave 13d it did.
 
@@ -148,12 +178,10 @@ class TestTheFixtureIsTrustworthy:
         the linter must still report that.
         """
         by_id = {r["id"]: r for r in rows}
-        assert by_id["EC-1"]["what"] == ["French", "Spanish"], "F-167 repaired"
-        assert by_id["EC-1"]["operator"] == "in_list"
-        assert by_id["EC-4"]["target"] == "doc_type", (
-            "EC-4 no longer targets doc_type. If F-166 was repaired, the "
-            "fixtures below need the same treatment EC-1's just had."
-        )
+        assert by_id["EC-1"]["operator"] == "in_list"          # F-167 repaired
+        assert by_id["EC-1"]["what"] == ["French", "Spanish"]
+        assert by_id["EC-4"]["target"] == "venue"              # F-166 repaired
+        assert by_id["EC-4"]["what"] == ["ICRA", "IROS"]
 
 
 class TestTargetMismatch:
@@ -161,15 +189,25 @@ class TestTargetMismatch:
 
     CHECK = "target-mismatch"
 
-    def test_it_fires_on_EC_4(self, rows, a_columns):
+    def test_it_fires_on_a_row_that_reproduces_F_166(self, pre_repair):
+        """The class, proved against the pre-repair rules."""
+        rows, cols = pre_repair
         lint = _linter()
-        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        found = _by_check(lint.lint_criteria(rows, cols), self.CHECK)
         assert _ids(found) == ["EC-4"], (
             "F-166's row is the reason this check exists. Its label says "
-            "'venue' and its rule targets doc_type."
+            "venue and its rule targeted doc_type."
         )
 
-    def test_it_does_not_fire_on_the_seven_other_rows(self, rows, a_columns):
+    def test_it_is_silent_on_the_repaired_table(self, rows, a_columns):
+        """EC-4 is correct now, so the check must go quiet on it -- because the
+        rule changed, not because the check did. The test above is what keeps
+        those two apart."""
+        lint = _linter()
+        assert _by_check(lint.lint_criteria(rows, a_columns), self.CHECK) == []
+
+    def test_it_does_not_fire_on_the_seven_other_rows(self, pre_repair):
+        rows, a_columns = pre_repair
         lint = _linter()
         found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
         assert set(_ids(found)) <= {"EC-4"}, (
@@ -177,7 +215,8 @@ class TestTargetMismatch:
             "failure mode that matters most here."
         )
 
-    def test_the_finding_says_what_the_rule_actually_does(self, rows, a_columns):
+    def test_the_finding_says_what_the_rule_actually_does(self, pre_repair):
+        rows, a_columns = pre_repair
         lint = _linter()
         f = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)[0]
         assert f.criterion_id == "EC-4"
@@ -190,7 +229,7 @@ class TestTargetMismatch:
     def test_it_is_skipped_without_corpus_columns(self, rows):
         """No columns means the check cannot run — and must say so, not stay silent."""
         lint = _linter()
-        report = lint.lint_criteria(rows)
+        report = lint.lint_criteria(_pre_repair_rows())
         assert _by_check(report, self.CHECK) == []
         assert self.CHECK in report.skipped, (
             "A skipped check must be visible, or a caller reads 'no findings' "
@@ -209,19 +248,23 @@ class TestDroppedOperand:
 
     CHECK = "dropped-operand"
 
-    def test_it_fires_on_EC_4_and_no_longer_on_EC_1(self, rows, a_columns):
+    def test_it_fires_on_rows_that_reproduce_F_167_and_F_166(self, pre_repair):
         """EC-1 WAS this check's headline case. Wave 13d repaired F-167, so it
         is correct now and the check must go quiet on it — which is the whole
         point of a linter that catches a class rather than an instance."""
+        rows, cols = pre_repair
         lint = _linter()
-        found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
-        assert _ids(found) == ["EC-4"], (
-            "EC-4 still discards both of its operands (F-166, not yet repaired)."
-        )
+        found = _by_check(lint.lint_criteria(rows, cols), self.CHECK)
+        assert _ids(found) == ["EC-1", "EC-4"]
 
-    def test_it_does_not_fire_on_IC_5_whose_three_operands_are_correct(self, rows, a_columns):
+    def test_it_is_silent_on_the_repaired_table(self, rows, a_columns):
+        lint = _linter()
+        assert _by_check(lint.lint_criteria(rows, a_columns), self.CHECK) == []
+
+    def test_it_does_not_fire_on_IC_5_whose_three_operands_are_correct(self, pre_repair):
         """The refinement that matters: an `or` between two field names is
         enumerating TARGETS, not values."""
+        rows, a_columns = pre_repair
         lint = _linter()
         found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
         assert "IC-5" not in _ids(found), (
@@ -251,7 +294,8 @@ class TestDroppedOperand:
         found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
         assert not ({"IC-1", "EC-2", "EC-3"} & set(_ids(found)))
 
-    def test_the_finding_names_the_operand_that_survived(self, rows, a_columns):
+    def test_the_finding_names_the_operand_that_survived(self, pre_repair):
+        rows, a_columns = pre_repair
         lint = _linter()
         f = [x for x in _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
              if x.criterion_id == "EC-4"][0]
@@ -261,12 +305,12 @@ class TestDroppedOperand:
             "the table."
         )
 
-    def test_it_needs_no_corpus_columns(self, rows):
+    def test_it_needs_no_corpus_columns(self):
         """Decidable from the table alone, so it must run without a corpus."""
         lint = _linter()
-        report = lint.lint_criteria(rows)
+        report = lint.lint_criteria(_pre_repair_rows())
         assert self.CHECK in report.ran
-        assert _ids(_by_check(report, self.CHECK)) == ["EC-4"]
+        assert _ids(_by_check(report, self.CHECK)) == ["EC-1", "EC-4"]
 
 
 class TestInertAtStage:
@@ -601,7 +645,7 @@ class TestItNeverRaises:
 
     def test_a_mix_of_good_and_unreadable_rows_still_lints_the_good_ones(self, rows, a_columns):
         lint = _linter()
-        report = lint.lint_criteria(list(rows) + ["garbage"], a_columns)
+        report = lint.lint_criteria(_pre_repair_rows() + ["garbage"], a_columns)
         assert _ids(_by_check(report, "target-mismatch")) == ["EC-4"], (
             "One unreadable row must not stop the rest of the table being "
             "checked."
@@ -712,9 +756,14 @@ class TestItStaysQuietOnHarderProse:
             "legitimately see; anything it reports here is noise."
         )
 
-    def test_the_real_defect_still_fires_after_both_narrowings(self, rows, a_columns):
-        """The narrowings must not cost the finding the check exists for."""
-        found = _by_check(_linter().lint_criteria(rows, a_columns), "target-mismatch")
+    def test_the_real_defect_still_fires_after_both_narrowings(self, a_columns):
+        """The narrowings must not cost the finding the check exists for.
+
+        Driven from `_pre_repair_rows()` since wave 13d: the live table no
+        longer contains an instance of F-166.
+        """
+        found = _by_check(_linter().lint_criteria(_pre_repair_rows(), a_columns),
+                          "target-mismatch")
         assert _ids(found) == ["EC-4"]
 
     def test_the_harder_file_still_produces_its_true_findings(self, adversarial):
@@ -789,11 +838,14 @@ class TestItStaysQuietOnCorrectlyTranslatedRules:
         report = _linter().lint_criteria(rows, cols)
         assert list(report) == [], [f.message for f in report]
 
-    def test_the_real_defects_still_fire(self, rows, a_columns):
-        """The narrowings must not cost the findings the linter exists for."""
-        report = _linter().lint_criteria(rows, a_columns)
+    def test_the_real_defects_still_fire(self, a_columns):
+        """The narrowings must not cost the findings the linter exists for.
+
+        Driven from `_pre_repair_rows()` since wave 13d.
+        """
+        report = _linter().lint_criteria(_pre_repair_rows(), a_columns)
         assert _ids(_by_check(report, "target-mismatch")) == ["EC-4"]
-        assert _ids(_by_check(report, "dropped-operand")) == ["EC-4"]
+        assert _ids(_by_check(report, "dropped-operand")) == ["EC-1", "EC-4"]
         assert _ids(_by_check(report, "inert-at-stage")) == ["IC-5"]
 
 
@@ -910,14 +962,16 @@ class TestTheNarrowingsAreLoadBearing:
         for operator in ("equals", "contains", "not_in", "in_list"):
             assert operator in lint._DISCRETE_OPERATORS
 
-    def test_findings_are_ordered_most_urgent_first(self, rows, a_columns):
+    def test_findings_are_ordered_most_urgent_first(self, a_columns):
         """Mutation m: deleting the sort survived the suite.
 
         The ordering is a stated design property, not a nicety — the sentence a
         user reads first must be the one that changes which papers are screened.
         """
         lint = _linter()
-        report = lint.lint_criteria(rows, a_columns)
+        # `_pre_repair_rows()` since wave 13d: the live table no longer produces
+        # two severities, so ordering could not be observed on it.
+        report = lint.lint_criteria(_pre_repair_rows(), a_columns)
         ranks = [lint._SEVERITY_ORDER.index(f.severity) for f in report]
         assert ranks == sorted(ranks), (
             "Findings must be sorted MISTRANSLATED before INERT before NOTICE: %s"
@@ -926,9 +980,9 @@ class TestTheNarrowingsAreLoadBearing:
         assert report[0].severity == "MISTRANSLATED"
         assert report[-1].severity == "INERT"
 
-    def test_ties_are_ordered_by_criterion_id(self, rows, a_columns):
+    def test_ties_are_ordered_by_criterion_id(self, a_columns):
         """So the same table always reads the same way."""
         lint = _linter()
-        report = lint.lint_criteria(rows, a_columns)
+        report = lint.lint_criteria(_pre_repair_rows(), a_columns)
         mistranslated = [f.criterion_id for f in report if f.severity == "MISTRANSLATED"]
         assert mistranslated == sorted(mistranslated)

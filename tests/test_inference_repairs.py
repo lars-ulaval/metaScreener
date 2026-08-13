@@ -118,3 +118,99 @@ class TestF167ACompoundCriterionKeepsEveryOperand:
                                ("en", "MET"), ("pt", "MET")):
             row = {target: lang}
             assert ev._eval_criterion(row, set(row), crit) == expected, lang
+
+
+class TestF166TheRuleReadsTheColumnTheLabelNames:
+    """A parenthetical gloss must not decide which column a criterion is about."""
+
+    def test_EC_4_targets_venue_and_carries_both_operands(self):
+        """The wave's headline fixture. Both halves matter: reaching branch 4
+        gets the column right and leaves the operand as the entire sentence."""
+        assert _reference_rules()["EC-4"] == (
+            "EH", "contains", "venue", ["ICRA", "IROS"])
+
+    def test_the_gloss_did_not_decide_the_target(self):
+        """The word *conference* appears only inside "(robotics conference
+        proceedings)". It must not pull the rule onto `doc_type`."""
+        _stage, _operator, target, _what = _reference_rules()["EC-4"]
+        assert target == "venue"
+        assert target != "doc_type"
+
+    def test_the_operator_is_contains_not_in_list(self):
+        """Venues are strings like "Proc. ICRA 2021"; the label says *contains*.
+
+        `in_list` is exact membership — `tests/test_in_list_operator.py`
+        establishes that — so it would produce a rule that matches nothing and
+        looks right in the table. `contains` ORs its operands.
+        """
+        assert _reference_rules()["EC-4"][1] == "contains"
+
+    def test_a_genuine_document_type_criterion_still_reaches_branch_3(self):
+        """The repair must not send doc-type criteria to venue. `conference` is
+        in BOTH guards, which is why reordering the branches was rejected."""
+        assert _rule_for("Exclude conference proceedings.") == (
+            "EH", "equals", "doc_type", ["conference"])
+        assert _rule_for("Exclude papers of document type thesis.") == (
+            "EH", "equals", "doc_type", ["thesis"])
+
+    def test_a_doc_type_criterion_whose_only_trigger_is_in_the_gloss(self):
+        """The case that broke the first draft of this repair.
+
+        "Systematic reviews and meta-analyses (any type)." has its only branch-3
+        trigger word — *type* — inside the gloss, but its map key —
+        *systematic review* — in the main clause. Stripping parentheticals from
+        the GUARD as well as the value scan sent it all the way to `llm`.
+        Guard permissive, value strict.
+        """
+        assert _rule_for("Systematic reviews and meta-analyses (any type).",
+                         "include") == ("IH", "equals", "doc_type",
+                                        ["systematic review"])
+
+    def test_the_class_is_caught_on_a_sentence_nobody_has_run(self):
+        """F-166's mechanism on different prose. This is the point of repairing
+        the class rather than the instance."""
+        assert _rule_for("The venue contains CHI (a conference).", "include") == (
+            "IH", "contains", "venue", ["CHI"]) or _rule_for(
+            "The venue contains CHI (a conference).", "include")[:3] == (
+            "IH", "contains", "venue")
+
+    def test_the_repaired_rule_excludes_what_the_label_describes(self):
+        """End to end through the real evaluator."""
+        cp = _import_plugin("_common", "parser")
+        ev = _import_plugin("_common", "evaluator")
+        _stage, operator, target, what = _reference_rules()["EC-4"]
+        crit = cp.Criterion(
+            stage="EH", cid="EC-4", ctype="exclude", scope="metadata",
+            label="l", operator=operator, targets=[target],
+            what_raw=";".join(what), what_list=what,
+            threshold=0.6, enabled=True, source_text="s")
+        for venue, expected in (("Proc. ICRA 2021", "FAILED"),
+                                ("IEEE IROS 2020", "FAILED"),
+                                ("CHI 2019", "MET"),
+                                ("ACM TOCHI", "MET")):
+            row = {target: venue}
+            assert ev._eval_criterion(row, set(row), crit) == expected, venue
+
+
+class TestTheSixCorrectRowsNeverMoved:
+    """Every row of the reference contract that was already right."""
+
+    UNCHANGED = {
+        "IC-1": ("IL", "llm", "keywords"),
+        "IC-3": ("IH", "equals", "lang"),
+        "IC-4": ("IH", "gte", "year"),
+        "IC-5": ("IL", "contains", "title,abstract,keywords"),
+        "EC-2": ("EL", "llm", "keywords"),
+        "EC-3": ("EL", "llm", "keywords"),
+    }
+
+    @pytest.mark.parametrize("crit_id", sorted(UNCHANGED))
+    def test_row_is_untouched_by_either_repair(self, crit_id):
+        stage, operator, target = self.UNCHANGED[crit_id]
+        assert _reference_rules()[crit_id][:3] == (stage, operator, target)
+
+    def test_IC_5_is_still_F_65s_row(self):
+        """Not this wave's, and deliberately not moved: `contains` at `IL` is
+        never evaluated, and F-65's cell warns that repairing it changes
+        screening outcomes."""
+        assert _reference_rules()["IC-5"][:2] == ("IL", "contains")
