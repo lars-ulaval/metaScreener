@@ -214,3 +214,23 @@ class TestTheSixCorrectRowsNeverMoved:
         never evaluated, and F-65's cell warns that repairing it changes
         screening outcomes."""
         assert _reference_rules()["IC-5"][:2] == ("IL", "contains")
+
+    def test_a_gloss_cannot_pull_a_criterion_INTO_venue_either(self):
+        """The other direction of the same rule, and the mutation battery found
+        it untested.
+
+        "Exclude editorials (published in a conference)." is a document-type
+        criterion whose gloss mentions a venue. Branch 3 correctly declines it —
+        *editorial* is not in `doc_type_map` — and branch 4 must decline it too,
+        or the gloss decides the column a second way round. It falls to `llm`,
+        which is the safe direction: a criterion nobody can translate goes to a
+        model rather than to a wrong rule.
+        """
+        for label in ("Exclude editorials (published in a conference).",
+                      "Exclude opinion pieces (journal commentary).",
+                      "Exclude short papers (conference format)."):
+            stage, operator, target, _what = _rule_for(label)
+            assert (stage, operator) == ("EL", "llm"), (
+                "%r was routed to %s %s on %s -- a gloss decided the column"
+                % (label, stage, operator, target)
+            )
