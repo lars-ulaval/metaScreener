@@ -540,31 +540,46 @@ class TestTheAcknowledgementProse:
     notes, not a gate."*
     """
 
-    def test_nothing_separated_tells_the_user_the_result_may_be_genuine(self):
-        """CHARACTERISATION, F-192. The sentence is now *true* — F-193's branch
-        takes every run whose answer rate is bad — but it is asserted rather
-        than shown, because the number it rests on is not in the text."""
+    def test_nothing_separated_still_says_the_result_may_be_genuine(self):
+        """**Deliberately not flipped, and this is the row's most easily
+        mis-fixed part.** F-192 is not about deleting the word: with F-193's
+        branch above it, this text is only reached when the answer rate is
+        healthy, and at that point *"the model was heard from … it may well be
+        genuine"* is simply true. Removing it would trade a false reassurance
+        for a false alarm, and `run_outcome`'s own `partial_failure` comment
+        gives the reason that is worse — a warning on a good run trains the
+        user to click through the one that matters. What changed is that the
+        basis is now shown; see the test below."""
         assert "may well be genuine" in _nothing_separated().ack_reason
 
-    def test_nothing_separated_does_not_name_the_unanswered_count(self):
-        """CHARACTERISATION, F-192. 7 of 100 pairs came back unreadable and the
-        acknowledgement says only that 93 carry a decision. The reader is given
-        the reassuring half of the arithmetic and asked to take the rest."""
-        out = _nothing_separated()
-        assert "7" not in out.ack_reason.replace("record-criterion", "")
+    def test_nothing_separated_names_the_unanswered_count(self):
+        """FLIPPED from CHARACTERISATION by F-192. It read ``"7" not in`` — the
+        acknowledgement gave 93 of 100 and stopped, so the reader was handed the
+        reassuring half of the arithmetic and asked to take the rest. Both
+        halves are now there, with the threshold that separates them, so the
+        reassurance can be checked instead of believed."""
+        body = _nothing_separated().ack_reason
+        assert "7" in body.replace("record-criterion", "")
+        assert "10%" in body, "the threshold the claim rests on"
 
-    def test_the_low_rate_acknowledgement_names_no_cause(self):
-        """CHARACTERISATION, F-192. F-193 landed the branch with a factual
-        minimum. The `no_answers` acknowledgement one branch above lists what
-        the condition looks like — an unreachable server, a misspelled model, a
-        model never pulled, a rejected key — and this one lists nothing."""
+    def test_the_low_rate_acknowledgement_names_what_the_condition_looks_like(self):
+        """FLIPPED from CHARACTERISATION by F-192. It read ``not any(...)``.
+        F-193 landed the branch with a factual minimum; the `no_answers` text
+        one branch above has always listed what its own condition looks like,
+        and this one now does too."""
         body = _low_rate().ack_reason
-        assert not any(w in body for w in ("shape", "batch size", "engage"))
+        assert all(w in body for w in ("shape", "batch size", "engage"))
+        assert "genuine" not in body, (
+            "the word this row exists to remove: naming a cause is not the "
+            "same as telling the reader what to conclude"
+        )
 
-    def test_the_low_rate_acknowledgement_points_nowhere(self):
-        """CHARACTERISATION, F-192. F-194 now retains a sample of what came
-        back, and nothing in the text sends the reader to it."""
-        assert "Log tab" not in _low_rate().ack_reason
+    def test_the_low_rate_acknowledgement_points_at_the_sample_f194_retains(self):
+        """FLIPPED from CHARACTERISATION by F-192. It read ``not in``. The
+        pointer is only honest because F-194 landed first in this wave — before
+        it there was nothing at the end of it, which is why the two rows were
+        ordered as they were."""
+        assert "Log tab" in _low_rate().ack_reason
 
     def test_the_low_rate_acknowledgement_already_names_its_numbers(self):
         """NOT a characterisation of a defect: this half is already right and

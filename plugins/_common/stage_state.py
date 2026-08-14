@@ -245,6 +245,16 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"Those records are flagged rather than screened, and an "
                 f"exported bundle will record that outcome as though the "
                 f"stage had run normally.\n\n"
+                # F-192, following the register F-173 set for the Validate
+                # dialog: name the thing, say plainly what it does, list what
+                # the condition looks like, point at where to look — and stop
+                # there. What the user should conclude is the user's.
+                f"A model that is answering addresses every record in the "
+                f"batch it was given. This is what a reply in a shape the "
+                f"parser does not accept, a batch size the model cannot "
+                f"hold, and a criterion the model will not engage with all "
+                f"look like. The Log tab carries a sample of what came "
+                f"back.\n\n"
                 f"Export anyway?"
             ),
         )
@@ -257,12 +267,21 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
             ack_reason=(
                 f"{stage} separated none of the {total_rows} records: none "
                 f"was excluded and none passed cleanly.\n\n"
+                # F-192. The reassurance below is *earned* from wave 14b
+                # on — the branch above takes every run whose answer rate is
+                # bad, so by the time this text is reached the model really
+                # was heard from. What it lacked was the basis: it gave the
+                # reader the reassuring half of the arithmetic and asked
+                # them to take the rest. Both halves are now on the face of
+                # it, with the threshold that separates them.
                 f"The model was heard from — {answered} of {records} "
-                f"record-criterion pairs carry a decision — so this is a "
-                f"screening result rather than a misconfiguration, and it "
-                f"may well be genuine: a corpus the model is unsure about "
-                f"produces exactly this. Every record is recorded as "
-                f"flagged for human review.\n\n"
+                f"record-criterion pairs carry a decision and {no_answer} "
+                f"do not, below the {LOW_ANSWER_RATE * 100:.0f}% this stage "
+                f"treats as a low answer rate. So this is a screening "
+                f"result rather than a misconfiguration, and it may well be "
+                f"genuine: a corpus the model is unsure about produces "
+                f"exactly this. Every record is recorded as flagged for "
+                f"human review.\n\n"
                 f"Export anyway?"
             ),
         )
