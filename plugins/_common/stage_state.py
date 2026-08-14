@@ -249,12 +249,31 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 # dialog: name the thing, say plainly what it does, list what
                 # the condition looks like, point at where to look — and stop
                 # there. What the user should conclude is the user's.
-                f"A model that is answering addresses every record in the "
-                f"batch it was given. This is what a reply in a shape the "
-                f"parser does not accept, a batch size the model cannot "
-                f"hold, and a criterion the model will not engage with all "
-                f"look like. The Log tab carries a sample of what came "
-                f"back.\n\n"
+                #
+                # F-198 (wave 14c): the wave-14b causes were refuted by their
+                # own wave's instrumentation on first real use — the dominant
+                # cause at batch 1 was a model answering CORRECTLY with `[]`,
+                # which none of them described — and the constrained request
+                # then removed that cause and the batch-size one outright.
+                # What is listed now is what can still produce a low rate
+                # after the fix, and the fallback server is named only when
+                # the report says the run actually fell back: the dialog
+                # reads `request_shape` rather than asking the user to guess
+                # which path their run took.
+                + (
+                    f"This run's server rejected structured output, so it "
+                    f"ran with the unconstrained request — on that path an "
+                    f"empty or partial reply cannot be read as an answer, "
+                    f"and it is the first thing to rule out.\n\n"
+                    if str(llm_report.get("request_shape") or "")
+                    == "unconstrained" else ""
+                )
+                + f"Every record is asked for by name, and a record with no "
+                f"answer has been asked twice — once with its batch and "
+                f"once on its own. This is what a record the model declines "
+                f"however it is asked, and a criterion it will not engage "
+                f"with, look like. The Log tab carries a sample of what "
+                f"came back.\n\n"
                 f"Export anyway?"
             ),
         )

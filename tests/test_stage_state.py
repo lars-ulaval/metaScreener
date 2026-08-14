@@ -563,16 +563,44 @@ class TestTheAcknowledgementProse:
         assert "10%" in body, "the threshold the claim rests on"
 
     def test_the_low_rate_acknowledgement_names_what_the_condition_looks_like(self):
-        """FLIPPED from CHARACTERISATION by F-192. It read ``not any(...)``.
-        F-193 landed the branch with a factual minimum; the `no_answers` text
-        one branch above has always listed what its own condition looks like,
-        and this one now does too."""
+        """FLIPPED from CHARACTERISATION by F-192, REWRITTEN by F-198 in
+        wave 14c. The wave-14b causes — a reply shape the parser rejects, a
+        batch size the model cannot hold — were refuted by their own wave's
+        instrumentation on first real use: the dominant cause at batch 1 was
+        a model answering CORRECTLY with ``[]``, which none of the three
+        named causes describes, and F-191's fix then removed that cause and
+        the batch-size one from the constrained path entirely. The text now
+        names what can still produce a low rate after the fix: a record the
+        model declines however it is asked (every omission is re-asked once,
+        F-197), and a criterion it will not engage with."""
         body = _low_rate().ack_reason
-        assert all(w in body for w in ("shape", "batch size", "engage"))
+        assert "asked twice" in body, "the re-ask must be on the face of it"
+        assert "declines" in body and "engage" in body
+        assert "batch size" not in body, (
+            "F-198: batch size is no longer a cause on the constrained "
+            "path, and naming it sends the user to the wrong knob"
+        )
         assert "genuine" not in body, (
             "the word this row exists to remove: naming a cause is not the "
             "same as telling the reader what to conclude"
         )
+
+    def test_the_fallback_run_is_told_its_server_is_why(self):
+        """F-198's sharpest case: on the F-107 fallback path the constrained
+        guarantee is gone, `[]` is expressible again, and the server is the
+        cause worth naming first. The report carries request_shape, so the
+        dialog can say it instead of asking the user to guess."""
+        rep = dict(RUN_C_REPORT, request_shape="unconstrained")
+        out = run_outcome(stage="EL", counts=RUN_C_COUNTS, llm_report=rep,
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert "structured output" in out.ack_reason
+        assert "unconstrained" in out.ack_reason
+
+    def test_the_constrained_run_is_not_blamed_on_its_server(self):
+        rep = dict(RUN_C_REPORT, request_shape="json_schema")
+        out = run_outcome(stage="EL", counts=RUN_C_COUNTS, llm_report=rep,
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert "structured output" not in out.ack_reason
 
     def test_the_low_rate_acknowledgement_points_at_the_sample_f194_retains(self):
         """FLIPPED from CHARACTERISATION by F-192. It read ``not in``. The
