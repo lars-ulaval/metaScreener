@@ -677,6 +677,25 @@ evaluates anything.
   for your review rather than acting on anything. Batch size 1 was the
   measured-clean setting at five times the requests of batch 5; the tooltip
   beside the box now gives you these numbers and leaves the choice with you.
+- **A run that would silently overflow the model's context window now
+  refuses to start.** Measured on a local server: when a request exceeds the
+  window, the server does not trim the excess — it keeps only the last half
+  of the request and drops the rest, including the instructions and the
+  criterion, then answers confidently about what remains. There is nothing
+  to warn about there, only something to prevent — so before the first call
+  of an EL or IL run, every request the run would send is now sized against
+  the configured window (a new `context_window` setting, default 4096, the
+  measured server default), and a run that cannot fit stops before spending
+  anything, naming the oversized request and the largest batch size that
+  fits your corpus at your window. **Batch size 10 on the reference corpus
+  at a 4096 window is now refused** — its longest request plus the reply
+  headroom brushes the window — and the message says the two remedies:
+  lower the batch size (8 fits that corpus), or raise the server's window
+  and the setting together (see the usage guide for the server-side
+  procedure). As a second line, the first reply of every run is checked
+  against the size estimate using the server's own token count, so a model
+  whose tokenizer we have never measured aborts after one call instead of
+  screening a corpus against silently amputated instructions.
 
 ## [3.1.0] - 2026-04-29
 
