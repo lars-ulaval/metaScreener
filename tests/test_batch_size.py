@@ -205,9 +205,24 @@ class TestTheWordingDoesNotOverclaim:
             )
 
     @pytest.mark.parametrize("provider", KEYLESS + KEYED)
-    def test_it_says_outright_that_this_is_a_quality_setting(self, provider):
+    def test_it_no_longer_calls_this_a_quality_setting(self, provider):
+        """FLIPPED at wave 14c. It read ``assert "QUALITY setting, not a
+        correctness one" in text`` — and F-197's controlled comparison
+        falsified the sentence: the same corpus screened at batch 1 and
+        batch 5 produced different verdicts for the same records. The
+        tooltip now says that plainly instead of denying it."""
         text = ss.batch_size_tooltip(provider)
-        assert "QUALITY setting, not a correctness one" in text
+        assert "QUALITY setting, not a correctness one" not in text
+        assert "can change the result" in text.lower()
+        assert "F-197" in text
+
+    def test_the_local_wording_warns_against_a_batch_of_one(self):
+        """F-191's mechanism is specific to n=1: at a batch of one the
+        honest reply to a non-matching record IS an empty list, and the
+        pipeline reads it as no answer. Measured at 17/294 answered."""
+        text = ss.batch_size_tooltip("local")
+        assert "batch of one" in text.lower()
+        assert "F-191" in text
 
     @pytest.mark.parametrize("provider", KEYLESS + KEYED)
     def test_it_names_f_86_as_closed_and_as_firing_at_one(self, provider):
@@ -220,12 +235,18 @@ class TestTheWordingDoesNotOverclaim:
         assert "closed" in text
 
     @pytest.mark.parametrize("provider", KEYLESS + KEYED)
-    def test_it_says_the_cache_is_not_invalidated(self, provider):
-        """F-101, said where the user needs it — beside the box they are
-        about to change."""
+    def test_the_cache_sentence_warns_instead_of_reassuring(self, provider):
+        """FLIPPED at wave 14c. The old text offered the reuse as
+        reassurance (“cached decisions are reused whatever this box
+        says”). F-101's field measurement showed the consequence: 17 pairs
+        of a failed batch-1 run were silently inherited by the batch-5 run
+        that was meant to be its second opinion. The fact is unchanged;
+        the framing now carries the warning."""
         text = ss.batch_size_tooltip(provider)
         assert "does not invalidate your cache" in text
         assert "F-101" in text
+        assert "not an independent second opinion" in text
+        assert "inherit" in text
 
     @pytest.mark.parametrize("provider", KEYLESS + KEYED)
     def test_it_makes_no_claim_about_local_screening_quality(self, provider):

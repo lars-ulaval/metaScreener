@@ -962,28 +962,33 @@ def batch_size_tooltip(provider: str,
                        endpoint: Optional[str] = None) -> str:
     """Why this number is what it is — beside the number.
 
-    **Three things this wording must not do**, each of which would be
-    false reassurance rather than an explanation:
+    **Rewritten at wave 14c, because its central claim was falsified in a
+    controlled comparison (F-197).** The previous wording said batch size
+    was *"a QUALITY setting, not a correctness one"*; the same corpus
+    screened at batch 1 and at batch 5 produced different verdicts for
+    the same records (17/294 answered against 241/294), so the sentence
+    the tooltip was built around is the one thing it must now deny.
 
-    1. **It must not read as a safety measure.** Batch size is a
-       *quality* knob. The correctness defect in this neighbourhood was
-       F-86 — a response naming a record from another batch, whose quote
-       then validated against *that* record's text — and it is closed, in
-       the engine, since wave 7. It also fired at ``batch_size = 1``,
-       because the acceptance guard admitted any known ``a_id`` whatever
-       batch it came from. So nothing here may suggest that a smaller
-       batch makes a run *safer*: it does not, and a user who believed it
-       would be trusting the wrong thing.
-    2. **It must not imply the cache is affected.** F-101: the cache key
-       hashes a synthetic **one-item** prompt, so ``batch_size`` is
-       invisible to it. Entries produced at 50 are served to a run at 5
-       and the other way round. That is exactly what a user needs to know
-       before touching this box — otherwise the reasonable fear "will
-       this throw away my cached decisions?" stops them changing it.
-    3. **It must not claim anything about how well a local model
-       screens.** That needs a live measurement and belongs to wave 12.
-       The claim here is narrow and defensible: asking for fewer JSON
-       objects per reply is easier for a small model to keep track of.
+    What survives of the original contract, and what changed:
+
+    1. **It must still not read as a safety measure — in either
+       direction.** F-86 fired at ``batch_size = 1`` as readily as at 50
+       and is closed in the engine; nothing here may suggest a smaller
+       batch is *safer*. What is new is the converse: a smaller batch is
+       measurably *worse* at n=1, where a correct "none match" reply is
+       an empty list the pipeline cannot read as an answer (F-191). The
+       wording states the measured fact and stops; what the user does
+       with it is theirs.
+    2. **The cache sentence keeps the fact and drops the reassurance.**
+       F-101: the key hashes a synthetic one-item prompt, so
+       ``batch_size`` is invisible to it. The old text offered that as
+       comfort. The field measurement showed the consequence — 17 pairs
+       of a failed batch-1 run silently inherited by the batch-5 run
+       meant to be its second opinion — so the same fact now carries the
+       warning it always implied.
+    3. **It must still not claim anything about how well a local model
+       screens.** The claims here are narrow and measured: answer rate
+       by batch size, not verdict quality.
     """
     suggested = recommended_batch_size(provider, endpoint)
     lead = (
@@ -996,9 +1001,11 @@ def batch_size_tooltip(provider: str,
         why = (
             f"\n\nThis drops to {suggested} for a local model. Small models "
             f"lose track of a long list well before fifty and start "
-            f"returning fewer objects than they were given. Raise it if "
-            f"yours keeps up — against a server on this machine the only "
-            f"cost of a small batch is more requests, and those are free."
+            f"returning fewer objects than they were given. Do not set it "
+            f"to a batch of one: at n=1 a correct \"none of these match\" "
+            f"reply is an empty list, which this pipeline cannot read as "
+            f"an answer (F-191) — a measured run at batch 1 answered 17 "
+            f"of 294 record-criterion pairs where batch 5 answered 241."
         )
     else:
         why = (
@@ -1008,17 +1015,22 @@ def batch_size_tooltip(provider: str,
         )
 
     honesty = (
-        "\n\nThis is a QUALITY setting, not a correctness one. A smaller "
-        "batch does not make a run safer: the cross-batch substitution "
-        "defect (F-86) fired at a batch size of 1 as readily as at 50, and "
-        "it is closed in the engine rather than by this number."
+        "\n\nBatch size can change the result, not only the speed: the "
+        "same corpus screened at batch 1 and batch 5 produced different "
+        "verdicts for the same records (F-197). A smaller batch does not "
+        "make a run safer: the cross-batch substitution defect (F-86) "
+        "fired at a batch size of 1 as readily as at 50, and it is closed "
+        "in the engine rather than by this number."
     )
 
     cache = (
-        "\n\nChanging it does not invalidate your cache. The cache key is "
-        "computed from a one-record prompt (F-101), so the batch size is "
-        "invisible to it and cached decisions are reused whatever this "
-        "box says."
+        "\n\nChanging it does not invalidate your cache, and that cuts "
+        "both ways. The cache key is computed from a one-record prompt "
+        "(F-101), so cached decisions are reused whatever this box says — "
+        "which means re-running at a different batch size is not an "
+        "independent second opinion, and answers produced by a failing "
+        "run are inherited by the next one unless \"Use cache\" is "
+        "unticked."
     )
 
     return lead + why + honesty + cache
