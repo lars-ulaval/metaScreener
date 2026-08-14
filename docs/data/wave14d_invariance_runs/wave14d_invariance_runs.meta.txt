@@ -1,0 +1,113 @@
+# The evidence behind register rows F-201 (fabricated meet verdicts grow
+# with batch size) and F-197's invariance measurement, and behind the
+# batch-size wording rewritten at wave 14d.
+#
+# This is a frozen, citable dataset, NOT a test fixture: it must never be
+# re-captured, re-generated or "synced" with anything. Integrity is held by
+# SHA256SUMS beside this file and asserted on every suite run by
+# tests/test_wave14d_invariance_freeze.py, which also RE-DERIVES the
+# headline figures from these bytes and fails if this file's own numbers
+# stop matching the artefacts.
+
+role=published_evidence
+study=03_findings.md F-201 / F-197, and 07_criteria_parsing.md § 8.3 (wave-14d addendum)
+captured_at=2026-08-14
+frozen_at=2026-08-14
+corpus_records=776
+el_input_records=147
+
+# ---------------------------------------------------------------------------
+# The four runs — the batch-invariance measurement of FIX_WAVE_14C §1,
+# run on the constrained request the 14c code sends
+# ---------------------------------------------------------------------------
+# All four POST-DATE the wave-14c code, proven by content rather than by
+# clock: prompt_version EL_v2_jsonschema and request_shape json_schema exist
+# only after commit 0becf95, and the reasks_made / no_answer_after_reask
+# counters only after 8da350f. Provenance and counters are carried verbatim
+# in each run's own manifest; the values below are a reader's convenience.
+
+runF=runF_batch1_*   batch_size=1   calls_made=294  CLEAN/FLAG/SUP=53/94/0
+runG=runG_batch5a_*  batch_size=5   calls_made=60   CLEAN/FLAG/SUP=86/48/13
+runH=runH_batch5b_*  batch_size=5   calls_made=60   CLEAN/FLAG/SUP=86/52/9
+runI=runI_batch10_*  batch_size=10  calls_made=30   CLEAN/FLAG/SUP=94/41/12
+
+# Identical across all four:
+model=qwen2.5:7b
+endpoint=http://localhost:11434/v1
+temperature=0.0
+prompt_version=EL_v2_jsonschema
+request_shape=json_schema
+trunc_chars=1500
+exclusion_policy=flag_only
+records=294  answered=294  no_answer=0  reasks_made=0  no_answer_after_reask=0
+
+# runG and runH are SAME-CONFIGURATION REPEATS — every provenance field
+# identical, run 17 minutes apart — and are the measured noise floor the
+# 14c design (§1.2) called for: 284/294 pair agreement (96.6%).
+
+# THE CACHE WAS OFF, and the artefacts show it three ways: calls_made is
+# the exact no-cache arithmetic (147×2=294 at batch 1; ceil(147/5)×2=60;
+# ceil(147/10)×2=30); no run's manifest records a cache member digest; and
+# no bundle contains a cache/EL_cache.jsonl AT ALL — with "Use cache"
+# unticked nothing writes one, and the upstream post-IH bundle carries none
+# to preserve (F-104's rule). That absence is why this directory, unlike
+# wave12_local_runs/ and wave14c_batch_runs/, has no *_EL_cache.jsonl
+# files: there were none to freeze. Cache-off is what makes the four runs
+# independent — the contamination F-101 records for the wave-14c pair
+# cannot occur here.
+
+# ---------------------------------------------------------------------------
+# The headline figures, re-derived from these bytes by the guard
+# ---------------------------------------------------------------------------
+# meet pairs (decision=="meet" in el_evidence_json, both EL criteria):
+#   runF 0/294 (0%) · runG 15/294 (5.1%) · runH 12/294 (4.1%) ·
+#   runI 18/294 (6.1%) — the rate grows with batch size and is ZERO at n=1.
+# directionality vs runF: every disagreement is not_meet->meet (15/12/18)
+#   or not_meet->uncertain (1/1/0); zero flows the other way; concentrated
+#   on EC-2 (12/16, 10/13, 17/18 by run).
+# overlap: runG∩runH meet sets share 9 pairs; runI shares 2 with their
+#   union — WHICH pairs get fabricated is config-dependent and largely
+#   arbitrary; only the rate is stable.
+# corpus base rate: exactly one of 147 records mentions maze / spatial
+#   navigation / rubber hand (A349), and all four runs said not_meet on it
+#   — so the meet verdicts above are fabrications, not detections.
+# pairwise decision agreement: F<->G 278/294, F<->H 281/294, F<->I 276/294,
+#   G<->H (noise floor) 284/294 (96.6%), 9 of its 10 disagreements
+#   involving a meet on one side.
+# same-config churn: quote_valid flips on 32/294 pairs; 24/147 records
+#   change el_outcome between the two identical batch-5 runs.
+
+# ---------------------------------------------------------------------------
+# What each file is / what was NOT committed
+# ---------------------------------------------------------------------------
+# *_manifest.json  the bundle manifest, verbatim: provenance, the llm
+#                  counters (request_shape included), and a sha256 block
+#                  covering every member of the original bundle.
+# *_EL_FULL.csv    the 147 records with el_outcome and per-criterion
+#                  evidence (decision, confidence, quote, quote_valid) in
+#                  el_evidence_json. All 41 columns, verbatim. The EL input
+#                  is column- and row-recoverable from it.
+#
+# criteria/criteria_harmonized.csv is byte-identical across all four AND to
+# the already-committed docs/data/wave14c_batch_runs/runDE_criteria_harmonized.csv
+# (sha256 5dd51aaa…) — anchored by digest, not duplicated.
+# data/current.csv (the 147-record EL input) is byte-identical across all
+# four; its digest is recorded here and in every manifest:
+ih_input_sha256=f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599
+# Everything else is recorded by digest in the committed manifests.
+
+# The four bundles this directory was reduced from:
+bundle_runF_sha256=a83c4496d165c66e53d3f3f6d4966ddf09c8f630803e7c11de863980f0de1436  20260814_003200_post_EL_bundle.zip
+bundle_runG_sha256=0bd1604aee1e7bf1fae825641a03659b49ee1942491fbb98bab0bf3c34a93c4b  20260814_071007_post_EL_bundle.zip
+bundle_runH_sha256=7b813b4da13c112ff0ea48d12035894d0728ec6f8b9628b5e403f3da035efec1  20260814_072708_post_EL_bundle.zip
+bundle_runI_sha256=4f8ab3130cfed0f4a325249c7a2170b0a6fd85fe57a0d32a627ae3d36db2ce16  20260814_075140_post_EL_bundle.zip
+
+# ---------------------------------------------------------------------------
+# Not recorded, and therefore not asserted
+# ---------------------------------------------------------------------------
+# quantisation      absent from the provenance block (F-154).
+# model identity    qwen2.5:7b is a mutable tag (F-154).
+# num_ctx           never set by metaScreener (F-154); batch 10's prompts
+#                   are the size F-154 measures as overflowing
+#                   pessimistically, which may contribute to runI's rate
+#                   and is not separable from these artefacts.

@@ -34,6 +34,14 @@ docs/data/wave14c_batch_runs/*.csv binary
 docs/data/wave14c_batch_runs/*.jsonl binary
 docs/data/wave14c_batch_runs/*.json binary
 
+# The evidence behind register rows F-201 / F-197's invariance measurement
+# (wave 14d) — same reason and shape as the two evidence directories above.
+# No *.jsonl rule: these four runs were made with the cache OFF, so no
+# bundle contains a cache member and none is committed (the absence is
+# itself evidence — see the directory's meta file).
+docs/data/wave14d_invariance_runs/*.csv binary
+docs/data/wave14d_invariance_runs/*.json binary
+
 # The *outputs* of the reproduction the rule above protects the inputs of
 # (F-99, cause 2 of the wave-10..12 red CI). These three are the published
 # artefacts that tests/test_study_input_freeze.py, class

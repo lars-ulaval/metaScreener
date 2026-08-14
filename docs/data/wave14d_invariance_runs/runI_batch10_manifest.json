@@ -1,0 +1,180 @@
+{
+  "bundle_schema": "screenA_bundle_v1",
+  "created_at": "2026-08-13T21:40:59",
+  "created_by": "screen_a_ih_plugin",
+  "inputs": {
+    "aggregate_filename": "20260122_1654_aggregate.csv",
+    "criteria_filename": "ic_ec_12.txt",
+    "criteria_kind": "txt"
+  },
+  "aggregate": {
+    "columns": [
+      "local_id",
+      "source_key",
+      "title",
+      "authors",
+      "first_author",
+      "year",
+      "doi",
+      "pmid",
+      "pmcid",
+      "arxiv",
+      "venue",
+      "volume",
+      "issue",
+      "pages",
+      "publisher",
+      "lang",
+      "url",
+      "confidence",
+      "status",
+      "provenance",
+      "last_checked",
+      "parents",
+      "abstract",
+      "keywords",
+      "open_access",
+      "doc_type",
+      "hit_openalex",
+      "hit_crossref",
+      "hit_semanticscholar",
+      "match_strategy",
+      "winner_source",
+      "field_sources",
+      "filled_by_source_counts",
+      "resolver_notes"
+    ],
+    "id_column_guess": "local_id",
+    "expected_columns": 34,
+    "rows_total_read": 776,
+    "rows_valid_written": 776,
+    "rows_invalid_skipped": 0
+  },
+  "criteria": {
+    "rows_total": 8,
+    "rows_by_stage": {
+      "EH": 2,
+      "IH": 2,
+      "EL": 2,
+      "IL": 2
+    },
+    "enabled_by_stage": {
+      "EH": 2,
+      "IH": 2,
+      "EL": 2,
+      "IL": 2
+    }
+  },
+  "pipeline_state": {
+    "stages": {
+      "EH": "not_run",
+      "IH": "not_run",
+      "EL": "done",
+      "IL": "not_run"
+    },
+    "history": []
+  },
+  "warnings": [],
+  "criteria_source_preview": "IC-1 – The paper considers immersive virtual reality OR a virtual simulation using a head-mounted display (HMD). IC-3 – The paper is written in English. IC-4 – The publication year is 2018 or later. IC-5 – The title, abs",
+  "sha256": {
+    "data/current.csv": "f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599",
+    "data/original.csv": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+    "criteria/criteria_harmonized.csv": "5dd51aaa6e2f3c33d356099819d41e1d590d9625d7685f8876a3e5e50ddd026e",
+    "reports/EH_FULL.csv": "e5148c6f7c9e88033f89894019e38e052e9f21cccc3802fa11b2fe581f68bfae",
+    "reports/EH_SURVIVORS.csv": "3bcd313eb6080e7c27198101190c7332bbf918378ffd95c221847fd47cf10427",
+    "data/input_errors.csv": "88f28ccafba261455e70b3a360c8f008bbfbf29928a9113deee5e94dfe30964f",
+    "reports/IH_FULL.csv": "0f7334737f59ca1b24bb3dc48fec8f32e1adaae00a77f22e84a9e56a30a83d00",
+    "reports/IH_SURVIVORS.csv": "5bba4a36f7158b7a313577bb97341e6b84eeff833f24eb9960e82df9cb18a207",
+    "reports/EL_FULL.csv": "be21d8708cf727e8924d9127dd937857556413a5680c2ecfe6096d558f09e501",
+    "reports/EL_SURVIVORS.csv": "f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599"
+  },
+  "pipeline": {
+    "stages": {
+      "EH": "done",
+      "IH": "done",
+      "EL": "done"
+    },
+    "history": [
+      {
+        "stage": "EH",
+        "ran_at": "2026-08-14T01:40:51Z",
+        "counts": {
+          "OUT": 16,
+          "PASS_CLEAN": 645,
+          "PASS_FLAGGED": 115,
+          "NOT_SCREENED": 0,
+          "SKIPPED_INVALID": 0,
+          "TOTAL_INTEGRAL": 776,
+          "TOTAL_INPUT_RECORDS_EX_HEADER": 776
+        },
+        "survivors_rows": 760,
+        "out_rows_full": 776,
+        "cancelled": false,
+        "not_screened": false
+      },
+      {
+        "stage": "IH",
+        "ran_at": "2026-08-14T01:40:59Z",
+        "counts": {
+          "OUT": 613,
+          "PASS_CLEAN": 147,
+          "PASS_FLAGGED": 0,
+          "NOT_SCREENED": 0,
+          "SKIPPED_INVALID": 0,
+          "TOTAL_INTEGRAL": 760,
+          "TOTAL_INPUT_RECORDS_EX_HEADER": 760
+        },
+        "survivors_rows": 147,
+        "out_rows_full": 760,
+        "cancelled": false,
+        "not_screened": false
+      },
+      {
+        "stage": "EL",
+        "ran_at": "2026-08-14T11:51:42Z",
+        "counts": {
+          "OUT": 0,
+          "PASS_CLEAN": 94,
+          "PASS_FLAGGED": 41,
+          "EXCLUSION_SUPPRESSED": 12,
+          "NOT_SCREENED": 0
+        },
+        "survivors_rows": 147,
+        "out_rows_full": 147,
+        "cancelled": false,
+        "not_screened": false,
+        "llm": {
+          "records": 294,
+          "answered": 294,
+          "no_answer": 0,
+          "failed": 0,
+          "decisions_rejected": 0,
+          "fields_rejected": 0,
+          "calls_made": 30,
+          "calls_failed": 0,
+          "batches_failed": 0,
+          "no_answer_replies": {},
+          "no_answer_replies_absent": 0,
+          "no_answer_replies_dropped": 0,
+          "no_answer_max_completion_tokens": null,
+          "request_shape": "json_schema",
+          "reasks_made": 0,
+          "no_answer_after_reask": 0
+        },
+        "provenance": {
+          "model": "qwen2.5:7b",
+          "endpoint": "http://localhost:11434/v1",
+          "temperature": 0.0,
+          "prompt_version": "EL_v2_jsonschema",
+          "trunc_chars": 1500,
+          "batch_size": 10
+        },
+        "exclusion_policy": "flag_only"
+      }
+    ]
+  },
+  "derived_from": {
+    "zip_name": "ScreenA_Bundle_EH_20260813_214049.zip"
+  },
+  "updated_at": "2026-08-14T11:51:42.877917Z"
+}
