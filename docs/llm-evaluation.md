@@ -572,7 +572,9 @@ identical deterministic screening:
 
 That funnel reproduced **exactly** in every run, record for record — see
 *Reproducibility of the demonstration funnel* below, which reports the
-same identity for the archived study runs.
+same identity for the archived study runs, and whose provenance note
+(wave 15a, F-168) applies to this funnel equally: it is the shipped
+pre-13d chain, reproducible and not what the criteria prose describes.
 
 | | model | prompt | exclusions | notes |
 |---|---|---|---|---|
@@ -955,6 +957,18 @@ A user who has validated a local model on their own corpus can turn
 exclusion on. The default is chosen for the user who has not.
 
 ## Reproducibility of the demonstration funnel
+
+> **Provenance note (2026-08-14, wave 15a — register row F-168).** The funnel
+> behind these figures was produced under harmonisation rules retired at wave
+> 13d: EC-4 was rendered against `doc_type` where its prose names the venue,
+> and EC-1 as `equals French` where its prose names French *or Spanish*. The
+> figures reproduce exactly and are kept as the record of the shipped
+> demonstration; a table harmonised from the same criteria prose today yields
+> `776 → 16 → 760 → 613 → 147` before the LLM stages, and the 85 records here
+> are a measured strict subset of those 147. The full note is at
+> `docs/data/study_input/study_input.meta.txt`; the current-rules evidence is
+> committed under `docs/data/wave14c_batch_runs/` and
+> `docs/data/wave14d_invariance_runs/`.
 
 The README reports that the demonstration corpus of 776 records reduced
 to **73** requiring full human review (a 90.6% reduction, with

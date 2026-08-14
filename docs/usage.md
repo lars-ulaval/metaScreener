@@ -260,6 +260,12 @@ one expected difference.
 ![Plugin 05 IH after running on the demonstration corpus, showing 566 surviving records](images/usage/plugin05_ih.png)
 > *Figure: Plugin 05 (IH) after running on the post-EH bundle. The IH Criteria panel (top left) lists the deterministic inclusion rules that matched (IC-3 = language English, IC-4 = year ≥ 2018). The right panel previews the 566 surviving records; the status line reports `OUT: 566 CLEAN:85 FLAGGED:0`. All inclusion-pass records carry forward to Plugin 06.*
 
+> *Provenance note (2026-08-14, wave 15a — F-168): the screenshots and
+> counts on this page show the shipped demonstration, whose harmonisation
+> rules were retired at wave 13d; the same criteria prose harmonised today
+> gives `776 → 16 → 760 → 613 → 147` at this point in the pipeline. See
+> `docs/data/study_input/study_input.meta.txt` for the full note.*
+
 **Purpose.** Retains only records that match at least one
 deterministic inclusion rule.
 
@@ -396,7 +402,8 @@ three practical implications:
 - **Cost predictability.** Only the records that survive the
   deterministic stages reach the LLM. On the demonstration corpus
   that is 85 records at EL and 84 at IL — 254 individual decisions in
-  total, which at the hosted default batch size of 50 is a handful of API
+  total (under the shipped pre-13d rules; today's rules send 147 to EL —
+  see the provenance note above), which at the hosted default batch size of 50 is a handful of API
   requests, not thousands. Subsequent runs use zero. (Selecting a local
   provider offers a batch size of 5 instead, which is more requests to a
   server that charges nothing for them; it does not change the number of
@@ -432,7 +439,9 @@ manifests rather than whole bundles, that is the field to check.
 ## Exporting and final outputs
 
 The final bundle from Plugin 07 contains the surviving records (in
-the demonstration: 73 from 776, a 90.6% reduction). Two export
+the demonstration: 73 from 776, a 90.6% reduction — figures of the
+shipped pre-13d demonstration; see the provenance note earlier on this
+page). Two export
 options are available from the bundle slot in the GUI:
 
 - **Canonical CSV** - the record table only, ready for use in
