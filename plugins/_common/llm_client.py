@@ -42,9 +42,11 @@ previously lived in ``plugins/06_el/plugin.py`` and
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import time
+import dataclasses as _dc
 from collections import Counter
 from hashlib import sha256
 from time import perf_counter
@@ -742,6 +744,193 @@ def _classify_llm_error(e: BaseException) -> Tuple[str, str]:
     return "unknown", "none"
 
 
+# --------------------------- context budget (F-154) ---------------------------
+
+CONTEXT_WINDOW_DEFAULT = 4096
+"""The token window assumed when the user has not said otherwise.
+
+The wave-15b probes measured this server's serving window at exactly 4,096
+(a 3,537-token prompt passed untouched; a 7,254-token prompt was truncated),
+and measured what overflow costs: **the excess is not trimmed — the server
+keeps the LAST ~half-window of tokens and drops the front**, system message
+and criterion included, then answers confidently about the remainder. That
+is why the guard below refuses rather than warns. User-settable as the
+application-level ``context_window`` key in the settings store
+(``update_settings(context_window=8192)``); values below 512 are treated as
+typos and ignored.
+"""
+
+CHARS_PER_TOKEN = 4.5
+"""The estimator's divisor, with its calibration on the record (wave 15b,
+probe 1 — the server's own ``usage.prompt_tokens`` for prompts rendered by
+the real builder over the frozen 147-record corpus):
+
+    chars   measured tokens   chars/token
+     2,699        600            4.50      (batch-1 payload)
+    10,033      2,240            4.48      (batch-5 payload)
+     8,146      1,621            5.03      (batch-10 payloads...)
+    12,627      2,518            5.02
+    14,307      2,930            4.88
+    15,288      2,942            5.20
+    16,754      3,204            5.23
+    17,515      3,537            4.95
+
+4.5 is near-exact on small payloads and ~10 % conservative on large ones —
+conservative in the only safe direction for a refusing guard. The one hole a
+constant cannot close, a tokenizer denser than the estimate on an untested
+provider, is closed at run time by the drift check in
+``run_m1_llm_for_criterion``: the first real call's ``usage.prompt_tokens``
+is compared against this estimator and the run aborts if reality exceeds it.
+"""
+
+FRAMING_TOKENS = 30
+"""Chat-template framing allowance per request (role markers, specials)."""
+
+REPLY_RESERVE_PER_VERDICT = 80
+"""Per-verdict completion reserve. Wave-12's worst measured reply was
+327–491 tokens for five verdicts (65–98 each); 80 sits inside that band."""
+
+
+def estimate_prompt_tokens(chars: int) -> int:
+    """Conservative token estimate for a rendered prompt of ``chars``."""
+    return int(math.ceil(chars / CHARS_PER_TOKEN)) + FRAMING_TOKENS
+
+
+def _load_settings_or_empty() -> Dict[str, Any]:
+    from plugins._common.settings import load_settings
+    return load_settings()
+
+
+def resolve_context_window(stage: str = "") -> int:
+    """The context window this run budgets against.
+
+    Application-level, like the endpoint, because the window is a property
+    of the server. Degrades to :data:`CONTEXT_WINDOW_DEFAULT` on an
+    unreadable store, per the same rule ``_stage_config`` follows.
+    Detection via provider metadata is deliberately NOT attempted here —
+    F-107: a provider-specific call in the run path narrows portability,
+    and the drift check already detects a lying window universally.
+    """
+    try:
+        cfg = _load_settings_or_empty()
+    except Exception:
+        return CONTEXT_WINDOW_DEFAULT
+    v = cfg.get("context_window")
+    if isinstance(v, bool) or not isinstance(v, int) or v < 512:
+        return CONTEXT_WINDOW_DEFAULT
+    return int(v)
+
+
+class ContextBudgetExceeded(RuntimeError):
+    """Raised by the engines BEFORE the first call when a run cannot fit.
+
+    Reaches the user through the Views' existing run-failed error path; the
+    message is composed here (testably) and follows F-173's register: name
+    the thing, give the numbers, tell no conclusion.
+    """
+
+
+class TokenEstimateDrift(RuntimeError):
+    """Raised after the FIRST real call of a run when the server reports
+    more prompt tokens than the estimator predicted — the estimator is
+    optimistic for this model's tokenizer, so the pre-run size check the
+    run was admitted under cannot be trusted. One call has been spent."""
+
+
+@_dc.dataclass(frozen=True)
+class ContextBudgetReport:
+    ok: bool
+    window: int
+    batch_size: int
+    reserve: int                 # of the worst call
+    worst_estimate: int          # prompt tokens, worst call
+    worst_criterion: str
+    worst_batch_index: int       # 0-based within its criterion
+    n_batches: int               # per criterion
+    max_safe_batch: int          # largest batch size that fits; 0 = none
+    message: str                 # the refusal text (empty when ok)
+
+
+def _worst_call(criteria, items, batch_size, trunc_chars, build_messages):
+    worst = (-1, "", -1, 0)      # (est+reserve, cid, batch_idx, est)
+    n_batches = 0
+    for pack in criteria:
+        for bi, batch in enumerate(chunked(items, max(1, int(batch_size)))):
+            n_batches = bi + 1
+            chars = sum(len(m.get("content", ""))
+                        for m in build_messages(pack, list(batch), trunc_chars))
+            est = estimate_prompt_tokens(chars)
+            tot = est + REPLY_RESERVE_PER_VERDICT * len(batch)
+            if tot > worst[0]:
+                worst = (tot, pack.get("id", "?"), bi, est)
+    return worst, n_batches
+
+
+def check_context_budget(*, criteria, items, batch_size, trunc_chars,
+                         build_messages, window) -> ContextBudgetReport:
+    """Render every prompt the run would send and budget it against
+    ``window``. Whole-corpus and pre-run on purpose: rendering is cheap and
+    exact (the wave-15b reconstruction proved byte-fidelity), and the user
+    should learn at zero cost, not forty calls in.
+
+    The refusal threshold is ``estimate + reserve > window`` — landing
+    exactly on the window passes.
+    """
+    window = int(window)
+    (worst_tot, worst_cid, worst_bi, worst_est), n_batches = _worst_call(
+        criteria, items, batch_size, trunc_chars, build_messages)
+    reserve = worst_tot - worst_est
+    if worst_tot <= window:
+        return ContextBudgetReport(
+            ok=True, window=window, batch_size=int(batch_size),
+            reserve=reserve, worst_estimate=worst_est,
+            worst_criterion=worst_cid, worst_batch_index=worst_bi,
+            n_batches=n_batches, max_safe_batch=int(batch_size), message="")
+
+    # derive the largest batch size that fits every request of THIS corpus
+    max_safe = 0
+    for n in range(int(batch_size) - 1, 0, -1):
+        (tot_n, _c, _b, _e), _nb = _worst_call(
+            criteria, items, n, trunc_chars, build_messages)
+        if tot_n <= window:
+            max_safe = n
+            break
+
+    msg = (
+        f"This run was not started: the largest request it would send does "
+        f"not fit the configured {window}-token context window.\n\n"
+        f"Criterion {worst_cid}, batch {worst_bi + 1} of {n_batches} at "
+        f"batch size {int(batch_size)}, measures an estimated {worst_est} "
+        f"prompt tokens plus a {reserve}-token reply reserve — "
+        f"{worst_tot} in total against the {window}-token window.\n\n"
+        f"An overflowing request is not trimmed to fit: the server keeps "
+        f"only the last half of it and drops the rest, instructions and "
+        f"criterion included, then answers about the remainder.\n\n"
+        + (f"At this window, the largest batch size that fits every request "
+           f"for this corpus is {max_safe}."
+           if max_safe else
+           f"No batch size fits this corpus at this window — a single "
+           f"record's request already exceeds it. A lower truncation limit "
+           f"or a larger server window would change that.")
+        + f"\n\nThe window is the application-level 'context_window' "
+        f"setting; the server's own window must be at least as large."
+    )
+    return ContextBudgetReport(
+        ok=False, window=window, batch_size=int(batch_size), reserve=reserve,
+        worst_estimate=worst_est, worst_criterion=worst_cid,
+        worst_batch_index=worst_bi, n_batches=n_batches,
+        max_safe_batch=max_safe, message=msg)
+
+
+def enforce_context_budget(**kw) -> ContextBudgetReport:
+    """:func:`check_context_budget`, raising :class:`ContextBudgetExceeded`
+    on refusal. One call per engine run, before the criterion loop."""
+    rep = check_context_budget(**kw)
+    if not rep.ok:
+        raise ContextBudgetExceeded(rep.message)
+    return rep
+
+
 # --------------------------- answer vocabularies ------------------------------
 
 DECISION_VOCABULARY: Tuple[str, ...] = ("meet", "not_meet", "uncertain")
@@ -933,7 +1122,10 @@ def new_llm_call_stats() -> Dict[str, int]:
             # records still unanswered after their one re-ask. The second
             # is the residue design §3.2 refuses to back-fill silently.
             "reasks_made": 0,
-            "no_answer_after_reask": 0}
+            "no_answer_after_reask": 0,
+            # F-154 / wave 15b. Whether the first-call drift check has run
+            # for this run. Run-scoped through this dict, like request_shape.
+            "drift_checked": False}
 
 
 def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
@@ -943,7 +1135,8 @@ def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
 
 def llm_provenance(*, model: str, endpoint: str, temperature: float,
                    prompt_version: str, trunc_chars: int,
-                   batch_size: int) -> Dict[str, Any]:
+                   batch_size: int,
+                   context_window: int = CONTEXT_WINDOW_DEFAULT) -> Dict[str, Any]:
     """Which engine produced this run's decisions (F-88).
 
     Shared by both stages so the two cannot drift into recording different
@@ -980,6 +1173,10 @@ def llm_provenance(*, model: str, endpoint: str, temperature: float,
         "prompt_version": _safe_str(prompt_version),
         "trunc_chars": int(trunc_chars),
         "batch_size": int(batch_size),
+        # F-154, wave 15b: a run that may have been budgeted against a
+        # window is not fully specified without the window. Recorded from
+        # resolve_context_window at run start, like the endpoint.
+        "context_window": int(context_window),
     }
 
 
@@ -1161,8 +1358,16 @@ def run_m1_llm_for_criterion(
     use_schema = stats is None or \
         stats.get("request_shape", "json_schema") != "unconstrained"
 
+    # F-154 / wave 15b: the drift check needs the estimate of the call the
+    # response answers; a mutable cell rather than a return-shape change,
+    # because fourteen tests pin _call_once's callers on the response alone.
+    _last_estimate = {"v": 0}
+    _drift_done = {"v": False}
+
     def _call_once(batch: List[Dict[str, Any]], cur_trunc: int):
         msgs = build_messages(criterion, batch, cur_trunc)
+        _last_estimate["v"] = estimate_prompt_tokens(
+            sum(len(m.get("content", "")) for m in msgs))
         # Counted here rather than at the call site so that every attempt is
         # counted once, including the ones a later salvage makes invisible in
         # the evidence map. See new_llm_call_stats.
@@ -1252,6 +1457,30 @@ def run_m1_llm_for_criterion(
                         })
 
                     resp = _call_once(cur_batch, cur_trunc)
+
+                    # F-154 / wave 15b: the drift check, usage's first
+                    # consumer (F-122's family). Once per RUN via the shared
+                    # stats dict; with no stats dict the scope degrades to
+                    # once per criterion, which only re-checks. A provider
+                    # that reports no usage is a real condition, not an
+                    # error (all thirteen legacy doubles are that provider).
+                    if not _drift_done["v"] and not (
+                            stats or {}).get("drift_checked", False):
+                        _drift_done["v"] = True
+                        if stats is not None:
+                            stats["drift_checked"] = True
+                        _pt = getattr(getattr(resp, "usage", None),
+                                      "prompt_tokens", None)
+                        if _pt is not None and int(_pt) > _last_estimate["v"]:
+                            raise TokenEstimateDrift(
+                                f"Run stopped after its first call: the "
+                                f"server reports {int(_pt)} prompt tokens "
+                                f"for a request estimated at "
+                                f"{_last_estimate['v']}. The token "
+                                f"estimator is optimistic for this model's "
+                                f"tokenizer, so the pre-run size check "
+                                f"cannot be trusted here. One call was "
+                                f"spent; nothing was screened.")
 
                     # F-26: no cancel check between the call and the parse. The
                     # answer is already paid for; the cheap thing to skip is the
@@ -1450,6 +1679,12 @@ def run_m1_llm_for_criterion(
                     # which would mark every item in this batch "uncertain"
                     # with error="Cancelled" — fabricating non-answers out of
                     # a user action. Let it reach the batch loop.
+                    raise
+
+                except TokenEstimateDrift:
+                    # Wave 15b: same rule as _Cancelled — this is an abort,
+                    # not a batch failure, and the generic handler would
+                    # rewrite it into per-record error entries.
                     raise
 
                 except Exception as e:

@@ -66,6 +66,8 @@ from plugins._common.llm_client import (
     _dump_cache_to_jsonl,
     _render_prompt_for_key,
     resolve_openai_base_url,
+    resolve_context_window,
+    enforce_context_budget,
     llm_exclusion_allowed,
     OPENAI_BASE_URL_ENV,
 )
@@ -645,10 +647,14 @@ def run_il_screen(
     # the endpoint has just been resolved and is not available to the UI at
     # all, and the model and temperature the UI holds are live widget values
     # that may be edited between the run and the export.
+    # F-154 / wave 15b: resolved once per run, beside the endpoint
+    # and for the same reason (one answer per run, F-89's shape).
+    context_window = resolve_context_window("IL")
+
     provenance.update(llm_provenance(
         model=model, endpoint=endpoint, temperature=temperature,
         prompt_version=PROMPT_VERSION, trunc_chars=trunc_chars,
-        batch_size=batch_size,
+        batch_size=batch_size, context_window=context_window,
     ))
 
     # F-145. Resolved once per run, beside the endpoint, for the same
@@ -675,6 +681,31 @@ def run_il_screen(
             else f"{OPENAI_BASE_URL_ENV} not set; using the default"
         )
         log_cb(f"[IL] endpoint={endpoint} ({_endpoint_src})\n")
+
+    # F-154 / wave 15b: the context-budget guard. Whole-corpus and
+    # pre-run — every prompt the run would send is rendered and
+    # budgeted BEFORE the first call, and a run that cannot fit
+    # raises ContextBudgetExceeded to the View's existing error
+    # path with zero calls spent. The logic lives once in
+    # plugins/_common/llm_client.py; this stage and its standalone
+    # shell both pass through here, so every path that can carry a
+    # batch size reaches the guard.
+    _guard_packs = [{
+        "id": c.id,
+        "type": c.ctype,
+        "operator": c.operator,
+        "target": ",".join(c.targets),
+        "what": c.what_list,
+        "how": "llm",
+        "label": c.label or c.source_text,
+        "threshold": c.threshold,
+    } for c in crits if c.operator == "llm"]
+    if _guard_packs and items:
+        enforce_context_budget(
+            criteria=_guard_packs, items=items, batch_size=batch_size,
+            trunc_chars=trunc_chars,
+            build_messages=_build_llm_messages_for_criterion,
+            window=context_window)
 
     # Run criterion by criterion (legacy-style)
     llm_results: Dict[Tuple[str,str], Dict[str, Any]] = {}

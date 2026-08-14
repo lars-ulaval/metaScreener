@@ -73,6 +73,11 @@ CID = "EC-1"
 PROVENANCE_FIELDS = {
     "model", "endpoint", "temperature", "prompt_version",
     "trunc_chars", "batch_size",
+    # Wave 15b (F-154's closure bar): a run budgeted against a context
+    # window is not fully specified without the window. The set is exact on
+    # purpose — growing it is a deliberate act recorded here, exactly as
+    # OUTCOME_CODES grows (wave 11 -> 12 -> 14b precedent).
+    "context_window",
 }
 
 

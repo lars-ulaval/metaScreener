@@ -201,6 +201,15 @@ def defaults() -> Dict[str, Any]:
         # genuine ``True``/``False`` here is an explicit user choice and
         # wins outright.
         "allow_llm_exclusion": None,
+        # Wave 15b (F-154): the token window the context-budget guard
+        # refuses against. ``None`` means the measured default, 4,096
+        # (``llm_client.CONTEXT_WINDOW_DEFAULT``); a stored int >= 512
+        # wins. Application-level like the endpoint, because the window is
+        # a property of the server. Read by
+        # ``llm_client.resolve_context_window``; set with
+        # ``update_settings(context_window=8192)`` — the server's own
+        # window must be raised to match (see docs/usage.md).
+        "context_window": None,
         "stages": {},
     }
 

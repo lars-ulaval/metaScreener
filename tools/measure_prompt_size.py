@@ -41,6 +41,19 @@ prose. JSON-structured text sits toward the pessimistic end, because
 field names and punctuation fragment into more tokens per character than
 prose does.
 
+**Calibrated at wave 15b against the server's own count, and the paragraph
+above is corrected by the measurement.** ``usage.prompt_tokens`` for eight
+prompts rendered by the real builder over the frozen 147-record corpus
+measured 4.48–4.50 chars/token on batch-1/5 payloads and **4.88–5.23 on
+batch-10 payloads** — this JSON-heavy payload sits at or BEYOND the
+"optimistic" 4.5 bound, not toward the pessimistic end. The 3.0 bound
+over-counts by ~65 % on this tokenizer; read from it, "26 of 30 batch-10
+prompts overflow" (wave 14d's framing) — measured, **zero** do, worst
+3,537 real tokens. Treat 4.5 as the realistic figure for qwen2-class
+tokenizers and 3.0 as a genuinely-worst-case bound for unknown ones; the
+run-time drift check in ``plugins/_common/llm_client.py`` is what covers
+the unknown case with a measurement instead of a guess.
+
 If a tokenizer *is* importable, it is used and the exact count is
 reported instead — the range is a fallback, not a preference.
 
