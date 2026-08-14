@@ -1,3 +1,7 @@
+# PROVENANCE (F-168, wave 15a): the records the raters judged come from
+# the PRE-13d chain (85 EL / 84 IL) — see docs/data/study_input/
+# study_input.meta.txt. The agreement measurements remain valid as
+# measurements of rater behaviour on that corpus.
 seed=42
 raters=AReyes,JKiss,JVoisin
 EL_n_overlap=15

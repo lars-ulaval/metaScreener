@@ -1,3 +1,31 @@
+# PROVENANCE NOTE — read before citing these files (F-168; annotated at
+# wave 15a by the maintainer's decision: keep and annotate).
+#
+# This dataset was produced under the PRE-13d harmonisation rules.
+# Two criteria were rendered against the wrong columns: EC-4 ran as
+# `equals doc_type conference` where its prose names the venue
+# (`contains venue [ICRA, IROS]`), and EC-1 as `equals lang French` where
+# its prose names French OR Spanish (`in_list lang [French, Spanish]`).
+# The frozen chain — 776 -> 125 -> 651 -> 566 -> 85 — is therefore
+# REPRODUCIBLE, AND NOT THE SCREENING THE CRITERIA PROSE DESCRIBES:
+# harmonising the same prose with the current rules gives
+# 776 -> 16 -> 760 -> 613 -> 147, with EC-4 excluding zero records.
+# [measured at wave 15a, by local_id set comparison against the frozen
+# current-rules runs]: the 85 records here are a strict subset of those
+# 147 — zero records go the other way — and 62 records the stated
+# criteria retain are absent.
+#
+# WHAT THIS DOES NOT MEAN: measurements made ON this corpus — the
+# wave-7..12 runs, the reader-agreement study, the thresholds calibrated
+# from them — are valid measurements of model and rater behaviour on the
+# corpus these files actually contain. Nothing here is retracted. What
+# this note marks is the INPUT: these artefacts must not be read as what
+# the current software produces from the same inputs.
+#
+# The current-rules chain and its evidence are committed at
+# docs/data/wave14c_batch_runs/ and docs/data/wave14d_invariance_runs/
+# (147-record chain, criteria digest 5dd51aaa...).
+
 # The input of the human-vs-LLM validation study published in
 # docs/llm-evaluation.md. This is a frozen, citable dataset, NOT a test
 # fixture: it must never be re-captured, re-generated or "synced" with
