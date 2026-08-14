@@ -928,7 +928,12 @@ def new_llm_call_stats() -> Dict[str, int]:
             # runs of the same version against different servers are
             # indistinguishable in the artefact (F-88's argument, applied
             # to the one thing wave 14c changes).
-            "request_shape": "json_schema"}
+            "request_shape": "json_schema",
+            # F-197. Batches whose first reply omitted records, and the
+            # records still unanswered after their one re-ask. The second
+            # is the residue design §3.2 refuses to back-fill silently.
+            "reasks_made": 0,
+            "no_answer_after_reask": 0}
 
 
 def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
@@ -1280,8 +1285,14 @@ def run_m1_llm_for_criterion(
                     # did not send.
                     batch_texts = _field_texts_by_id(cur_batch)
 
-                    # parse response objects
-                    for obj in arr:
+                    # parse response objects. A closure rather than an
+                    # inline loop since wave 14c, because two replies can
+                    # feed one batch now: the first call's, and — when it
+                    # omitted records — the re-ask's. One acceptance path
+                    # for both, or F-90/F-136/F-86 would each have a twin
+                    # that could drift.
+                    def _absorb(arr, batch_texts):
+                      for obj in arr:
                         a_id = _safe_str(obj.get("a_id", "")).strip()
                         if not a_id or a_id not in batch_texts:
                             continue
@@ -1358,6 +1369,31 @@ def run_m1_llm_for_criterion(
                             ev["field_rejected"] = field_raw
                         out[(a_id, cid)] = ev
 
+                    _absorb(arr, batch_texts)
+
+                    # F-197, design §3.2: a reply short of the batch gets ONE
+                    # re-ask of exactly the omitted subset. Not a retry —
+                    # F-191 measured verbatim retries worthless at
+                    # temperature 0 — but a different item list, hence a
+                    # different rendered prompt, hence a different request;
+                    # the replay measured it filling 31/31 omitted pairs.
+                    # Shape-independent on purpose: on the F-107 fallback
+                    # path the constrained guarantee is gone and `[]` is
+                    # expressible again, so detection is the only line left.
+                    # A raising re-ask falls into the batch's own except arm,
+                    # where the F-134 guard keeps every verdict already
+                    # absorbed.
+                    omitted = [it for it in cur_batch
+                               if _safe_str(it.get("a_id", "")).strip()
+                               and (_safe_str(it.get("a_id", "")).strip(),
+                                    cid) not in out]
+                    if omitted:
+                        _bump(stats, "reasks_made")
+                        resp = _call_once(omitted, cur_trunc)
+                        raw_reply = resp.choices[0].message.content
+                        _absorb(_parse_llm_json_array(raw_reply or "[]"),
+                                _field_texts_by_id(omitted))
+
                     # ensure every item in THIS cur_batch has an entry
                     _unanswered = 0
                     for it in cur_batch:
@@ -1378,9 +1414,22 @@ def run_m1_llm_for_criterion(
 
                     # F-194. After the back-fill, so `_unanswered` is final,
                     # and inside the try, so `resp` is in scope. A batch the
-                    # model answered fully records nothing.
+                    # model answered fully records nothing. Since the F-197
+                    # re-ask, `raw_reply`/`resp` are the LAST reply's — the
+                    # one that left the residue unanswered — which is the
+                    # reply a diagnostician needs; the first reply's
+                    # omissions were repaired and left no residue behind.
                     _remember_no_answer_reply(stats, raw_reply, resp, _unanswered)
                     crit_no_answers += _unanswered
+                    if _unanswered:
+                        # F-197's residue counter. `_unanswered > 0` implies
+                        # `omitted` was non-empty, so a re-ask DID run and
+                        # still left these: a stronger fact than a plain
+                        # no_answer, named so the run report can say it.
+                        if stats is not None:
+                            stats["no_answer_after_reask"] = int(
+                                stats.get("no_answer_after_reask", 0) or 0
+                            ) + _unanswered
 
                     if progress:
                         progress({

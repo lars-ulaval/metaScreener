@@ -218,7 +218,11 @@ class TestRecordCountsAreDerivedFromTheRecords:
 
     def test_an_omitted_record_is_no_answer_not_failed(self, llm, monkeypatch):
         def _h(items):
-            return _answers()(items[:1])          # answer one, ignore the rest
+            # Answer A000 whenever present, ignore everyone else — on the
+            # first call AND on wave 14c's re-ask of the omitted subset,
+            # so the omission survives the re-ask and the counters below
+            # still describe a genuinely unanswered record.
+            return _answers()([it for it in items if it["a_id"] == "A000"])
 
         got = lc.summarize_llm_evidence(
             _call(monkeypatch, _h, n_items=3, batch_size=3))
@@ -621,10 +625,10 @@ class TestTheReplyIsRetainedOnANoAnswer:
         the same prefix become one entry. That is acceptable — they are the
         same shape — but only because ``truncated`` says the key is partial."""
         head = "y" * lc.NO_ANSWER_REPLY_CAP
-        replies = iter([head + "AAA", head + "BBB"])
+        by_id = {"A000": head + "AAA", "A001": head + "BBB"}
 
-        def _h(_items):
-            return _FakeRawResponse(next(replies))
+        def _h(items):
+            return _FakeRawResponse(by_id[items[0]["a_id"]])
 
         stats = lc.new_llm_call_stats()
         _call(monkeypatch, _h, n_items=2, batch_size=1, stats=stats)
@@ -633,10 +637,14 @@ class TestTheReplyIsRetainedOnANoAnswer:
         assert entry["count"] == 2 and entry["truncated"] is True
 
     def test_distinct_replies_are_tallied_separately(self, llm, monkeypatch):
-        replies = iter(['[]', 'no.', '[]'])
+        # Keyed by a_id rather than by call ordinal since wave 14c: each
+        # omission is re-asked once, so a record's reply is requested twice
+        # and the tally records the RE-ASK's — deterministic per record,
+        # not per call.
+        by_id = {"A000": "[]", "A001": "no.", "A002": "[]"}
 
-        def _h(_items):
-            return _FakeRawResponse(next(replies))
+        def _h(items):
+            return _FakeRawResponse(by_id[items[0]["a_id"]])
 
         stats = lc.new_llm_call_stats()
         _call(monkeypatch, _h, n_items=3, batch_size=1, stats=stats)
@@ -647,10 +655,9 @@ class TestTheReplyIsRetainedOnANoAnswer:
         """Unbounded, this is a liability on a 776-record corpus: one entry per
         distinct reply. Bounded, the overflow is still counted."""
         n = lc.NO_ANSWER_REPLY_KINDS + 5
-        replies = iter([f"reply-{i}" for i in range(n)])
 
-        def _h(_items):
-            return _FakeRawResponse(next(replies))
+        def _h(items):
+            return _FakeRawResponse("reply-" + items[0]["a_id"])
 
         stats = lc.new_llm_call_stats()
         _call(monkeypatch, _h, n_items=n, batch_size=1, stats=stats)
@@ -717,10 +724,10 @@ class TestTheReplyIsRetainedOnANoAnswer:
         entry claims to hold a whole reply while holding a prefix, which is
         F-186's failure exactly."""
         cap = lc.NO_ANSWER_REPLY_CAP
-        replies = iter(["z" * cap, "z" * cap + "tail"])
+        by_id = {"A000": "z" * cap, "A001": "z" * cap + "tail"}
 
-        def _h(_items):
-            return _FakeRawResponse(next(replies))
+        def _h(items):
+            return _FakeRawResponse(by_id[items[0]["a_id"]])
 
         stats = lc.new_llm_call_stats()
         _call(monkeypatch, _h, n_items=2, batch_size=1, stats=stats)
@@ -734,12 +741,13 @@ class TestTheReplyIsRetainedOnANoAnswer:
         whether its *shape* happened to fit the tally. Recorded before the
         kinds cap can return early, and this is what pins that ordering."""
         n = lc.NO_ANSWER_REPLY_KINDS + 1
-        sizes = [10] * (n - 1) + [4096]
-        state = iter(list(zip([f"r-{i}" for i in range(n)], sizes)))
+        last = f"A{n - 1:03d}"
 
-        def _h(_items):
-            text, ct = next(state)
-            return _FakeRawResponse(text, completion_tokens=ct, with_usage=True)
+        def _h(items):
+            a_id = items[0]["a_id"]
+            ct = 4096 if a_id == last else 10
+            return _FakeRawResponse("r-" + a_id, completion_tokens=ct,
+                                    with_usage=True)
 
         stats = lc.new_llm_call_stats()
         _call(monkeypatch, _h, n_items=n, batch_size=1, stats=stats)

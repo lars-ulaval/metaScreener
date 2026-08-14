@@ -160,10 +160,21 @@ class TestForwardSubstitution:
             return [_answer(a, "not_meet", _title(int(a[1:])))
                     for a in a_ids if a != "A004"]
 
-        out, client = _run(monkeypatch, [call1, call2])
+        def call3(a_ids):
+            # Wave 14c: batch 2's omission of A004 now triggers ONE re-ask
+            # of exactly [A004]. Scripted to omit again, so the record ends
+            # unanswered and the assertions below keep testing what they
+            # always tested: the FABRICATED verdict must not stand. That the
+            # record now gets its own honest chance first is the fix working,
+            # not the defence weakening.
+            assert a_ids == ["A004"]
+            return []
+
+        out, client = _run(monkeypatch, [call1, call2, call3])
 
         assert client.sent == [["A000", "A001", "A002"],
-                               ["A003", "A004", "A005"]]
+                               ["A003", "A004", "A005"],
+                               ["A004"]]
 
         ev = out[("A004", CID)]
         assert ev["used"] is False, (
@@ -235,10 +246,16 @@ class TestFiresAtBatchSizeOne:
             assert a_ids == ["A001"]
             return []
 
-        out, client = _run(monkeypatch, [call1, call2],
+        def call3(a_ids):
+            # Wave 14c's re-ask of the omitted record; omits again — see
+            # the forward-substitution test above.
+            assert a_ids == ["A001"]
+            return []
+
+        out, client = _run(monkeypatch, [call1, call2, call3],
                            n_items=2, batch_size=1)
 
-        assert client.sent == [["A000"], ["A001"]]
+        assert client.sent == [["A000"], ["A001"], ["A001"]]
         ev = out[("A001", CID)]
         assert ev["used"] is False, (
             "F-86 at batch_size=1: the single-record call for A000 filed a "

@@ -247,14 +247,126 @@ class TestAbsenceNeverBecomesAVerdict:
         on an include-typed criterion is the EXCLUDING verdict, so any code
         path from absence to a verdict would let a two-token reply ask for
         the corpus. No reply that omits a record may produce an evidence
-        entry with ``used: True`` for it — under either request shape."""
-        def _partial(call):
+        entry with ``used: True`` for it — under either request shape.
+
+        Updated by F-197's re-ask in the same wave: a record the model
+        answers on the re-ask is genuinely answered, so the invariant is
+        asserted on the record the model addresses in NO reply — A002
+        below, which both the first call and the re-ask omit."""
+        def _first_only(call):
             return _FakeResponse([
                 {"a_id": call["items"][0]["a_id"], "decision": "not_meet",
                  "confidence": 0.9, "field": "title",
                  "quote": call["items"][0]["title"], "span": [0, 1]}
             ])
-        out = _run(monkeypatch, _Recorder(_partial), n_items=3, batch_size=3)
+        out = _run(monkeypatch, _Recorder(_first_only), n_items=3, batch_size=3)
         used = {k[0]: v["used"] for k, v in out.items()}
         assert used["A000"] is True
-        assert used["A001"] is False and used["A002"] is False
+        assert used["A001"] is True, "answered on the re-ask — a real verdict"
+        assert used["A002"] is False, (
+            "omitted by the first reply AND by the re-ask: no code path may "
+            "turn that absence into a verdict"
+        )
+        assert out[("A002", CID)]["decision"] == "uncertain"
+
+
+class TestOmissionIsReAskedOnce:
+    """F-197's fallback for partial omission (design §3.2): a reply short of
+    the batch gets ONE re-ask of exactly the omitted subset; what is still
+    missing after that lands in a named residue counter instead of a silent
+    back-fill. F-191's "retry is measured worthless" does not transfer here —
+    that was an unconstrained request re-sent verbatim; a re-ask of the
+    omitted subset is a different item list, hence a different request. The
+    replay measured the constrained re-ask filling 31/31 omitted pairs."""
+
+    @staticmethod
+    def _omit_after_first(call):
+        return _FakeResponse([
+            {"a_id": it["a_id"], "decision": "not_meet", "confidence": 0.9,
+             "field": "title", "quote": it["title"], "span": [0, 1]}
+            for it in call["items"][:1]
+        ])
+
+    def test_the_reask_carries_exactly_the_omitted_records(self, monkeypatch):
+        rec = _Recorder(self._omit_after_first)
+        _run(monkeypatch, rec, n_items=3, batch_size=3)
+        assert len(rec.calls) == 2
+        assert [it["a_id"] for it in rec.calls[0]["items"]] ==             ["A000", "A001", "A002"]
+        assert [it["a_id"] for it in rec.calls[1]["items"]] ==             ["A001", "A002"], "the re-ask must carry the omitted subset only"
+
+    def test_the_reask_is_constrained_to_its_own_cardinality(self, monkeypatch):
+        rec = _Recorder(self._omit_after_first)
+        _run(monkeypatch, rec, n_items=3, batch_size=3)
+        arr = rec.calls[1]["response_format"]["json_schema"]["schema"][
+            "properties"]["results"]
+        assert arr["minItems"] == arr["maxItems"] == 2
+
+    def test_a_full_reply_triggers_no_reask(self, monkeypatch):
+        rec = _Recorder(_answers_all)
+        _run(monkeypatch, rec, n_items=3, batch_size=3)
+        assert len(rec.calls) == 1
+
+    def test_the_reask_happens_once_and_the_residue_is_counted(self, monkeypatch):
+        """A still-omitting re-ask does not recurse. The residue reaches the
+        run report under its own name — a record that survived a re-ask
+        unanswered is a stronger fact than a plain no_answer, and the silent
+        back-fill is what wave 14b existed to end."""
+        stats = lc.new_llm_call_stats()
+        rec = _Recorder(self._omit_after_first)
+        out = _run(monkeypatch, rec, n_items=3, batch_size=3, stats=stats)
+        assert len(rec.calls) == 2, "exactly one re-ask, no recursion"
+        assert stats["reasks_made"] == 1
+        assert stats["no_answer_after_reask"] == 1
+        rep = lc.summarize_llm_evidence(out)
+        assert rep["answered"] == 2 and rep["no_answer"] == 1
+
+    def test_an_answered_batch_counts_no_residue(self, monkeypatch):
+        stats = lc.new_llm_call_stats()
+        _run(monkeypatch, _Recorder(_answers_all), n_items=3, batch_size=3,
+             stats=stats)
+        assert stats["reasks_made"] == 0
+        assert stats["no_answer_after_reask"] == 0
+
+    def test_an_empty_reply_on_the_unconstrained_path_is_reasked_too(
+            self, monkeypatch):
+        """The detection is shape-independent by design (§3.2): on the
+        F-107 fallback path the constrained guarantee is gone and ``[]``
+        is expressible again, so the re-ask is the only line left."""
+        state = {"n": 0}
+
+        def _h(call):
+            state["n"] += 1
+            if call["response_format"] is not None:
+                raise openai.BadRequestError(
+                    "unsupported parameter 'response_format'",
+                    response=httpx.Response(400, request=_REQ), body=None)
+            if state["n"] == 2:            # first unconstrained attempt
+                return _FakeResponse([])   # the F-191 reply
+            return _answers_all(call)      # the re-ask answers
+        stats = lc.new_llm_call_stats()
+        rec = _Recorder(_h)
+        out = _run(monkeypatch, rec, n_items=2, batch_size=2, stats=stats)
+        assert stats["request_shape"] == "unconstrained"
+        assert stats["reasks_made"] == 1
+        assert all(ev["used"] is True for ev in out.values())
+
+    def test_the_reask_counts_in_calls_made(self, monkeypatch):
+        stats = lc.new_llm_call_stats()
+        _run(monkeypatch, _Recorder(self._omit_after_first), n_items=3,
+             batch_size=3, stats=stats)
+        assert stats["calls_made"] == 2
+
+    def test_the_f194_tally_records_the_reply_that_left_the_residue(
+            self, monkeypatch):
+        """After a re-ask, the record that is still unanswered was left so by
+        the RE-ASK's reply — that is the reply a diagnostician needs, not the
+        first one, whose omissions were repaired."""
+        stats = lc.new_llm_call_stats()
+        _run(monkeypatch, _Recorder(self._omit_after_first), n_items=3,
+             batch_size=3, stats=stats)
+        assert stats["no_answer_replies"], "the residue left no reply behind"
+        (entry,) = stats["no_answer_replies"].values()
+        assert entry["count"] == 1, (
+            "one record survived the re-ask unanswered; the tally must "
+            "count that record against the re-ask's reply"
+        )
