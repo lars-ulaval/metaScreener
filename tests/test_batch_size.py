@@ -216,13 +216,26 @@ class TestTheWordingDoesNotOverclaim:
         assert "can change the result" in text.lower()
         assert "F-197" in text
 
-    def test_the_local_wording_warns_against_a_batch_of_one(self):
-        """F-191's mechanism is specific to n=1: at a batch of one the
-        honest reply to a non-matching record IS an empty list, and the
-        pipeline reads it as no answer. Measured at 17/294 answered."""
+    def test_the_local_wording_names_the_trade_and_steers_nowhere(self):
+        """FLIPPED at wave 14d, for the second time in two waves — the
+        inversion the measurement produced. At wave 14c this asserted
+        “Do not set it to a batch of one”, which was true of the
+        unconstrained request (17/294 answered at n=1). The constrained
+        request inverted it: batch 1 now answers 294/294 and fabricates
+        zero exclusion verdicts, while larger batches fabricate at a rate
+        that grows with size (F-201: 0 of 294 at n=1; 15 and 12 at n=5;
+        18, 6.1 %, at n=10). The tooltip must name that trade with numbers
+        and tell no conclusion — F-173's register."""
         text = ss.batch_size_tooltip("local")
-        assert "batch of one" in text.lower()
-        assert "F-191" in text
+        assert "Do not set" not in text, "steering — the falsified half"
+        assert "17 of 294" not in text, "the pre-14c number describes a request no longer sent"
+        assert "0 of 294" in text and "6.1" in text, "the trade, in numbers"
+        assert "grows with" in text
+        assert "F-201" in text
+        assert "suppressed" in text.lower(), (
+            "flag-only's containment is what makes the trade inspectable"
+        )
+        assert "5×" in text or "five times" in text, "the cost side, also in numbers"
 
     @pytest.mark.parametrize("provider", KEYLESS + KEYED)
     def test_it_names_f_86_as_closed_and_as_firing_at_one(self, provider):

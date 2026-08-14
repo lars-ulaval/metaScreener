@@ -968,6 +968,20 @@ setting, not a correctness one"* beside the batch box in both provider variants.
 this measurement it is a correctness setting: the same corpus screened at 1 and at 5
 yields different verdicts for the same records. That is **code**, outside a
 documentation wave's scope, and it is filed rather than edited here.
+
+*Updated 2026-08-14 (wave 14d):* **the comparison above describes the UNCONSTRAINED
+request, and must not be read as “prefer batch 5”.** Wave 14c changed the request
+(`EL_v2_jsonschema`, cardinality-bearing), and the four-run measurement on the new
+request (`docs/data/wave14d_invariance_runs/`, cache off) inverts the practical
+ordering: **batch 1 now answers 294/294 and fabricates zero exclusion verdicts**,
+while batch 5 fabricates 15 and 12 on two identical runs (~5 %) and batch 10
+fabricates 18 (6.1 %) — a rate that grows with batch size, on largely arbitrary
+records (**F-201**). So this section's *“the smaller one fails catastrophically”* is
+true of the request this repository no longer sends; on the request it does send,
+batch 1 is the measured-clean configuration at 5× the calls of batch 5, and the
+tooltip's correction filed above was itself corrected at wave 14d to state that
+trade. [not established]: where between 1 and 5 the fabrication sets in, and whether
+the rate is model-specific.
 - **Estimated wall-clock:** **[not established]**, and I decline to guess. F-159's
   archived manifests record real durations for CPU-only local runs at a known batch
   size; that number, scaled by the call count (85 records at batch 1 is 85 calls per

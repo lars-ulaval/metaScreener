@@ -1017,14 +1017,22 @@ def batch_size_tooltip(provider: str,
     )
 
     if suggested is not None:
+        # Rewritten again at wave 14d, and the history is the point: the
+        # wave-14c sentence here said "Do not set it to a batch of one",
+        # which was true of the unconstrained request and is falsified for
+        # the constrained one — the measurement inverted. The register for
+        # this wording is F-173's: name the thing, give the numbers, tell
+        # no conclusion. Steering toward either end is what this box has
+        # now been measurably wrong about twice, once in each direction.
         why = (
-            f"\n\nThis drops to {suggested} for a local model. Small models "
-            f"lose track of a long list well before fifty and start "
-            f"returning fewer objects than they were given. Do not set it "
-            f"to a batch of one: at n=1 a correct \"none of these match\" "
-            f"reply is an empty list, which this pipeline cannot read as "
-            f"an answer (F-191) — a measured run at batch 1 answered 17 "
-            f"of 294 record-criterion pairs where batch 5 answered 241."
+            f"\n\nThis drops to {suggested} for a local model. The measured "
+            f"trade (F-201, four runs, one corpus): a batch of one "
+            f"fabricated 0 of 294 exclusion verdicts and made 5\u00d7 the "
+            f"requests of a batch of five; two identical batch-5 runs "
+            f"fabricated 15 and 12 (about 5%); batch 10 fabricated 18 "
+            f"(6.1%) — the rate grows with the batch, and which records it "
+            f"lands on varies run to run. Under flag-only the fabrications "
+            f"are visible as suppressed exclusions rather than acted on."
         )
     else:
         why = (
