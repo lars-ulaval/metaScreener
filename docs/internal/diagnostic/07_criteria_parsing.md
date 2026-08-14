@@ -8,6 +8,10 @@ between the text box and the executable table, and of the three destinations the
 maintainer wants to reach: a lazy-proof harmoniser, two-model agreement before an
 exclusion, and batch size 1 by default for local models.*
 
+> *Retracted 2026-08-13 (wave 14c): the third destination — batch size 1 by
+> default for local models — **is falsified and must not be acted on**. See
+> §8.3, where the retraction and its measurement are recorded.*
+
 **Repository state:** `diag/wave-13-criteria` @ `42a5c42` (tag `post-wave-12`) at
 session start, working tree clean, `origin/main` in sync (0 ahead, 0 behind).
 **Date:** 2026-08-12. **Mode:** read-only. No source, test, golden, tool, sample,
@@ -922,6 +926,48 @@ F-154 already implies.** What is *not* established is the quality claim — that
   agreement beyond the run-to-run spread measured by the three repeats, the change is
   justified *only* by the context-window argument and should be argued on that basis
   alone rather than on quality.
+
+*Retracted 2026-08-13 (wave 14c):* **this recommendation is falsified, and by the
+falsification clause immediately above it. Batch 1 does not reduce `no_answer`; it
+multiplies it.** The controlled comparison the clause asks for has now been run by the
+maintainer — same corpus, same criteria, same model, same temperature, same
+`trunc_chars`, **only batch size differing** — on the 147-record post-13d chain, 294
+record-criterion pairs:
+
+| | batch 1 | batch 5 |
+| --- | ---: | ---: |
+| answered | **17 / 294** | **241 / 294** |
+| `no_answer` | 277 (94 %) | 53 (18 %) |
+| replies that were `[]` | 273 | 2 |
+| `OUT` / `PASS_CLEAN` / `PASS_FLAGGED` | 0 / 0 / 147 | 0 / 61 / 75 |
+
+**A user who followed this section would get a run in which the LLM stage screened
+nothing and reported success.** That is not a throughput cost, it is the whole stage
+failing silently, and it is why this note is a retraction rather than a caveat.
+
+**The mechanism is F-191 and it is specific to n=1.** At a batch of one, the honest
+reply to a non-matching record *is* an empty list, and `_parse_llm_json_array` reads
+`[]` as *"the model said nothing"*. 273 of the 277 batch-1 failures are the literal two
+characters `[]`. At batch 5 that signature nearly vanishes (2 of 53); the residual is
+partial omission, which is **F-25 / F-122**'s territory and a different defect. So the
+two batch sizes do not fail more or less — **they fail differently**, and the smaller
+one fails catastrophically.
+
+**What survives of this section.** The enumeration of batch-default sites is unaffected
+and was independently useful. **F-154**'s context-window arithmetic is unaffected: batch
+10 still overflows pessimistically and batch 50 still exceeds the window several times
+over, so *"do not raise the local batch range"* stands. What does not survive is the
+inference from that arithmetic to *"therefore lower it to 1"* — the window argument
+bounds the top of the range and says nothing about the bottom, and this section treated
+the two as one conclusion. **[not established]:** where between 1 and 5 the failure
+sets in, and whether 5 is optimal or merely better than 1.
+
+**Also falsified, and it is a shipped user-facing string rather than a document.**
+`plugins/_common/stage_state.py::batch_size_tooltip` renders *"This is a QUALITY
+setting, not a correctness one"* beside the batch box in both provider variants. On
+this measurement it is a correctness setting: the same corpus screened at 1 and at 5
+yields different verdicts for the same records. That is **code**, outside a
+documentation wave's scope, and it is filed rather than edited here.
 - **Estimated wall-clock:** **[not established]**, and I decline to guess. F-159's
   archived manifests record real durations for CPU-only local runs at a known batch
   size; that number, scaled by the call count (85 records at batch 1 is 85 calls per
