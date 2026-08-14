@@ -418,6 +418,17 @@ together with the model, the resolved endpoint, the temperature and
 the prompt version, so there is no per-record identifier in the file
 to search on.
 
+One content note before sharing or archiving a bundle: since the
+no-answer instrumentation was added, `manifest.json` can carry up to
+about 10 KB of **model output** — a bounded sample of what the model
+sent back for records it did not answer. A model reply routinely
+quotes the record it was shown, so those samples can contain fragments
+of titles, abstracts or keyword strings. Nothing appears there that is
+not already in the same bundle's own record files, but a manifest
+extracted and passed around **on its own** now carries third-party
+bibliographic text that older manifests did not. If you share bare
+manifests rather than whole bundles, that is the field to check.
+
 ## Exporting and final outputs
 
 The final bundle from Plugin 07 contains the surviving records (in

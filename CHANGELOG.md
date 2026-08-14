@@ -667,6 +667,16 @@ evaluates anything.
   `docs/data/wave14c_batch_runs/`, and the cached-answer fixtures were
   re-keyed (values untouched, proven by the committed migration tool) to
   keep old unconstrained answers from being served to constrained runs.
+- **The batch-size trade is now measured on the fixed request, and the
+  tooltip states it in numbers.** With the schema-constrained request, every
+  batch size answers every record — and a four-run comparison showed larger
+  batches inventing exclusion verdicts the records do not support, at a rate
+  that grows with the batch: none in 294 judgments at batch size 1, about 5%
+  at batch size 5, 6.1% at batch size 10, on records that vary run to run.
+  Under the default flag-only policy those show up as suppressed exclusions
+  for your review rather than acting on anything. Batch size 1 was the
+  measured-clean setting at five times the requests of batch 5; the tooltip
+  beside the box now gives you these numbers and leaves the choice with you.
 
 ## [3.1.0] - 2026-04-29
 
