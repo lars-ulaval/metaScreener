@@ -1,0 +1,9 @@
+stage,id,type,scope,label,operator,target,what,threshold,enabled,source_text
+IL,IC-1,include,metadata,The paper considers immersive virtual reality OR a virtual simulation using a head-mounted display (HMD).,llm,keywords,The paper considers immersive virtual reality OR a virtual simulation using a head-mounted display (HMD).,0.60,1,IC-1 - The paper considers immersive virtual reality OR a virtual simulation using a head-mounted display (HMD).
+IH,IC-3,include,metadata,The paper is written in English.,equals,lang,English,,1,IC-3 - The paper is written in English.
+IH,IC-4,include,metadata,The publication year is 2018 or later.,gte,year,2018,,1,IC-4 - The publication year is 2018 or later.
+IL,IC-5,include,metadata,"The title, abstract, or keywords mention training OR vocational OR workplace.",contains,"title,abstract,keywords",training;vocational;workplace,0.60,1,"IC-5 - The title, abstract, or keywords mention training OR vocational OR workplace."
+EH,EC-1,exclude,metadata,The paper is written in French or Spanish.,in_list,lang,French;Spanish,,1,EC-1 - The paper is written in French or Spanish.
+EL,EC-2,exclude,metadata,The paper’s primary focus is spatial navigation in a virtual maze (no social interaction or collaboration).,llm,keywords,The paper’s primary focus is spatial navigation in a virtual maze (no social interaction or collaboration).,0.60,1,EC-2 - The paper’s primary focus is spatial navigation in a virtual maze (no social interaction or collaboration).
+EL,EC-3,exclude,metadata,The paper’s primary focus is the rubber hand illusion paradigm.,llm,keywords,The paper’s primary focus is the rubber hand illusion paradigm.,0.60,1,EC-3 - The paper’s primary focus is the rubber hand illusion paradigm.
+EH,EC-4,exclude,metadata,The publication venue contains “ICRA” OR “IROS” (robotics conference proceedings).,contains,venue,ICRA;IROS,,1,EC-4 - The publication venue contains “ICRA” OR “IROS” (robotics conference proceedings).

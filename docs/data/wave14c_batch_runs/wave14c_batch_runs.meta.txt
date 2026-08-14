@@ -1,0 +1,112 @@
+# The evidence behind register row F-197 (batch size decides which records
+# get screened) and the retraction in docs/internal/diagnostic/
+# 07_criteria_parsing.md § 8.3.
+#
+# This is a frozen, citable dataset, NOT a test fixture: it must never be
+# re-captured, re-generated or "synced" with anything. Integrity is held by
+# SHA256SUMS beside this file and asserted on every suite run by
+# tests/test_wave14c_batch_freeze.py, which also RE-DERIVES the headline
+# figures from these bytes and fails if the retraction table and the
+# artefacts disagree.
+#
+# Until 2026-08-13 the batch comparison lived as five bundle zips in a
+# sibling directory outside version control (_archive_bundles/) — the exact
+# state F-159 exists to forbid, one wave after F-159 closed it for wave 12.
+
+role=published_evidence
+study=docs/internal/diagnostic/07_criteria_parsing.md § "8.3 T3" (retraction) and 03_findings.md F-197
+captured_at=2026-08-13
+frozen_at=2026-08-13
+corpus_records=776
+el_input_records=147
+
+# ---------------------------------------------------------------------------
+# The two runs — a controlled comparison in which ONLY batch size differs
+# ---------------------------------------------------------------------------
+# Each run's provenance block is carried verbatim inside its own
+# manifest.json at pipeline.history[stage=EL].provenance, and its counters at
+# .llm. The values below are a reader's convenience, not a second source of
+# truth: the test asserts the manifests, not this file.
+
+runD=runD_batch1_*  batch_size=1  answered=17/294   no_answer=277  calls_made=294
+runE=runE_batch5_*  batch_size=5  answered=241/294  no_answer=53   calls_made=56
+
+# Identical across both runs:
+model=qwen2.5:7b
+endpoint=http://localhost:11434/v1
+temperature=0.0
+prompt_version=EL_v1_jsonlist
+trunc_chars=1500
+exclusion_policy=flag_only
+
+# THE RUNS ARE NOT FULLY INDEPENDENT, AND THE ARTEFACTS SHOW IT (F-101).
+# runE made 56 calls where an independent run needed 60: the two runs were
+# made in one session, the cache key is blind to batch size, and the 17
+# pairs runD answered were served to runE from runD's cache. runD's
+# EL_cache.jsonl (17 entries) against runE's (241 entries) is the record:
+# every key in runD's cache appears verbatim in runE's.
+
+# ---------------------------------------------------------------------------
+# What each file is
+# ---------------------------------------------------------------------------
+# *_manifest.json    the bundle manifest, verbatim. Carries the provenance
+#                    block, the LLM counters — including the wave-14b F-194
+#                    no_answer_replies tally, which is what records that 273
+#                    of runD's 277 failures were the literal reply "[]" —
+#                    and a sha256 block covering every member of the
+#                    original bundle, including members NOT committed here.
+# *_EL_FULL.csv      the 147 EL records with their outcome and per-criterion
+#                    evidence in el_evidence_json. Verbatim, all 41 columns.
+#                    The 34 corpus columns are a superset of the EL input
+#                    (data/current.csv), so the input is recoverable from
+#                    this file and is not committed twice.
+# *_EL_cache.jsonl   the raw per-judgment answers the run cached. Only
+#                    answered pairs have entries (F-87 refuses no-answers a
+#                    cache line), so runD has 17 lines and runE 241 — the
+#                    line counts are themselves the answered counts.
+# runDE_criteria_harmonized.csv
+#                    the criteria table BOTH runs ran against — verified
+#                    byte-identical across the two bundles before one copy
+#                    was committed (sha256 5dd51aaa…). Differs from the
+#                    frozen study_input criteria (a01ccc73…): this is the
+#                    post-13d table, and the corpus is the 147-record
+#                    post-13d chain, not the 85-record study corpus.
+
+# ---------------------------------------------------------------------------
+# What was NOT committed, and why that is safe
+# ---------------------------------------------------------------------------
+# The full evening chain is five bundles (harmoniser, post-EH, post-IH, and
+# the two post-EL runs). Everything below is recorded by digest in the two
+# committed manifests' sha256 blocks, so a bundle that resurfaces can be
+# matched member by member:
+#
+#   data/original.csv        byte-identical to samples/20260122_1654_aggregate.csv
+#                            (the manifests record its digest).
+#   reports/EH_*.csv, reports/IH_*.csv, data/current.csv,
+#   reports/EL_SURVIVORS.csv, data/input_errors.csv,
+#   criteria/criteria_harmonized.txt, criteria/criteria_source.txt
+#                            identical across both bundles (same upstream
+#                            chain — one harmoniser output, one EH run, one
+#                            IH run feed both EL runs); current.csv's
+#                            columns and rows are contained in EL_FULL.csv.
+#
+# The five bundles this directory was reduced from (sha256 of each zip):
+# (computed at freeze time; the zips stay in _archive_bundles/ on the
+# capture machine)
+
+bundle_harmoniser_sha256=fc8d24b1d08e8d21b0a7d12bfebcb2fce1e144e87ecaf999d501eb950e92ab2f  ScreenA_Bundle_20260813_214020.zip
+bundle_post_EH_sha256=5726e66dc37dd541fa3cc8d648544c78db4ee5bbba95e74774488e23827ee56e  ScreenA_Bundle_EH_20260813_214049.zip
+bundle_post_IH_sha256=3e0f1037477a8a7d94576c1a8a977b180cb1184b434fe3f8337b92cb1d919241  ScreenA_Bundle_IH_20260813_214057.zip
+bundle_runD_batch1_sha256=6a1dcf76e27c51c6604b9669c8b1a54f72ae8b03559336de9576ffc1ab551959  20260813_214712_post_EL_bundle.zip
+bundle_runE_batch5_sha256=c5b05afb2479724788d1dbd3ca1592e27c9598b4529ac90c44479b71439e2407  20260813_220334_post_EL_bundle.zip
+
+# ---------------------------------------------------------------------------
+# Not recorded, and therefore not asserted
+# ---------------------------------------------------------------------------
+# quantisation      absent from the provenance block (F-154).
+# model identity    qwen2.5:7b is a mutable tag (F-154).
+# num_ctx           never set by metaScreener; the capture machine's server
+#                   default was 4096 and Ollama reported total_vram="0 B"
+#                   (CPU-only) (F-154).
+# request shape     both runs predate wave 14c's constrained decoding; both
+#                   sent the unconstrained three-parameter request.

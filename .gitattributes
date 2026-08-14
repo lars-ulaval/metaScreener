@@ -23,6 +23,17 @@ docs/data/wave12_local_runs/*.csv binary
 docs/data/wave12_local_runs/*.jsonl binary
 docs/data/wave12_local_runs/*.json binary
 
+# The evidence behind register row F-197 and the § 8.3 retraction in
+# docs/internal/diagnostic/07_criteria_parsing.md (wave 14c) — same reason
+# and same shape as the wave12_local_runs rules above: the EL_FULL.csv
+# files mix CRLF row terminators with bare LFs inside quoted abstracts,
+# which is exactly what `* text=auto` normalises, and every byte here is
+# pinned by docs/data/wave14c_batch_runs/SHA256SUMS and asserted by
+# tests/test_wave14c_batch_freeze.py.
+docs/data/wave14c_batch_runs/*.csv binary
+docs/data/wave14c_batch_runs/*.jsonl binary
+docs/data/wave14c_batch_runs/*.json binary
+
 # The *outputs* of the reproduction the rule above protects the inputs of
 # (F-99, cause 2 of the wave-10..12 red CI). These three are the published
 # artefacts that tests/test_study_input_freeze.py, class
