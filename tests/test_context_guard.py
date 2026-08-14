@@ -202,6 +202,50 @@ class TestTheBudgetCheck:
         assert rep.ok is False
         assert rep.worst_batch_index == 1, "the tail batch, not the first"
 
+    def test_the_second_criterion_is_budgeted_too(self):
+        """Found by the mutation battery: `criteria[:1]` survived. The worst
+        call must be findable in the SECOND criterion — here the second
+        pack's `what` list is enormous while the first is tiny, so only a
+        sweep that renders both refuses."""
+        big = dict(_crit_pack(), id="EC-9",
+                   what=["w" * 200] * 100, label="x" * 5000)
+        rep = lc.check_context_budget(
+            criteria=[_crit_pack(), big], items=_items(4), batch_size=4,
+            trunc_chars=1500, build_messages=_build_messages, window=4096)
+        assert rep.ok is False
+        assert rep.worst_criterion == "EC-9", (
+            "the offender is the second criterion; a guard that budgets "
+            "only the first admits this run"
+        )
+
+    def test_the_derived_max_is_tight_not_just_safe(self):
+        """Found by the mutation battery: returning batch_size-1 without
+        re-verifying survived, because the first fixture's honest answer
+        happened to BE batch_size-1. Here the honest answer is far lower:
+        each record fills the truncation cap on all three fields, so only
+        tiny batches fit — and the derived number must both pass and be the
+        LARGEST that passes."""
+        items = [{"a_id": f"A{i:03d}", "title": "T" * 1500,
+                  "abstract": "A" * 1500, "keywords": "K" * 1500}
+                 for i in range(10)]
+        rep = lc.check_context_budget(
+            criteria=[_crit_pack()], items=items, batch_size=10,
+            trunc_chars=1500, build_messages=_build_messages, window=4096)
+        assert rep.ok is False
+        assert 1 <= rep.max_safe_batch < 9, (
+            "batch_size-1 must not fit here, or the test proves nothing"
+        )
+        fits = lc.check_context_budget(
+            criteria=[_crit_pack()], items=items,
+            batch_size=rep.max_safe_batch, trunc_chars=1500,
+            build_messages=_build_messages, window=4096)
+        assert fits.ok is True
+        too_big = lc.check_context_budget(
+            criteria=[_crit_pack()], items=items,
+            batch_size=rep.max_safe_batch + 1, trunc_chars=1500,
+            build_messages=_build_messages, window=4096)
+        assert too_big.ok is False, "tight means the next size up refuses"
+
     def test_trunc_chars_is_honoured(self):
         """The builder truncates each field to trunc_chars; the guard must
         budget what will be SENT, not the raw corpus."""
