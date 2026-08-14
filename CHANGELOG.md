@@ -631,6 +631,21 @@ evaluates anything.
   itself, by re-running the published command and comparing its output
   with the committed results. No number in the study changes; the fixtures
   under `tests/golden/` are now free to move without touching it.
+- **A run in which the model answered too little now asks before you export
+  it.** For every record-criterion pair it sends, metaScreener already recorded
+  whether the model came back with something it could read — but that number
+  went into the bundle's manifest and nothing looked at it. A run in which the
+  model declined most of what it was shown could therefore finish, report
+  *"EL done."*, and export with no question asked; one of this project's own
+  measurement runs did exactly that, with 33 of 170 pairs unanswered. If more
+  than 10% of the pairs come back unreadable, the stage now says so on its
+  status line and asks you to confirm before either export — the same
+  acknowledgement a stage with no criteria has always required. **Nothing is
+  blocked and no button is disabled**: you can still export, and the dialog
+  tells you how much came back unreadable, what that usually means, and where
+  to read a sample of what the model actually sent. A run whose answer rate is
+  healthy is unaffected, and a run in which the model was never heard from at
+  all keeps its own, more specific message.
 
 ## [3.1.0] - 2026-04-29
 
