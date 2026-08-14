@@ -27,7 +27,10 @@ from typing import Any, Dict, List
 from plugins._common.llm_client import _safe_str
 
 
-PROMPT_VERSION = "IL_v1_jsonlist"
+PROMPT_VERSION = "IL_v2_jsonschema"
+"""Bumped at wave 14c with EL's — see plugins/06_el/prompt.py; the two
+stages share run_m1_llm_for_criterion, so the request shape and the
+version move together or the unmoved stage keeps the defect."""
 
 
 def _build_llm_messages_for_criterion(criterion: Dict[str, Any], items: List[Dict[str, Any]], trunc_chars: int) -> List[Dict[str, str]]:

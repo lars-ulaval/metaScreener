@@ -757,6 +757,99 @@ FIELD_VOCABULARY: Tuple[str, ...] = ("title", "abstract", "keywords")
 _DECISION_SEPARATORS = re.compile(r"[\s_\-]+")
 
 
+def _response_format_for(n: int) -> Dict[str, Any]:
+    """The ``response_format`` for a batch of exactly ``n`` records (F-191,
+    F-197).
+
+    **The cardinality is the point.** Shape alone kills the batch-1 failure
+    — ``[]`` stops being expressible — but only ``minItems == maxItems == n``
+    reaches the batch-5 failure, a reply that answers one record of five and
+    omits the rest. Both were measured (FIX_WAVE_14C_BATCH_INVARIANCE.md §2
+    and the replay: 31/31 previously-omitted pairs filled, with the
+    unconstrained controls reproducing the omission exactly).
+
+    Built per call from the batch actually being sent, because the adaptive
+    split rewrites ``cur_batch``: a halved batch carrying the original
+    count's schema would ask the server for objects that cannot exist.
+
+    The enums are the parser's own vocabularies rather than a third hand
+    copy — F-108/F-109's shape, not repeated. A decision outside
+    :data:`DECISION_VOCABULARY` and a field outside
+    :data:`FIELD_VOCABULARY` stop being expressible on this path; the
+    normalisation and rejection code stays, because the unconstrained
+    fallback still needs it.
+
+    The **messages are untouched** on purpose: the constraint rides on the
+    request parameter, so the rendered prompt — which the cache key hashes —
+    is byte-identical under both shapes. What changes the key is
+    ``PROMPT_VERSION``, bumped with this wave, which is the deliberate,
+    greppable lever ``_cache_key``'s docstring reserves for a semantic
+    change that does not move a byte of the template.
+    """
+    verdict = {
+        "type": "object",
+        "properties": {
+            "a_id": {"type": "string"},
+            "decision": {"type": "string", "enum": list(DECISION_VOCABULARY)},
+            "confidence": {"type": "number"},
+            "field": {"type": "string", "enum": list(FIELD_VOCABULARY)},
+            "quote": {"type": "string"},
+            "span": {"type": "array", "items": {"type": "integer"},
+                     "minItems": 2, "maxItems": 2},
+        },
+        "required": ["a_id", "decision", "confidence", "field", "quote",
+                     "span"],
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "verdicts",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "results": {"type": "array", "items": verdict,
+                                "minItems": int(n), "maxItems": int(n)},
+                },
+                "required": ["results"],
+            },
+        },
+    }
+
+
+def _response_format_rejected(e: BaseException) -> bool:
+    """Whether this exception is a server refusing ``response_format`` itself.
+
+    **Checked before ``_classify_llm_error``, and that ordering is measured,
+    not stylistic** (wave 14b): a real rejection body reads *"unsupported
+    parameter 'response_format'; only max_tokens allowed"*, and
+    ``max_tokens`` matches ``_OVERSIZE_RE`` — so the classifier calls it
+    ``oversize``, salvageable, and the ladder would halve the batch and step
+    down the truncation against a refusal no batch size can cure.
+
+    Deliberately narrow: the parameter's name must appear in the message.
+    A schema-*validation* failure, a genuine oversize, or any other 400
+    falls through to the classifier unchanged — this predicate exists for
+    exactly one condition, the F-107 provider that does not speak
+    structured output at all.
+    """
+    try:
+        msg = str(e).lower()
+    except Exception:
+        return False
+    if "response_format" not in msg:
+        return False
+    types_ = _openai_error_types()
+    t = types_.get("BadRequestError")
+    if t is not None and isinstance(e, t):
+        return True
+    status = getattr(e, "status_code", None)
+    try:
+        return status is not None and int(status) == 400
+    except Exception:
+        return False
+
+
 def _normalize_decision(raw: Any) -> Optional[str]:
     """Map a model's ``decision`` onto :data:`DECISION_VOCABULARY`, or return
     ``None`` when it falls outside it.
@@ -826,7 +919,16 @@ def new_llm_call_stats() -> Dict[str, int]:
             "no_answer_replies": {},
             "no_answer_replies_absent": 0,
             "no_answer_replies_dropped": 0,
-            "no_answer_max_completion_tokens": None}
+            "no_answer_max_completion_tokens": None,
+            # F-197 / F-107. Which request shape this run actually used:
+            # "json_schema" until a server rejects the parameter, then
+            # "unconstrained" for the rest of the run. Reaches the manifest
+            # through _run_report's report.update(call_stats), so a bundle
+            # records which path produced its verdicts — without this, two
+            # runs of the same version against different servers are
+            # indistinguishable in the artefact (F-88's argument, applied
+            # to the one thing wave 14c changes).
+            "request_shape": "json_schema"}
 
 
 def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
@@ -1046,12 +1148,27 @@ def run_m1_llm_for_criterion(
     # cannot change mid-run.
     _rate_endpoint = resolve_openai_base_url(stage)
 
+    # F-197. Sticky per RUN, not per criterion: the stats dict is the one
+    # object that accumulates across every criterion of a stage, so a server
+    # that rejected `response_format` once is not re-probed by the next
+    # criterion. With no stats dict there is no channel and the default
+    # stands per call.
+    use_schema = stats is None or \
+        stats.get("request_shape", "json_schema") != "unconstrained"
+
     def _call_once(batch: List[Dict[str, Any]], cur_trunc: int):
         msgs = build_messages(criterion, batch, cur_trunc)
         # Counted here rather than at the call site so that every attempt is
         # counted once, including the ones a later salvage makes invisible in
         # the evidence map. See new_llm_call_stats.
         _bump(stats, "calls_made")
+        # F-191: the schema is rebuilt per call from the batch actually
+        # being sent — the adaptive split rewrites cur_batch, and a halved
+        # batch under the original count's schema would demand objects that
+        # cannot exist.
+        kwargs: Dict[str, Any] = {}
+        if use_schema:
+            kwargs["response_format"] = _response_format_for(len(batch))
         # `perf_counter` is imported by name at module scope, deliberately:
         # several tests replace this module's `time` with a stub carrying
         # only `sleep`, and routing the clock through that name would break
@@ -1062,6 +1179,7 @@ def run_m1_llm_for_criterion(
                 model=model,
                 messages=msgs,
                 temperature=temperature,
+                **kwargs,
             )
         finally:
             # In `finally`, so a failed call still contributes its
@@ -1286,6 +1404,28 @@ def run_m1_llm_for_criterion(
                     raise
 
                 except Exception as e:
+                    # F-107's answer, checked BEFORE the classifier and for a
+                    # measured reason (wave 14b): a real rejection body reads
+                    # "unsupported parameter 'response_format'; only
+                    # max_tokens allowed", and `max_tokens` matches
+                    # _OVERSIZE_RE — so _classify_llm_error calls it
+                    # `oversize`, salvageable, and the ladder would halve the
+                    # batch and step the truncation down against a refusal no
+                    # batch size can cure. One flip per run, then the minimal
+                    # request F-107 protects, exactly as before this wave.
+                    if use_schema and _response_format_rejected(e):
+                        use_schema = False
+                        if stats is not None:
+                            stats["request_shape"] = "unconstrained"
+                        _bump(stats, "calls_failed")
+                        if log:
+                            log(f"{log_prefix} this server rejects "
+                                f"response_format; continuing this run with "
+                                f"the unconstrained request. Constrained "
+                                f"decoding is what prevents empty and "
+                                f"partial replies (F-191, F-197), so watch "
+                                f"the no-verdict counts.\n")
+                        continue
                     # F-94. This used to be two substring sniffs over
                     # str(e).lower(), and `is_big` required `context` AND
                     # `length` to co-occur — so "n_ctx exceeded" and "prompt

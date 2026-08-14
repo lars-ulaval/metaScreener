@@ -146,9 +146,22 @@ class TestTheRekeyHolds:
         """
         assert reports[stage].old_keys_present == 0
 
+    def test_no_v1_prompt_version_key_survives(self, reports, stage):
+        """Wave 14c's obligation 4, over ITS migration: the constrained
+        request bumped ``PROMPT_VERSION`` (F-191/F-197) and the goldens
+        were re-keyed with ``--migration prompt-version``. A committed key
+        still derivable with the v1 version string would be an entry the
+        pre-bump code could hit — exactly the unconstrained/constrained
+        cache mixing the bump exists to prevent."""
+        assert reports[stage].v1_keys_present == 0
+
     def test_values_are_untouched(self, reports, stage):
         """Obligation 3. This is what makes it a re-key and not a
-        re-capture: no API call was made and no decision was recomputed."""
+        re-capture: no API call was made and no decision was recomputed.
+        The pinned digest predates BOTH migrations — F-89's endpoint
+        re-key and wave 14c's prompt-version re-key — and must survive
+        every later one, which is the standing proof that each was a pure
+        relabelling."""
         r = reports[stage]
         assert r.values_unchanged, (
             f"{stage} cache VALUES changed. A re-key relabels; if a value "

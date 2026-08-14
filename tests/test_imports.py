@@ -216,11 +216,11 @@ class TestPerPluginPrompts:
 
     def test_el_prompt_version_string(self):
         from conftest import get_el
-        assert get_el().PROMPT_VERSION == "EL_v1_jsonlist"
+        assert get_el().PROMPT_VERSION == "EL_v2_jsonschema"
 
     def test_il_prompt_version_string(self):
         from conftest import get_il
-        assert get_il().PROMPT_VERSION == "IL_v1_jsonlist"
+        assert get_il().PROMPT_VERSION == "IL_v2_jsonschema"
 
 
 class TestPerPluginUI:

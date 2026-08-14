@@ -268,7 +268,7 @@ class _FakeClient:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature):
+            def create(self, *, model, messages, temperature, response_format=None):
                 outer.calls += 1
                 payload = json.loads(messages[1]["content"])
                 items = payload["items"]

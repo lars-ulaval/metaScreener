@@ -45,7 +45,7 @@ def _client(decision, confidence=0.9):
     for. A malformed answer is already fail-safe and proves nothing here.
     """
     class _Completions:
-        def create(self, *, model, messages, temperature):
+        def create(self, *, model, messages, temperature, response_format=None):
             items = json.loads(messages[1]["content"])["items"]
             return _FakeResponse([
                 {"a_id": it["a_id"], "decision": decision,

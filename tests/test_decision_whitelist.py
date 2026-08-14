@@ -69,7 +69,7 @@ class _DecisionClient:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature):
+            def create(self, *, model, messages, temperature, response_format=None):
                 outer.calls += 1
                 payload = json.loads(messages[1]["content"])
                 return _FakeResponse([
@@ -237,7 +237,7 @@ class TestRejectionsAreVisible:
         client = _DecisionClient("meet")
 
         class _BadField:
-            def create(self, *, model, messages, temperature):
+            def create(self, *, model, messages, temperature, response_format=None):
                 payload = json.loads(messages[1]["content"])
                 return _FakeResponse([
                     {"a_id": it["a_id"], "decision": "meet",

@@ -27,7 +27,17 @@ from typing import Any, Dict, List
 from plugins._common.llm_client import _safe_str
 
 
-PROMPT_VERSION = "EL_v1_jsonlist"
+PROMPT_VERSION = "EL_v2_jsonschema"
+"""Bumped at wave 14c (F-191/F-197): the request now carries a
+``response_format`` JSON schema with per-batch cardinality. The rendered
+prompt is byte-identical to v1 — the constraint rides on the request
+parameter — so this bump is the deliberate lever ``_cache_key`` reserves
+for a semantic change that moves no byte of the template: without it,
+verdicts cached from unconstrained runs would be served to constrained
+runs and back, indistinguishably. The goldens were re-keyed, not
+re-captured; tools/rekey_cache_goldens.py --migration prompt-version
+holds the proof and tests/test_golden_rekey.py re-verifies it.
+"""
 
 
 def _build_llm_messages_for_criterion(criterion: Dict[str, Any], items: List[Dict[str, Any]], trunc_chars: int) -> List[Dict[str, str]]:

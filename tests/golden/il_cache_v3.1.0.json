@@ -5,595 +5,7 @@
     "trunc_chars": 4000
   },
   "cache": {
-    "07af8ba587a62a2f66f6c2ac54c101f07988e74fee8fdf76af8ee57e5b3399e9": {
-      "confidence": 0.85,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality; Augmented reality",
-      "span": [
-        0,
-        30
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "0a8503dc65c9b0c8dc36da6d07a164d4337c3498b5e7dd2386aba9b0d098513f": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        18,
-        31
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "0ae5fa15b8837860d2a15d1c18dbe20fe5446b71f317d48eaf2e45a920cfa9f5": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Vocabulary; Interactivity; Multimedia; Computer science; Virtual reality; Context (archaeology); Mobile device; Human–computer interaction; Psychology; World Wide Web; Biology; Philosophy",
-      "span": [
-        0,
-        139
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "0e49f314034fbd4454ac53516921e154a6cdfec7c5149b3a9f65170995ca2815": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "13139b92f07b4caa95bac4c3384c3b3f1ac703563e775bab86d34696de5214f4": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "15708d9457a495ab45cf0d8c7a929be6da7ddd1c670d258a37144f081a9bc99f": {
-      "confidence": 0.2,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "16b042d0479edbcb777af26a4045ab1260bfb58cc23235795730730e2df41469": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        13
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "186d591d5c255b07754564a5c2185c04e6c60e228de2f5c5285d0925485b0f47": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Lucid dream",
-      "span": [
-        0,
-        10
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "19440e470bffdbfb0e381de4a72acb36237f3ff6f870fc63507b4264cc65a8db": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Industrial Revolution; History; Mathematics education; Engineering; Psychology; Archaeology",
-      "span": [
-        0,
-        83
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "19db48560dd5cb9f7b2d3e56f7082fc9c607d7e5e0d4f0a149c95622e67d13a2": {
-      "confidence": 0.7,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Augmented reality; Computer science; Human–computer interaction",
-      "span": [
-        0,
-        66
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "1c1916aa470890c04d8cb6cebcad98b32a8959cb536fdf3490aec751bc4c8bb2": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Plan (archaeology); Computer science; Floor plan; Artificial intelligence; Geology; Engineering drawing; Engineering; Paleontology",
-      "span": [
-        0,
-        118
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "1e1e6f0aad2afcf6ac8760eaeef516bde9c85d877280ac4b6fff13619996f711": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Feeling; Computer science; Learning analytics; Key (lock); Psychology; Mathematics education; Knowledge management; Data science; Social psychology; Computer security",
-      "span": [
-        0,
-        100
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "23c3b2fb52392380eb47bd266ed48f26b8e6672e5cab9bdb3f285c7c924b5d17": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Augmented reality",
-      "span": [
-        66,
-        83
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "25107fb03933eb85a7c17e639a471e211407596002a2cd72b32cae2199d0aeb5": {
-      "confidence": 0.85,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "27a92d12c3d41e52b74ad4f856745035b6c5ebfa9dad7b51fa851963ab5e927c": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        40,
-        54
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "27f4188c92029c31aa2e3bf7e7176468fa2d9f4a16ede7bbc622a02a670d48e8": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "2b3e8763bbac36d03034bbfef15299bb0d4d2da2135263cfc0ba5dceae8ebfc6": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "2e76c4e97508765e95bf1db21932c873a471adca84037f38b735886b88b59349": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Augmented reality; Headphones; Stimulus (psychology); Interface (matter); Visualization; Control system; Flicker; Artificial intelligence",
-      "span": [
-        0,
-        118
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "307c8a1e498ae4b659647c4d97d108a0704e386ecb897618dbe45d0aa77e3983": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "357129004d4a96126adce378ab85f85adde4d8d69981a3d9afd7efdd1fc6e036": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Vocabulary; Computer science; Foreign language; Process (computing); Language acquisition; Mathematics education; Control (management); Psychology; Multimedia; Artificial intelligence; Linguistics; Philosophy",
-      "span": [
-        0,
-        118
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "362e5f529f6f25d5990d29a1fa5bcb030dfaa3983ec73b95c7a3ddf824b8cab3": {
-      "confidence": 0.85,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        13
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "36e61af7a4b3d4170e0fc5f6660f5f6e220ae61e4e4b35ccc06717dd848761c2": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science; Architecture; Human–computer interaction; Context (archaeology); Flexibility (engineering); Software architecture; Software; Cognitive architecture; Reference architecture; Multimedia; Software engineering; Cognition",
-      "span": [
-        0,
-        164
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "371ce0f93fd8e2c250bb69fcf1b093e5ff1c938544cf166b853c08ef3cf0abd2": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        66,
-        81
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "38134b6b0e0bd273de55af50aa982c635f1737faa1ec5081abd22fb1982e7092": {
-      "confidence": 0.2,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Augmented reality; Computer science; Metacognition; Instructional design; Set (abstract data type); Educational technology; Scaffold; Mathematics education; Human–computer interaction; Psychology; Multimedia; Cognition",
-      "span": [
-        0,
-        140
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "3bfb9ba1489471624108f8b9f31d5ce0c6ef1c72d3abb7ca76d90fde832caf96": {
-      "confidence": 0.4,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Augmented reality; Computer science; Educational technology",
-      "span": [
-        0,
-        66
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "3ee5e2ee7c595cf603a585cc0bc6e7e8356dc126ea5345b3ccd0f5b8edbb3d5a": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "42a45dacb09785014401d055acbd182bb1e94bb80b4003b3bb2a193caaafb9ab": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        22,
-        36
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "442985e70d80200fcc9318468c868a8cf72e0d39af2b01e3ef8e70cb78c2fd78": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Social media; Internet privacy; Advertising; Computer science; Business; Public relations; Political science; World Wide Web",
-      "span": [
-        0,
-        107
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "45c367b86cc4c4a2c9506bf685b83e6bfb4f86818026c28e84731945c8cad6ca": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Gadget; Process (computing); Computer science; Resource (disambiguation); Field (mathematics); Protocol (science); Multimedia; Subject (documents); Mathematics education; Psychology; World Wide Web; Operating system",
-      "span": [
-        0,
-        140
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "4819b9d88a9cd046bdde00483e9862452e362c1adf44a3877ef0244f86b2c4fd": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        12,
-        27
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "4c0bf94b7085f9cb2fbbf76965adeaa473a6df1db06c59242bfd9e9b13234d7d": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Pronunciation; Computer science; Computer-Assisted Instruction; Multimedia; Psychology; Linguistics; Mathematics education; Philosophy",
-      "span": [
-        0,
-        90
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "4fa8ef57943b870fd33547029d0c2fc176f3955c413fc9797cce67bf65291dfc": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality; Immersion (mathematics)",
-      "span": [
-        0,
-        30
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "51d90dcfef5876908415ce3c58e27f7fbf80ffaab7cff1f6779e9be0ba8b528a": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science",
-      "span": [
-        36,
-        50
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "5335f379d92062a59076faf2e208a2e968c301de147f6d6f4f4045f7fe1460f0": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "58479a710a446a7934443e8935c8bd2c65100c1e129d1dfd8eec7de3002fb6f8": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality; Psychology; Computer science; Human–computer interaction",
-      "span": [
-        0,
-        66
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "5a61ddfa2d2d7da06e78c5dccbb923224c1bf19bab5924f193156c9711698fef": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Augmented reality",
-      "span": [
-        66,
-        83
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "5b406fe4ccd3243459dd849e639795c2ccb72c35d7a674d44960af4f6e1c6d7f": {
-      "confidence": 0.3,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Eye contact; Psychology; Social cognition",
-      "span": [
-        0,
-        66
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "5fa3b7e48d2374059957bd05e1db5301fbc576f54cabc7d3d9adc2ba928a23d0": {
-      "confidence": 0.85,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "6360e100d19b29d866786c0fdefa32b6de01751b2eae527dee606de58bbbacfd": {
-      "confidence": 0.85,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Fluency; Flipped classroom; Language proficiency; Foreign language; Syllabus; Mathematics education; Computer science; Baseline (sea); Class (philosophy); Psychology; Artificial intelligence; Geology",
-      "span": [
-        0,
-        174
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "6459432b3ebd3f625d5e924697b6de1f467014cbc16476128a57cf9b185d4311": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Disengagement theory; Psychology; Thematic analysis; Student engagement; Competence (human resources); Self-determination theory; Lifelong learning; Mathematics education; Perspective (graphical); Educational technology; Pedagogy; Autonomy",
-      "span": [
-        0,
-        164
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "65ae3e3deaf55d0a269e7dd216440e43c364afcf566b808ff358739cc9019d7c": {
-      "confidence": 0.9,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science; Language acquisition; Mathematics education; Natural language processing; Linguistics; Artificial intelligence; Psychology; Philosophy",
-      "span": [
-        0,
-        118
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "6712cbf358bc7561462a547457603e6d97b01f165d3091ed2d590b6ea273a495": {
-      "confidence": 0.4,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Motor imagery",
-      "span": [
-        0,
-        12
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "783447064c9919219359100cdd2420fa0d3681ff9c5614d9c9f40ce91d55b3ed": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "7e57f8ab1142405c303083611ae2cb23738c9fe7dffdcc8e8f508cc50175ea13": {
-      "confidence": 0.2,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        30,
-        42
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "870216f2f774f9c2ba8ef48c1a40b718d137becf9a1a77c63d1ea49c46ac1efc": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Brain–computer interface; Virtual reality; Electroencephalography",
-      "span": [
-        0,
-        60
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "8991e9ad776160e243f9ff3c6cd12f17ac92c3e44676eb822d2312af9ac48563": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality; Human–computer interaction; Optical head-mounted display",
-      "span": [
-        0,
-        66
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "89e87f034037ea63b0fb060c414b27d6e358108f5d979a24f0b9f846d9f58e77": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        15,
-        29
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "90655d1610ecdb5ae3ccff0eb9c59471b2daec7b131802d5330176b3d831319e": {
-      "confidence": 0.4,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Brain–computer interface",
-      "span": [
-        0,
-        20
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "9463c8f04fef92d27764c1de682115b299963d7f6a4332da8e06c96d6a0dfb4d": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Augmented reality",
-      "span": [
-        24,
-        41
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "9b823575a806d0df753ece951899904dc7b988db10f9702c4b7fd9aad6a786d6": {
+    "047ea797713767cd8d9245624877d2af3e594e3f572d17c4cc8977f789acb954": {
       "confidence": 0.2,
       "decision": "not_meet",
       "field": "keywords",
@@ -605,79 +17,7 @@
       "used": true,
       "valid_quote": true
     },
-    "9cb5fb83de82a1f392d66e1d02d5b565356f6d507e4c21f561bc14d4fda1f879": {
-      "confidence": 0.3,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Brain–computer interface; Robotic arm; Computer science; Interface (matter); Workspace; Artificial intelligence; Computer vision; Robot; Robotics; Human–computer interaction; Augmented reality; Object (grammar)",
-      "span": [
-        0,
-        100
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "a48f54e0061765d6567395ee1d57cf7de5cf583d1891eeca5723151811ea71fd": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "a507813cb8658c43f3db303abb14989ed85be1560610d6edb175716af9ebca37": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Situational ethics; Mathematics education; Psychology; Significant difference; Affect (linguistics); Control (management); Computer science; Social psychology; Artificial intelligence; Mathematics; Communication; Statistics",
-      "span": [
-        0,
-        164
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "a67edc0df6b5b82f1f3daf31c17e1cd191baf5c0a2c1ce46ccae7554e24cc19d": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        49,
-        64
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "ab534a5561a3dee539967c20c9bafba91995791aa096a6aa075478cc0a4e174e": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality; Brain–computer interface",
-      "span": [
-        0,
-        40
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "ad70ccd714cd31e9ed64932a1c74db80861d5740ba5eb17e49ab3d647296c152": {
-      "confidence": 0.7,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Computer science",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "b035742b50a66ab78543580dd190849f9dc8de7ea4c0ea3b60e1d7f19541a8dd": {
+    "091c26f7bf98189592af7bea45588343183743e838da6509ce6af1d277201d9a": {
       "confidence": 0.2,
       "decision": "not_meet",
       "field": "keywords",
@@ -689,131 +29,35 @@
       "used": true,
       "valid_quote": true
     },
-    "b05312d5d340021fd7c4e7e22a2dccde497a3ac951414f68607836970f9609db": {
-      "confidence": 0.1,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Game based learning; Computer science; Multimedia",
-      "span": [
-        0,
-        50
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "b95084a7822e6f82691890ff78b22d23233dbccfee91947749294eca73684c24": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        12,
-        27
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "b9b662001a509d631ecf4cebdac69e503fe80700e9a96e1b20c43a88996c82d4": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "bb25d0279998a4d41c6d38594e5bbd1602abbdde56d7dfe382dcd2fb80303301": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        13
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "bc729b2381cb889381d684ec75117ad97794d20767e65c27e0edd0f670e13089": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        13
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "befd56778495a7987aab4ba1274c29388a5615830c35eb132df54e60f48f08da": {
-      "confidence": 0.2,
-      "decision": "not_meet",
-      "field": "keywords",
-      "quote": "Notation; Computer science; SIGNAL (programming language); Function (biology); Mathematics; Programming language; Arithmetic; Biology; Evolutionary biology",
-      "span": [
-        0,
-        100
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "bf85574d742170755dede30b294d6e010b21a39f2da60997fdbb52a1c57a822b": {
+    "0a67bb29faed214186fdd166ea513958e8113fd94770d57127ac3742ca4c7162": {
       "confidence": 0.85,
       "decision": "meet",
       "field": "keywords",
-      "quote": "Augmented reality",
-      "span": [
-        0,
-        15
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "c085736dfd176e507e8ba1ed042097a4adad462d2494d092e3d97cd8c1286c58": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "3D virtual world",
-      "span": [
-        36,
-        50
-      ],
-      "used": true,
-      "valid_quote": false
-    },
-    "c3e29293ac422fc4522f3ae8eacef419c48889f88a149f800b674393e39fb3e2": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
       "quote": "Virtual reality",
       "span": [
-        30,
-        43
+        0,
+        14
       ],
       "used": true,
       "valid_quote": true
     },
-    "c4cd3db90fce786d4a7103579dbb1aaa9280d338c82b6a6ad2442e2f78fddd57": {
-      "confidence": 0.9,
-      "decision": "meet",
+    "0b0de2014cdc757c5713d1bf23a82673937c1c56a398d2e37557ab25bdea4110": {
+      "confidence": 0.4,
+      "decision": "not_meet",
       "field": "keywords",
-      "quote": "Augmented reality; Computer science; Humanoid robot; Robot; Psychology; Human–computer interaction; Artificial intelligence; Neuroscience; Cognitive psychology; Electroencephalography",
+      "quote": "Brain–computer interface",
       "span": [
         0,
-        150
+        20
       ],
       "used": true,
       "valid_quote": true
     },
-    "c5bd72b505134dfd004d43323f1f9eeb60c14928e082c53155c39a5245a68a1f": {
+    "0b93a16b716ca8e72c08d032a18a891e1edcbbb9d777ccae18cc7467d16094f2": {
       "confidence": 0.1,
       "decision": "not_meet",
       "field": "keywords",
-      "quote": "Linguistics; Sociology of language; Sociology; Sociolinguistics; Meaning (existential); Anthropological linguistics; Sociocultural linguistics; Language education; Comprehension approach; Applied linguistics; Psychology; Pedagogy",
+      "quote": "Gadget; Process (computing); Computer science; Resource (disambiguation); Field (mathematics); Protocol (science); Multimedia; Subject (documents); Mathematics education; Psychology; World Wide Web; Operating system",
       "span": [
         0,
         140
@@ -821,19 +65,7 @@
       "used": true,
       "valid_quote": true
     },
-    "ca372f48f4603a5f8e3ef0519fa505f052a26f25dd00ec8bb084b811f3c4a418": {
-      "confidence": 0.95,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Brain–computer interface; Computer science; Electrooculography; Stimulus (psychology); Virtual reality; Visualization; Artificial intelligence; Computer vision; Interface (matter); Eye movement; Gaze; Eye tracking",
-      "span": [
-        0,
-        200
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "cc36a96d8b5956b9cc001cf0a4639ee22a5fe05d10557dc75010990f4b81a5bb": {
+    "0f0ff5065d79cf1ffadcc8957e4d3400e0602338f2cea94b4cf619422cad49d6": {
       "confidence": 0.95,
       "decision": "meet",
       "field": "keywords",
@@ -845,19 +77,31 @@
       "used": true,
       "valid_quote": true
     },
-    "ccab51ab88deffd6bd88adba623f71be05139b60a47326a29a75250e315954a7": {
-      "confidence": 0.2,
+    "0fc145d7cd9c0b7e711953b06caef9a3132ebafee9c76c0b4bcac3cff0ce3c96": {
+      "confidence": 0.4,
       "decision": "not_meet",
       "field": "keywords",
-      "quote": "Teleoperation; Brain–computer interface; GRASP; Motor imagery; Robot; Computer science; Electroencephalography; Haptic technology; Task (project management); Artificial intelligence; Tactile sensor; Telerobotics",
+      "quote": "Augmented reality; Computer science; Educational technology",
       "span": [
         0,
-        100
+        66
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "1241cd32ef85bc32689cfe9f1dbf01524861d41397fd0d10785f9c7a2357d7a1": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science; Architecture; Human–computer interaction; Context (archaeology); Flexibility (engineering); Software architecture; Software; Cognitive architecture; Reference architecture; Multimedia; Software engineering; Cognition",
+      "span": [
+        0,
+        164
       ],
       "used": true,
       "valid_quote": true
     },
-    "ccfa58aa7db5632f744ec191a16b9d1ec8744ba4849643da79803435796d071e": {
+    "157d9c109521013895cce9557a0dd07a36e91aa05b3ca31f4870e4e4437216bb": {
       "confidence": 0.9,
       "decision": "meet",
       "field": "keywords",
@@ -869,19 +113,31 @@
       "used": true,
       "valid_quote": true
     },
-    "ce5661c17ea24fc4b550f5a22194f8f1bb14d1432e50ceb6b259cadbd5307543": {
-      "confidence": 0.95,
+    "161c62ca4c2dbd893b97cc7f5041ea00ad3cb69fdf03b99396935d5e75750df8": {
+      "confidence": 0.85,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality; Augmented reality",
+      "span": [
+        0,
+        30
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "16a9a3bd3c94341efdae430daf38a19242d1cf0bb8b489352df304be8010926b": {
+      "confidence": 0.9,
       "decision": "meet",
       "field": "keywords",
       "quote": "Virtual reality",
       "span": [
         0,
-        13
+        14
       ],
       "used": true,
       "valid_quote": true
     },
-    "d76bbd9ebce2d0862a44614b35c611431f59f8a974c7c6b9b601c5dfe13725e4": {
+    "1ad17e5cb93ecdf63301a6fde7c8af6a5f07336433e51e3bf549fb454b98a0bb": {
       "confidence": 0.8,
       "decision": "not_meet",
       "field": "keywords",
@@ -893,55 +149,19 @@
       "used": true,
       "valid_quote": true
     },
-    "e8f8d0fb4606a04809aaea34d7e143a0aeffa4de22ee1f14b651aad49e1f6fde": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Creativity; Comprehension; Perception; Mathematics education; Feeling; Psychology; Cognition; Class (philosophy); Computer science; Expression (computer science); Collaborative writing; Multimedia",
-      "span": [
-        0,
-        139
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "ef04ed7fd63d2c4fe66302ee85e4de60c1f53fe2e62338fcffe9567f70be6d0e": {
+    "1e6f5e9e525e65b37d87a42af68ebe3923f78ee9f1c0eca68d39f88bd697d1ec": {
       "confidence": 0.95,
       "decision": "meet",
       "field": "keywords",
       "quote": "Virtual reality",
       "span": [
         0,
-        14
+        13
       ],
       "used": true,
       "valid_quote": true
     },
-    "f19f8688f2a321c267016f1d85ce1d45662bf700a37961ee7ae4376821f447dc": {
-      "confidence": 0.9,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Virtual reality",
-      "span": [
-        0,
-        14
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "f48c00bed3f7b673b28545324206f6078df01abafaac17d069823abd4675d095": {
-      "confidence": 0.8,
-      "decision": "meet",
-      "field": "keywords",
-      "quote": "Computer vision; Artificial intelligence; Stereoscopy; Projection (relational algebra); Viewing angle; Tomosynthesis; Oblique projection; Computer science; Computer graphics (images); Orthographic projection; Medicine; Mammography",
-      "span": [
-        0,
-        174
-      ],
-      "used": true,
-      "valid_quote": true
-    },
-    "f5cb71ed0ce33ec5eaa0615b95a789f953114c4ad7b9bcfd0165b53c4d83d9a1": {
+    "201d71bc5e699a26b9a5a1c74b107ecc074c5498a98a8862a4258bf1f86c2d17": {
       "confidence": 0.2,
       "decision": "not_meet",
       "field": "keywords",
@@ -953,20 +173,20 @@
       "used": true,
       "valid_quote": true
     },
-    "fa195350d672f2af957d84027e9f7a70b7edd4ab423244842ea57bb2edb20a52": {
-      "confidence": 0.2,
+    "215472f7773b07ce20997a3a8a07bbe7402a6e0ffe1d70cdd99a7d2703ac3e3a": {
+      "confidence": 0.1,
       "decision": "not_meet",
       "field": "keywords",
-      "quote": "Brain–computer interface; Computer science; Interface (matter); Task (project management); Human–computer interaction; User interface; Control (management); Multimedia; Artificial intelligence; Operating system; Engineering; Systems engineering",
+      "quote": "Vocabulary; Computer science; Foreign language; Process (computing); Language acquisition; Mathematics education; Control (management); Psychology; Multimedia; Artificial intelligence; Linguistics; Philosophy",
       "span": [
         0,
-        100
+        118
       ],
       "used": true,
       "valid_quote": true
     },
-    "fb453d8507fb4c830e27cddd54d0edfde2958c31b794e1cbf4867343a81e3de7": {
-      "confidence": 0.85,
+    "215884b0a479c55e92d8b4c4897dd882218bb9f2c1622f0d782a63ee4d1e7a58": {
+      "confidence": 0.95,
       "decision": "meet",
       "field": "keywords",
       "quote": "Virtual reality",
@@ -977,7 +197,31 @@
       "used": true,
       "valid_quote": true
     },
-    "fb891d336bfec063e2b98e778f24711c2970f108ac5d8a0b4081914e7339a924": {
+    "2525c7a1dc6959b23a5840856fbfa576e248a0f518e8d4c9841b3c0584f25158": {
+      "confidence": 0.4,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Motor imagery",
+      "span": [
+        0,
+        12
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "27ae4259e71b5532aa0b88969cb3860fda05447756f943c436d85435a7ef62bb": {
+      "confidence": 0.3,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Brain–computer interface; Robotic arm; Computer science; Interface (matter); Workspace; Artificial intelligence; Computer vision; Robot; Robotics; Human–computer interaction; Augmented reality; Object (grammar)",
+      "span": [
+        0,
+        100
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "2985de664cdcc3269b43086e65fc4da23b1d8db30f3d4ba43b072611779ab234": {
       "confidence": 0.85,
       "decision": "meet",
       "field": "keywords",
@@ -989,7 +233,115 @@
       "used": true,
       "valid_quote": true
     },
-    "ff36045531754f062a2f50e0072ffce1e182c72e1327699679939e10f5211138": {
+    "2a3cd2ae2d4d7753b44828863deed424274e4202875da44bb5030e5406fd7972": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "2f348e97ac4c5e0b8e0d520052d9346d3cc9274af2c86d79ff8ca767cb65dd8f": {
+      "confidence": 0.85,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality",
+      "span": [
+        0,
+        15
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "326807bc9678f916052bc2270c36ffd9f78189e95849ff36d2b53e7e5a3d75ea": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality; Immersion (mathematics)",
+      "span": [
+        0,
+        30
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "32f447abb8f8f8c85f33fcc0016dfc4c9e8592b661124d9c5d7054eaa97038ac": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Brain–computer interface; Virtual reality; Electroencephalography",
+      "span": [
+        0,
+        60
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "33d96b17dbf69fe522d98cfa2752bd6923a3c9322055bd5529f2f87e79403fcb": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        40,
+        54
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "3c2bc087d12aaaea5fff12c01ea7fd1a1c3f204e260b0c4cdc2d1d6e8733cd61": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        22,
+        36
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "3d92b2956e2ade2ca53a04f8d85817945ce7ea1e4e05ada2bdbe5777e2ed1de3": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        15,
+        29
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "4132b3e51cd18266a47a889e621af43e185e5fd013e441d5102e897f74e9dd0d": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "431514b2a501253807fecbd58f907d9d7303df4c0d9d3323fe29e5fc59521fb0": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Plan (archaeology); Computer science; Floor plan; Artificial intelligence; Geology; Engineering drawing; Engineering; Paleontology",
+      "span": [
+        0,
+        118
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "452bdb80f6bbf8e230cc6f1394435da290b8df285492d2ce18c5a9c48dc0008c": {
       "confidence": 0.1,
       "decision": "not_meet",
       "field": "keywords",
@@ -1001,7 +353,211 @@
       "used": true,
       "valid_quote": true
     },
-    "ff466e3c418d6d9332506336bb9fdeaa14b2b1bf843676ddc3df6c11b7dcf2a6": {
+    "47ec8b285ee9a2c258dee67d77e07fe62e227f6dd366076855c721ecaf19d152": {
+      "confidence": 0.85,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "48a54fcc137541196654e45f91fb70cc8c33c4f86ba138674bd6da64d17a01c1": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science",
+      "span": [
+        36,
+        50
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "49f8cbcd696838781120fdc6171ed4c2b84837181845261a91e633234a6d6c49": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Social media; Internet privacy; Advertising; Computer science; Business; Public relations; Political science; World Wide Web",
+      "span": [
+        0,
+        107
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "4aa5f7190dac57dcd11fb1b7718720f5c4b0fb4bbaea3cf39eb109d9a46c7601": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        12,
+        27
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "4eb2726267b14978271499c2b5c8f49f199491c25a8f1a4f8c66ffc807171544": {
+      "confidence": 0.3,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Eye contact; Psychology; Social cognition",
+      "span": [
+        0,
+        66
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "51e1f43693c6e039d2479934ade607182bed0b82b6821c8ae0ffa9c51f7e56f9": {
+      "confidence": 0.2,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        30,
+        42
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "52d6c92565453390021ae1c6d35af0336fd5f23fb15037cacc9fed40db3722ee": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Computer vision; Artificial intelligence; Stereoscopy; Projection (relational algebra); Viewing angle; Tomosynthesis; Oblique projection; Computer science; Computer graphics (images); Orthographic projection; Medicine; Mammography",
+      "span": [
+        0,
+        174
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "593bc1ee3ec8701c660ad3372bc2baf7cd949c52331f57b063da76176f0db273": {
+      "confidence": 0.85,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        13
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "5d1d52ec76c035c4b7d689a59b0ecc5157c8678e423846d512bce849c401c257": {
+      "confidence": 0.7,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality; Computer science; Human–computer interaction",
+      "span": [
+        0,
+        66
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "61196438ec61c47909ccf1ed449df9cc89f6ae1424c37cd01498d1de95616970": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Creativity; Comprehension; Perception; Mathematics education; Feeling; Psychology; Cognition; Class (philosophy); Computer science; Expression (computer science); Collaborative writing; Multimedia",
+      "span": [
+        0,
+        139
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "629a34feda96a2e25e122e44faedd944c48911540009042de2389a90f51874a2": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Feeling; Computer science; Learning analytics; Key (lock); Psychology; Mathematics education; Knowledge management; Data science; Social psychology; Computer security",
+      "span": [
+        0,
+        100
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "6d3d37ef8b15c88d50b9c1bf26aad9434ca5b2243eaed0c88e2477effb7e93f6": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Vocabulary; Interactivity; Multimedia; Computer science; Virtual reality; Context (archaeology); Mobile device; Human–computer interaction; Psychology; World Wide Web; Biology; Philosophy",
+      "span": [
+        0,
+        139
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "7346aa98d32a0cfec7e6571736245309a07f21d4ab735155f3d4219e9a4814c9": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "73ed4c01783c4f11c1bc7df7e14883c3f9dd165c538ee568316acd83ce1539d3": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        13
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "7583d8e775dd43ba030e1fba22eb4085ac0ac4fdfbd94eb902df0eb3d72e375f": {
+      "confidence": 0.85,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "7602c0e267da6e41ba31764323dfc02cc37445251242e02f5c6c4060b1310cd3": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "7ad020c88a967f213a1c0cec833106e0eae674f3f47ffd35780f8548ae5c9de3": {
+      "confidence": 0.2,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "84a490e10f64d3a40a530d176b087b1859aa64aef2bf7a6f16c3eb37cbbfab34": {
       "confidence": 0.9,
       "decision": "meet",
       "field": "keywords",
@@ -1009,6 +565,450 @@
       "span": [
         0,
         14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "859aa214291e49591d7231acd4246bf662f5db63e9901d7beb093315a67d8263": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality",
+      "span": [
+        24,
+        41
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "8ceb96a99f40f9ce4d1324bfa5030e3a56995792edb4b52de37b307537af1f54": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Pronunciation; Computer science; Computer-Assisted Instruction; Multimedia; Psychology; Linguistics; Mathematics education; Philosophy",
+      "span": [
+        0,
+        90
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "8f1119a4ddab50880f58d193dd1e7f32a5e697e3aaf509fb4ed23879a95bba9f": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality",
+      "span": [
+        66,
+        83
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "918e8ece68c8d51755b591b7707e7b0e471e006057bab7c9007eaf3f0345e554": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        30,
+        43
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "92eb994ca91a61dfc2c87537bdbdd13278d6c20f8a56e3864dbd3b46ce93a8db": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Industrial Revolution; History; Mathematics education; Engineering; Psychology; Archaeology",
+      "span": [
+        0,
+        83
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "9387edae46da062ed7a04c662a4672d4b31a9d2507604fb0d6e287c5d5493417": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Linguistics; Sociology of language; Sociology; Sociolinguistics; Meaning (existential); Anthropological linguistics; Sociocultural linguistics; Language education; Comprehension approach; Applied linguistics; Psychology; Pedagogy",
+      "span": [
+        0,
+        140
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "955ef1cafd47dc15905fbedfabab671e747ab506119f7e4a16d6633511e424c8": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "95bc86f6daf34c1f12ee569383a6bb00384b29fdf7905b14ebd7a53308ae1a81": {
+      "confidence": 0.85,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Fluency; Flipped classroom; Language proficiency; Foreign language; Syllabus; Mathematics education; Computer science; Baseline (sea); Class (philosophy); Psychology; Artificial intelligence; Geology",
+      "span": [
+        0,
+        174
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "9f384f25942997b7d0bfcd58ded34ea057b4b7fb0016f1e7ff4c9690d8673672": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        49,
+        64
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "a4571ec108990808e81b984a1724ce27ba0726864d0a1fdadf36bce36c990b0e": {
+      "confidence": 0.2,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Brain–computer interface; Computer science; Interface (matter); Task (project management); Human–computer interaction; User interface; Control (management); Multimedia; Artificial intelligence; Operating system; Engineering; Systems engineering",
+      "span": [
+        0,
+        100
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "a613c9c1c2c9694e0a79001724623820de4cf6fb01d67221c79dc91128983d93": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "3D virtual world",
+      "span": [
+        36,
+        50
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "a7134360be53f99e139ea2d893248fda45e5b7f04d51f05b74934d897095b4eb": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality",
+      "span": [
+        66,
+        83
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "afc21cf4b62fadfe481a9a9a93bf4731090f999d1de505b53f392fd7cffd3681": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "b0a8892bd941817c682641dd4e0d1fbb8c4fc1d8ed195331fdd250b550330a8b": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        66,
+        81
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "b15347b3b2d0009ff1ddb650710082db50b4f202a09facf0e12171b440f63606": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality; Computer science; Humanoid robot; Robot; Psychology; Human–computer interaction; Artificial intelligence; Neuroscience; Cognitive psychology; Electroencephalography",
+      "span": [
+        0,
+        150
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "b37295eef4233f183cafa3c14e1fea24dc34191d2b0930628feefcf0b22c1e4d": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality; Human–computer interaction; Optical head-mounted display",
+      "span": [
+        0,
+        66
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "b4e423793fdb3d17f129b45a334a8a9b0098d6f68e6478715c196a2b39cce38f": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "b4f069af61b7cb724a1bac0c128c84b8f24d9b0e21b0240ab9bc9c254caaa160": {
+      "confidence": 0.7,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "b5835a93ce127c8580b4a9179236c98c69e304f9be041e1287a302e5eb36c6c7": {
+      "confidence": 0.2,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Augmented reality; Computer science; Metacognition; Instructional design; Set (abstract data type); Educational technology; Scaffold; Mathematics education; Human–computer interaction; Psychology; Multimedia; Cognition",
+      "span": [
+        0,
+        140
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "bb94d5046b7d8d921607d3c926a29b6e0e14ccd7eec94d3968835842f8b00b81": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        18,
+        31
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "bfe28c469087a5384c7aacd8a11117c62aab62a9eb3501800a224213be46314f": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Game based learning; Computer science; Multimedia",
+      "span": [
+        0,
+        50
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "c18499f2b6b44bd150f0d8190a3a260a86333fd3502d6e139587b788ffda7615": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        12,
+        27
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "c82dce8cbf972357b45e3f42d0d0fa0705f4ba54c137a7b1a2f5d7ac2ced1b3b": {
+      "confidence": 0.2,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Teleoperation; Brain–computer interface; GRASP; Motor imagery; Robot; Computer science; Electroencephalography; Haptic technology; Task (project management); Artificial intelligence; Tactile sensor; Telerobotics",
+      "span": [
+        0,
+        100
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "c843076098222b57b3015f41df9e47196bd07f2b495ebed5bdb410f675de30bc": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Lucid dream",
+      "span": [
+        0,
+        10
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "ccfa9fa1a42dd5974f17935c530477089133b5f2dbd6609fa0647c2442169c79": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Augmented reality; Headphones; Stimulus (psychology); Interface (matter); Visualization; Control system; Flicker; Artificial intelligence",
+      "span": [
+        0,
+        118
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "d11070129a4fe743ad414dc17938b780c552c0ddb41d28cbf5384195e71a25dd": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "d4f1d35445ca338a3d57ab1102260536c0d70c9eb301c3431e8c32c313923397": {
+      "confidence": 0.2,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Notation; Computer science; SIGNAL (programming language); Function (biology); Mathematics; Programming language; Arithmetic; Biology; Evolutionary biology",
+      "span": [
+        0,
+        100
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "e53199e20d417d47ffc33a5246da48fb6d1967c25ba882b3f7ac89240c6c1c3d": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality; Psychology; Computer science; Human–computer interaction",
+      "span": [
+        0,
+        66
+      ],
+      "used": true,
+      "valid_quote": false
+    },
+    "e8064e821be1b520d10c18341ae20787178e39041e340cac09068a4b172c495c": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "ec736f92c1825e50e43b04b202d3fdabd2647349e6be5d829257fb67bfe0f18d": {
+      "confidence": 0.8,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality; Brain–computer interface",
+      "span": [
+        0,
+        40
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "ee8d11a3588b5d71b95f53629649668ba005f38fae63b241781c624bc5c188e0": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        13
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "f29e3f9ad9f7178a483b8e941cea5db94f5ba658634b266a29d9a89585e54a7a": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Situational ethics; Mathematics education; Psychology; Significant difference; Affect (linguistics); Control (management); Computer science; Social psychology; Artificial intelligence; Mathematics; Communication; Statistics",
+      "span": [
+        0,
+        164
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "f2b7a87ca6051d07f3891a98e75992d0dd47df3fda23d87fc7ba93caca5110ce": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Brain–computer interface; Computer science; Electrooculography; Stimulus (psychology); Virtual reality; Visualization; Artificial intelligence; Computer vision; Interface (matter); Eye movement; Gaze; Eye tracking",
+      "span": [
+        0,
+        200
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "f869fe5c554f5fe746e15b35fd3ea99213fff0473f886642bda0032290b591e7": {
+      "confidence": 0.1,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Disengagement theory; Psychology; Thematic analysis; Student engagement; Competence (human resources); Self-determination theory; Lifelong learning; Mathematics education; Perspective (graphical); Educational technology; Pedagogy; Autonomy",
+      "span": [
+        0,
+        164
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "fba6cc5dc7fe84127b2b4a02015eca8501ec62af1f525e45e0ca427d6a33b6ab": {
+      "confidence": 0.9,
+      "decision": "not_meet",
+      "field": "keywords",
+      "quote": "Computer science; Language acquisition; Mathematics education; Natural language processing; Linguistics; Artificial intelligence; Psychology; Philosophy",
+      "span": [
+        0,
+        118
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "fcaedbc3ac1ba84abaac556b9f8979ab7ff0523ea006fa5b063434b399e3d98d": {
+      "confidence": 0.95,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        14
+      ],
+      "used": true,
+      "valid_quote": true
+    },
+    "ff69fe3b1aae02802b0140ac7e61af28facb9aa0ad8b7d19446e99f3f2224623": {
+      "confidence": 0.9,
+      "decision": "meet",
+      "field": "keywords",
+      "quote": "Virtual reality",
+      "span": [
+        0,
+        13
       ],
       "used": true,
       "valid_quote": true

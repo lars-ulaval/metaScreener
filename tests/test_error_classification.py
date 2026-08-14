@@ -219,7 +219,7 @@ class _OversizeUntilSmallEnough:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature):
+            def create(self, *, model, messages, temperature, response_format=None):
                 items = json.loads(messages[1]["content"])["items"]
                 outer.sizes.append(len(items))
                 if len(items) > outer.limit:
@@ -240,7 +240,7 @@ class _AlwaysRaises:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature):
+            def create(self, *, model, messages, temperature, response_format=None):
                 outer.calls += 1
                 raise outer.exc
 
@@ -322,7 +322,7 @@ class TestTruncationStepDownFiresForALocalOversizeMessage:
                 outer = self
 
                 class _Completions:
-                    def create(self, *, model, messages, temperature):
+                    def create(self, *, model, messages, temperature, response_format=None):
                         body = json.loads(messages[1]["content"])
                         n = len(body["items"][0]["title"])
                         seen.append(n)

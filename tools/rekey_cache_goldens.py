@@ -179,6 +179,16 @@ def _old_cache_key(*, prompt_version: str, model: str, rendered_prompt: str,
 
 
 # --------------------------------------------------------------------------
+# The wave-14c migration: prompt_version v1 -> v2, same five-member formula
+# --------------------------------------------------------------------------
+#: The version strings as they stood before wave 14c bumped them for the
+#: constrained request (F-191/F-197). The FORMULA did not change this time —
+#: only this input to it — so the "old key" for this migration is the live
+#: shared ``_cache_key`` with these strings, not a reimplementation.
+V1_PROMPT_VERSIONS = {"EL": "EL_v1_jsonlist", "IL": "IL_v1_jsonlist"}
+
+
+# --------------------------------------------------------------------------
 # Pair enumeration — must match run_{el,il}_screen exactly
 # --------------------------------------------------------------------------
 def _enumerate_pairs(mod, stage: str, input_csv: Path, trunc_chars: int):
@@ -383,6 +393,89 @@ def rekey_stage(stage: str, endpoint: str) -> Tuple[RekeyReport, bytes]:
     return report, _serialise(envelope)
 
 
+def rekey_stage_prompt_version(stage: str, endpoint: str) -> Tuple[RekeyReport, bytes]:
+    """The wave-14c migration: relabel every entry from the v1
+    ``prompt_version`` to the live one. Same mechanism as
+    :func:`rekey_stage` — same enumeration, same five obligations, same
+    refuse-unless-all-hold — with one difference: the old key uses the SAME
+    five-member formula as the new, with only ``prompt_version`` differing.
+
+    Self-validating the same way: if the v1 derivation were wrong, the old
+    keys would not match the committed golden and obligation 1 would fail.
+    """
+    cfg = STAGES[stage]
+    mod = _import_plugin(cfg["subdir"])
+
+    raw = json.loads(cfg["cache"].read_text(encoding="utf-8"))
+    invocation = raw["_invocation"]
+    old_cache: Dict[str, Dict[str, Any]] = raw["cache"]
+
+    model = invocation["model"]
+    trunc_chars = invocation["trunc_chars"]
+    temperature = 0.0
+
+    from plugins._common.llm_client import (
+        _cache_key as _shared_cache_key,
+        _render_prompt_for_key,
+    )
+
+    mapping: Dict[str, str] = {}
+    pairs = 0
+    for crit_pack, item in _enumerate_pairs(mod, stage, cfg["input"], trunc_chars):
+        pairs += 1
+        rendered = _render_prompt_for_key(
+            mod._build_llm_messages_for_criterion(crit_pack, [item], trunc_chars)
+        )
+        old = _shared_cache_key(
+            prompt_version=V1_PROMPT_VERSIONS[stage], model=model,
+            rendered_prompt=rendered, endpoint=endpoint,
+            temperature=temperature,
+        )
+        if old not in old_cache:
+            continue
+        new = mod._cache_key(
+            model=model, criterion=crit_pack, item=item,
+            trunc_chars=trunc_chars, endpoint=endpoint, temperature=temperature,
+        )
+        mapping[old] = new
+
+    new_cache: Dict[str, Dict[str, Any]] = {}
+    collisions: List[str] = []
+    for old_key, value in old_cache.items():
+        new_key = mapping.get(old_key)
+        if new_key is None:
+            continue
+        if new_key in new_cache:
+            collisions.append(new_key)
+        new_cache[new_key] = value
+
+    orphans = [k for k in old_cache if k not in mapping]
+
+    def _multiset(values) -> Counter:
+        return Counter(
+            json.dumps(v, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":"))
+            for v in values
+        )
+
+    envelope = {"_invocation": invocation, "cache": new_cache}
+
+    report = RekeyReport(
+        stage=stage,
+        entries_before=len(old_cache),
+        entries_after=len(new_cache),
+        pairs_derived=pairs,
+        old_keys_matched=len(mapping),
+        orphans=orphans,
+        collisions=collisions,
+        values_multiset_equal=_multiset(old_cache.values()) == _multiset(new_cache.values()),
+        key_sets_disjoint=not (set(old_cache) & set(new_cache)),
+        invocation_preserved=envelope["_invocation"] == raw["_invocation"],
+        invocation=dict(invocation),
+    )
+    return report, _serialise(envelope)
+
+
 # --------------------------------------------------------------------------
 # Re-verification of an ALREADY migrated golden
 # --------------------------------------------------------------------------
@@ -419,6 +512,10 @@ class VerifyReport:
     pairs_derived: int
     value_multiset_sha256: str = ""
     invocation: Dict[str, Any] = field(default_factory=dict)
+    #: Wave 14c: committed keys reproduced by the five-member formula with
+    #: the pre-bump v1 prompt_version. Must be 0 after the v1->v2 re-key,
+    #: for the same reason old_keys_present must be 0 after F-89's.
+    v1_keys_present: int = 0
 
     @property
     def values_unchanged(self) -> bool:
@@ -429,6 +526,7 @@ class VerifyReport:
         return (
             self.new_keys_present == self.entries
             and self.old_keys_present == 0
+            and self.v1_keys_present == 0
             and self.values_unchanged
         )
 
@@ -443,6 +541,9 @@ class VerifyReport:
             f"  {tick(self.old_keys_present == 0)} "
             f"no committed key is reproduced by the PRE-F-89 key function "
             f"({self.old_keys_present} found; the two key sets are disjoint)",
+            f"  {tick(self.v1_keys_present == 0)} "
+            f"no committed key is reproduced with the v1 prompt_version "
+            f"({self.v1_keys_present} found; wave 14c's re-key is complete)",
             f"  {tick(self.values_unchanged)} "
             f"values unchanged since c5e2100 "
             f"(sha256 {self.value_multiset_sha256[:16]}...)",
@@ -458,7 +559,10 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
     """
     cfg = STAGES[stage]
     mod = _import_plugin(cfg["subdir"])
-    from plugins._common.llm_client import _render_prompt_for_key
+    from plugins._common.llm_client import (
+        _cache_key as _shared_cache_key,
+        _render_prompt_for_key,
+    )
 
     raw = json.loads(cfg["cache"].read_text(encoding="utf-8"))
     invocation = raw["_invocation"]
@@ -470,6 +574,7 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
 
     new_hits: set = set()
     old_hits: set = set()
+    v1_hits: set = set()
     pairs = 0
     for crit_pack, item in _enumerate_pairs(mod, stage, cfg["input"], trunc_chars):
         pairs += 1
@@ -488,6 +593,13 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
         )
         if old in committed:
             old_hits.add(old)
+        v1 = _shared_cache_key(
+            prompt_version=V1_PROMPT_VERSIONS[stage], model=model,
+            rendered_prompt=rendered, endpoint=endpoint,
+            temperature=temperature,
+        )
+        if v1 in committed:
+            v1_hits.add(v1)
 
     values = sorted(
         json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -500,6 +612,7 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
         entries=len(committed),
         new_keys_present=len(new_hits),
         old_keys_present=len(old_hits),
+        v1_keys_present=len(v1_hits),
         pairs_derived=pairs,
         value_multiset_sha256=digest,
         invocation=dict(invocation),
@@ -513,6 +626,12 @@ def main(argv: List[str] | None = None) -> int:
     ap.add_argument("--migrate", action="store_true",
                     help="derive the mapping from PRE-F-89 goldens and write "
                          "them. Run once; see the module docstring.")
+    ap.add_argument("--migration", choices=("endpoint", "prompt-version"),
+                    default="endpoint",
+                    help="which migration --migrate performs: 'endpoint' is "
+                         "F-89's (pre-F-89 four-member key -> five-member); "
+                         "'prompt-version' is wave 14c's (v1 prompt_version "
+                         "-> the live one, same formula).")
     args = ap.parse_args(argv)
 
     _setup_headless_imports()
@@ -530,10 +649,13 @@ def main(argv: List[str] | None = None) -> int:
               if ok else "VERIFICATION FAILED.")
         return 0 if ok else 1
 
-    print(f"Re-keying to endpoint {DEFAULT_OPENAI_BASE_URL!r}\n")
+    migrate_fn = (rekey_stage_prompt_version
+                  if args.migration == "prompt-version" else rekey_stage)
+    print(f"Re-keying ({args.migration}) to endpoint "
+          f"{DEFAULT_OPENAI_BASE_URL!r}\n")
     results = []
     for stage in STAGES:
-        report, payload = rekey_stage(stage, DEFAULT_OPENAI_BASE_URL)
+        report, payload = migrate_fn(stage, DEFAULT_OPENAI_BASE_URL)
         print("\n".join(report.lines()))
         print()
         results.append((stage, report, payload))

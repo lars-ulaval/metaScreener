@@ -72,7 +72,7 @@ class _Client:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature):
+            def create(self, *, model, messages, temperature, response_format=None):
                 payload = json.loads(messages[1]["content"])
                 a_ids = [it["a_id"] for it in payload["items"]]
                 outer.sent.append(a_ids)
