@@ -357,6 +357,138 @@ def _sample_of(counts: "Counter", limit: int = 5) -> str:
     rest = len(counts) - min(limit, len(counts))
     return head + (f", and {rest} other value(s)" if rest > 0 else "")
 
+NO_ANSWER_REPLY_CAP = 500
+"""Characters of a no-answer reply retained per distinct shape (F-194).
+
+**Not 200, and the number that rules 200 out is measured rather than felt.**
+``08_harmoniser_llm_failure.md`` records a 200-character window ending
+mid-token at ``"tar``, which read as a truncated reply; the first reading of
+that incident concluded exactly that and was wrong (F-186). 500 holds a
+complete single-record verdict object, a refusal sentence, and enough of a
+truncated object to see where it stopped.
+"""
+
+NO_ANSWER_REPLY_KINDS = 20
+"""Distinct reply shapes stored. Beyond this, records are counted into
+``no_answer_replies_dropped`` rather than allocating.
+
+The bound is what makes the tally a fixed cost: 20 x 500 characters is
+~10 KB whatever the corpus size, where one copy per record is 1,552 copies
+on a 776-record corpus with two criteria.
+"""
+
+NO_ANSWER_REPLY_SAMPLE = 5
+"""Shapes rendered in the log line. Matches :func:`_sample_of`'s own default."""
+
+
+def _finish_reason_of(resp: Any) -> Optional[str]:
+    """``finish_reason``, or ``None`` when the response does not carry one.
+
+    **Defensive by design, not by caution.** Eleven ``_FakeResponse`` doubles
+    across the suite build a choice as ``type("C", (), {"message": msg})`` and
+    carry neither this field nor ``usage``; that minimal request-and-response
+    shape is the portability property **F-107** asks the project to keep, and
+    widening eleven doubles to read two fields would spend it. A server that
+    reports no ``finish_reason`` is also a real condition, and ``None`` records
+    it as one.
+    """
+    try:
+        return getattr(resp.choices[0], "finish_reason", None)
+    except Exception:
+        return None
+
+
+def _completion_tokens_of(resp: Any) -> Optional[int]:
+    """``usage.completion_tokens``, or ``None``. See :func:`_finish_reason_of`."""
+    try:
+        v = getattr(getattr(resp, "usage", None), "completion_tokens", None)
+        return int(v) if v is not None else None
+    except Exception:
+        return None
+
+
+def _remember_no_answer_reply(stats: Optional[Dict[str, Any]], raw_reply: Any,
+                              resp: Any, n_records: int) -> None:
+    """Record what came back for records the parse loop did not reach (F-194).
+
+    Called only from the omission back-fill, where ``resp`` exists. The
+    terminal-failure back-fill has no reply to keep -- the call raised -- and
+    already records ``error`` and ``error_class``; nothing here touches it.
+
+    **A tally, not a copy per record.** 279 unanswered records in the run that
+    raised F-194 carried *one* distinct reply, ``[]``; storing it 279 times
+    answers nothing that the shape and a count do not. ``count`` is therefore
+    the number of **records left unanswered by a reply of this shape**, which
+    is the same quantity ``no_answer`` counts, so the two can be read against
+    each other.
+
+    **A reply with no content at all is counted apart.** ``txt = (content or
+    "[]")`` in the caller makes a ``None`` content indistinguishable from a
+    literal empty list downstream, and they are different situations -- a
+    server that returned nothing, and a model that returned "none of them".
+    Keeping them apart here is the whole point of the row.
+
+    Nothing is written to the cache: ``_is_cacheable_evidence`` is untouched
+    and a no-answer stays uncacheable, which is **F-87** and is correct.
+    Reversing it is a separate argued decision, not a side effect of this one.
+    """
+    if stats is None or n_records <= 0:
+        return
+
+    # Recorded before the kinds cap can return early: the largest reply a
+    # no-answer call produced is the number that separates "returned two
+    # tokens" from "returned eight hundred and was cut off", and it must not
+    # depend on whether that reply's shape happened to fit the tally.
+    ct = _completion_tokens_of(resp)
+    if ct is not None:
+        prev = stats.get("no_answer_max_completion_tokens")
+        if prev is None or ct > prev:
+            stats["no_answer_max_completion_tokens"] = ct
+
+    if raw_reply is None:
+        stats["no_answer_replies_absent"] = int(
+            stats.get("no_answer_replies_absent", 0) or 0) + n_records
+        return
+
+    text = _safe_str(raw_reply)
+    over = len(text) > NO_ANSWER_REPLY_CAP
+    key = text[:NO_ANSWER_REPLY_CAP]
+    tally = stats.setdefault("no_answer_replies", {})
+
+    entry = tally.get(key)
+    if entry is None:
+        if len(tally) >= NO_ANSWER_REPLY_KINDS:
+            stats["no_answer_replies_dropped"] = int(
+                stats.get("no_answer_replies_dropped", 0) or 0) + n_records
+            return
+        entry = tally[key] = {"count": 0, "truncated": False, "finish_reason": []}
+
+    entry["count"] += n_records
+    # Two distinct long replies sharing a prefix collapse onto one key. That
+    # is acceptable -- they are the same shape -- but only because this flag
+    # tells the reader the key is a prefix and not the reply's end. F-186 is
+    # what happens when it does not.
+    if over:
+        entry["truncated"] = True
+
+    fr = _finish_reason_of(resp)
+    if fr not in entry["finish_reason"]:
+        entry["finish_reason"].append(fr)
+        entry["finish_reason"].sort(key=lambda v: (v is not None, _safe_str(v)))
+
+
+def _no_answer_reply_sample(stats: Optional[Dict[str, Any]],
+                            limit: int = NO_ANSWER_REPLY_SAMPLE) -> str:
+    """Render the commonest no-answer replies for a log line, via _sample_of."""
+    tally = (stats or {}).get("no_answer_replies") or {}
+    c: "Counter" = Counter({k: int(v.get("count", 0) or 0)
+                            for k, v in tally.items()})
+    absent = int((stats or {}).get("no_answer_replies_absent", 0) or 0)
+    if absent:
+        c["<no content>"] = absent
+    return _sample_of(c, limit) if c else "none recorded"
+
+
 def chunked(seq: Sequence[Any], n: int):
     n = max(1, int(n))
     for i in range(0, len(seq), n):
@@ -683,7 +815,18 @@ def new_llm_call_stats() -> Dict[str, int]:
     tuple return would break all of them for a secondary channel. It also
     lets one dict accumulate across every criterion of a stage.
     """
-    return {"calls_made": 0, "calls_failed": 0, "batches_failed": 0}
+    return {"calls_made": 0, "calls_failed": 0, "batches_failed": 0,
+            # F-194. What came back for the records the parse loop did not
+            # reach. A no-answer is refused a cache line (F-87) and carries
+            # seven fixed keys in the evidence record, so before this the
+            # reply was unrecoverable from every artefact the run wrote.
+            # Bounded in both dimensions -- see NO_ANSWER_REPLY_CAP and
+            # NO_ANSWER_REPLY_KINDS -- because the value is model output of
+            # arbitrary length and the corpus can be large.
+            "no_answer_replies": {},
+            "no_answer_replies_absent": 0,
+            "no_answer_replies_dropped": 0,
+            "no_answer_max_completion_tokens": None}
 
 
 def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
@@ -939,6 +1082,12 @@ def run_m1_llm_for_criterion(
     rejected_decisions: Counter = Counter()
     rejected_fields: Counter = Counter()
 
+    # F-194. Per criterion, for the log line; the durable tally lives in
+    # `stats` and accumulates across the stage. One accumulation point each,
+    # for two different questions -- this one is "what did THIS criterion
+    # cost", which a run-cumulative figure cannot answer.
+    crit_no_answers = 0
+
     # F-86: the a_id -> field-texts map is built per batch, inside the loop,
     # from the records that call actually carried. It used to be built here,
     # from the whole `items` list, which is what let a response name a record
@@ -998,7 +1147,12 @@ def run_m1_llm_for_criterion(
                             "sub": "parsing",
                         })
 
-                    txt = (resp.choices[0].message.content or "[]")
+                    # F-194: the raw value is kept alongside the parsed one.
+                    # `or "[]"` is what the parser needs; it is also what makes
+                    # "the server sent no content" and "the model sent an empty
+                    # list" the same string, so the tally reads the raw value.
+                    raw_reply = resp.choices[0].message.content
+                    txt = (raw_reply or "[]")
                     arr = _parse_llm_json_array(txt)
 
                     # F-86: scoped to `cur_batch`, and recomputed per attempt
@@ -1087,11 +1241,13 @@ def run_m1_llm_for_criterion(
                         out[(a_id, cid)] = ev
 
                     # ensure every item in THIS cur_batch has an entry
+                    _unanswered = 0
                     for it in cur_batch:
                         a_id = _safe_str(it.get("a_id", "")).strip()
                         if not a_id:
                             continue
                         if (a_id, cid) not in out:
+                            _unanswered += 1
                             out[(a_id, cid)] = {
                                 "used": False,
                                 "decision": "uncertain",
@@ -1101,6 +1257,12 @@ def run_m1_llm_for_criterion(
                                 "span": None,
                                 "valid_quote": False,
                             }
+
+                    # F-194. After the back-fill, so `_unanswered` is final,
+                    # and inside the try, so `resp` is in scope. A batch the
+                    # model answered fully records nothing.
+                    _remember_no_answer_reply(stats, raw_reply, resp, _unanswered)
+                    crit_no_answers += _unanswered
 
                     if progress:
                         progress({
@@ -1240,6 +1402,14 @@ def run_m1_llm_for_criterion(
             f"These records carry a quote and a confidence but no usable "
             f"verdict; the model is answering in a vocabulary this stage "
             f"does not read.\n")
+    # F-194. One line per criterion, like F-90's above and for the same
+    # reason: a per-record line on an 800-record corpus is 800 identical
+    # lines in a sub-tab nobody is looking at.
+    if log and crit_no_answers:
+        log(f"{log_prefix} {cid}: {crit_no_answers} record(s) received no "
+            f"verdict. What came back, so far this run: "
+            f"{_no_answer_reply_sample(stats)}. These records are recorded as "
+            f"unanswered, not as uncertain answers.\n")
     if log and rejected_fields:
         log(f"{log_prefix} {cid}: {sum(rejected_fields.values())} "
             f"field value(s) outside {{{', '.join(FIELD_VOCABULARY)}}} were "

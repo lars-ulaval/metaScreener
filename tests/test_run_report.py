@@ -541,3 +541,220 @@ class TestEveryUnpackSiteMovesWithTheTuple:
         own and the one whose breakage is discovered latest."""
         paths = {p for p, _f, _e in _unpack_sites()}
         assert "tools/capture_el_il_goldens.py" in paths
+
+
+# ---------------------------------------------------------------------------
+# F-194 — a no-answer must leave the reply behind
+# ---------------------------------------------------------------------------
+
+class _FakeRawResponse:
+    """A response carrying raw text rather than a JSON payload.
+
+    The eleven ``_FakeResponse`` doubles across this suite carry a ``message``
+    and nothing else — no ``finish_reason``, no ``usage`` (F-107's accidental
+    pin). This one can carry either, so the retention path is exercised both
+    with and without them.
+    """
+
+    def __init__(self, text, finish_reason=None, completion_tokens=None,
+                 with_finish=False, with_usage=False):
+        msg = type("M", (), {"content": text})
+        attrs = {"message": msg}
+        if with_finish:
+            attrs["finish_reason"] = finish_reason
+        self.choices = [type("C", (), attrs)]
+        if with_usage:
+            self.usage = type("U", (), {"completion_tokens": completion_tokens})
+
+
+def _raw(text, **kw):
+    def _h(_items):
+        return _FakeRawResponse(text, **kw)
+    return _h
+
+
+class TestTheReplyIsRetainedOnANoAnswer:
+    """F-194. A model that answers ``[]`` has said *none of them*; the
+    pipeline records that as ``no_answer`` (F-191) and, before this wave,
+    kept nothing of what came back. An empty list, a prose refusal and a
+    truncated object were one indistinguishable state in every artefact.
+    """
+
+    def test_an_empty_list_reply_is_retained_with_the_records_it_cost(
+            self, llm, monkeypatch):
+        stats = lc.new_llm_call_stats()
+        out = _call(monkeypatch, _raw("[]"), n_items=4, batch_size=4, stats=stats)
+        assert lc.summarize_llm_evidence(out)["no_answer"] == 4
+        assert stats["no_answer_replies"] == {
+            "[]": {"count": 4, "truncated": False, "finish_reason": [None]}}
+
+    def test_a_reply_that_answers_leaves_the_tally_empty(self, llm, monkeypatch):
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _answers(), n_items=4, batch_size=4, stats=stats)
+        assert stats["no_answer_replies"] == {}
+        assert stats["no_answer_replies_absent"] == 0
+
+    def test_a_reply_with_no_content_at_all_is_counted_apart_from_one_saying_nothing(
+            self, llm, monkeypatch):
+        """``txt = (content or "[]")`` makes a ``None`` content indistinguishable
+        from a literal ``[]`` downstream. They are different situations — a
+        server that returned no content, and a model that returned an empty
+        list — so the tally must not merge them."""
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _raw(None), n_items=3, batch_size=3, stats=stats)
+        assert stats["no_answer_replies_absent"] == 3
+        assert stats["no_answer_replies"] == {}
+
+    def test_a_long_reply_is_capped_and_the_cap_is_marked(self, llm, monkeypatch):
+        stats = lc.new_llm_call_stats()
+        long = "x" * (lc.NO_ANSWER_REPLY_CAP + 400)
+        _call(monkeypatch, _raw(long), n_items=2, batch_size=2, stats=stats)
+        (key, entry), = stats["no_answer_replies"].items()
+        assert len(key) == lc.NO_ANSWER_REPLY_CAP
+        assert entry["truncated"] is True, (
+            "a reader who cannot tell the cap from the reply's end draws the "
+            "wrong conclusion — F-186 records exactly that happening"
+        )
+
+    def test_two_replies_sharing_a_prefix_merge_and_say_so(self, llm, monkeypatch):
+        """The dedup key is the capped text, so two distinct long replies with
+        the same prefix become one entry. That is acceptable — they are the
+        same shape — but only because ``truncated`` says the key is partial."""
+        head = "y" * lc.NO_ANSWER_REPLY_CAP
+        replies = iter([head + "AAA", head + "BBB"])
+
+        def _h(_items):
+            return _FakeRawResponse(next(replies))
+
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _h, n_items=2, batch_size=1, stats=stats)
+        assert len(stats["no_answer_replies"]) == 1
+        (entry,) = stats["no_answer_replies"].values()
+        assert entry["count"] == 2 and entry["truncated"] is True
+
+    def test_distinct_replies_are_tallied_separately(self, llm, monkeypatch):
+        replies = iter(['[]', 'no.', '[]'])
+
+        def _h(_items):
+            return _FakeRawResponse(next(replies))
+
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _h, n_items=3, batch_size=1, stats=stats)
+        counts = {k: v["count"] for k, v in stats["no_answer_replies"].items()}
+        assert counts == {"[]": 2, "no.": 1}
+
+    def test_the_number_of_distinct_replies_is_bounded(self, llm, monkeypatch):
+        """Unbounded, this is a liability on a 776-record corpus: one entry per
+        distinct reply. Bounded, the overflow is still counted."""
+        n = lc.NO_ANSWER_REPLY_KINDS + 5
+        replies = iter([f"reply-{i}" for i in range(n)])
+
+        def _h(_items):
+            return _FakeRawResponse(next(replies))
+
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _h, n_items=n, batch_size=1, stats=stats)
+        assert len(stats["no_answer_replies"]) == lc.NO_ANSWER_REPLY_KINDS
+        assert stats["no_answer_replies_dropped"] == 5
+
+    def test_finish_reason_is_recorded_when_the_server_supplies_one(
+            self, llm, monkeypatch):
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _raw("[]", finish_reason="length", with_finish=True),
+              n_items=2, batch_size=2, stats=stats)
+        assert stats["no_answer_replies"]["[]"]["finish_reason"] == ["length"]
+
+    def test_a_response_carrying_neither_finish_reason_nor_usage_does_not_raise(
+            self, llm, monkeypatch):
+        """The shape of all eleven existing doubles. Reading these fields must
+        not require widening them — that would spend F-107's pin."""
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _raw("[]"), n_items=2, batch_size=2, stats=stats)
+        assert stats["no_answer_replies"]["[]"]["finish_reason"] == [None]
+        assert stats["no_answer_max_completion_tokens"] is None
+
+    def test_the_largest_completion_token_count_is_kept(self, llm, monkeypatch):
+        """The number that separates *returned two tokens* from *returned eight
+        hundred and was cut off*."""
+        sizes = iter([12, 800, 40])
+
+        def _h(_items):
+            return _FakeRawResponse("[]", completion_tokens=next(sizes),
+                                    with_usage=True)
+
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _h, n_items=3, batch_size=1, stats=stats)
+        assert stats["no_answer_max_completion_tokens"] == 800
+
+    def test_the_tally_is_json_serialisable(self, llm, monkeypatch):
+        """It reaches the manifest through ``_run_report``'s
+        ``report.update(call_stats)``, which is serialised."""
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _raw("[]"), n_items=2, batch_size=2, stats=stats)
+        assert json.loads(json.dumps(stats))["no_answer_replies"]["[]"]["count"] == 2
+
+    def test_a_failed_call_is_not_a_no_answer_reply(self, llm, monkeypatch):
+        """A call that raised produced no reply to retain. That path already
+        records ``error`` and ``error_class``; this tally must stay out of it."""
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _raises(openai.BadRequestError(
+            "bad", response=httpx.Response(400, request=_REQ), body=None)),
+            n_items=2, batch_size=2, stats=stats)
+        assert stats["no_answer_replies"] == {}
+        assert stats["no_answer_replies_absent"] == 0
+
+    def test_the_cache_still_refuses_a_no_answer(self, llm, monkeypatch):
+        """F-87 is untouched. Retaining the reply must not make the record
+        cacheable — that is a separate argued decision, not a side effect."""
+        out = _call(monkeypatch, _raw("[]"), n_items=2, batch_size=2,
+                    stats=lc.new_llm_call_stats())
+        assert all(lc._is_cacheable_evidence(ev) is False for ev in out.values())
+    def test_a_longer_reply_merging_onto_an_exact_cap_key_upgrades_the_flag(
+            self, llm, monkeypatch):
+        """The one case where the entry is created un-truncated and must become
+        truncated: a reply of exactly ``NO_ANSWER_REPLY_CAP`` characters keys
+        identically to any longer reply sharing it. Without the upgrade the
+        entry claims to hold a whole reply while holding a prefix, which is
+        F-186's failure exactly."""
+        cap = lc.NO_ANSWER_REPLY_CAP
+        replies = iter(["z" * cap, "z" * cap + "tail"])
+
+        def _h(_items):
+            return _FakeRawResponse(next(replies))
+
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _h, n_items=2, batch_size=1, stats=stats)
+        (entry,) = stats["no_answer_replies"].values()
+        assert entry["count"] == 2
+        assert entry["truncated"] is True
+
+    def test_the_token_high_water_mark_survives_a_shape_the_cap_dropped(
+            self, llm, monkeypatch):
+        """The largest reply a no-answer call produced must not depend on
+        whether its *shape* happened to fit the tally. Recorded before the
+        kinds cap can return early, and this is what pins that ordering."""
+        n = lc.NO_ANSWER_REPLY_KINDS + 1
+        sizes = [10] * (n - 1) + [4096]
+        state = iter(list(zip([f"r-{i}" for i in range(n)], sizes)))
+
+        def _h(_items):
+            text, ct = next(state)
+            return _FakeRawResponse(text, completion_tokens=ct, with_usage=True)
+
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _h, n_items=n, batch_size=1, stats=stats)
+        assert stats["no_answer_replies_dropped"] == 1
+        assert stats["no_answer_max_completion_tokens"] == 4096
+    def test_repeated_replies_do_not_accumulate_duplicate_finish_reasons(
+            self, llm, monkeypatch):
+        """``finish_reason`` is the set of reasons seen for a shape, not a log
+        of every call. Unbounded, it would grow once per call and defeat the
+        bound the rest of this tally is built on."""
+        stats = lc.new_llm_call_stats()
+        _call(monkeypatch, _raw("[]", finish_reason="stop", with_finish=True),
+              n_items=4, batch_size=1, stats=stats)
+        entry = stats["no_answer_replies"]["[]"]
+        assert entry["count"] == 4
+        assert entry["finish_reason"] == ["stop"]
+
+
