@@ -226,6 +226,28 @@ class TestTheFallback:
         assert [c["response_format"] is None for c in rec.calls] == \
             [False, True, True]
 
+    def test_a_generic_400_is_not_mistaken_for_a_rejection(self, monkeypatch):
+        """Found by the mutation battery: widening the predicate to ANY 400
+        survived the suite. A malformed-request 400 that never names
+        ``response_format`` must be terminal for the batch, exactly as
+        before this wave — flipping to unconstrained on it would burn a
+        retry on a request the server will never accept and record a false
+        ``request_shape`` for the run."""
+        def _h(call):
+            raise openai.BadRequestError(
+                "Error code: 400 - the request payload is malformed",
+                response=httpx.Response(400, request=_REQ), body=None)
+        stats = lc.new_llm_call_stats()
+        rec = _Recorder(_h)
+        out = _run(monkeypatch, rec, n_items=2, batch_size=2, stats=stats)
+        assert len(rec.calls) == 1, "a generic 400 must not earn a retry"
+        assert stats["request_shape"] == "json_schema", (
+            "the run did not fall back; its record must not say it did"
+        )
+        assert all("error" in ev for ev in out.values()), (
+            "terminal for the batch, as before this wave"
+        )
+
     def test_a_rejection_is_counted_and_logged_but_not_terminal(self, monkeypatch):
         stats = lc.new_llm_call_stats()
         lines = []
