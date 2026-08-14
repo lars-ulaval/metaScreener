@@ -504,3 +504,84 @@ class TestTheAnswerRateIsRead:
         body = _export_confirm_reason(not_screened=True, stage=stage,
                                       outcome_reason="whatever")
         assert "no enabled criteria" in body
+
+
+# ---------------------------------------------------------------------------
+# F-192 — what the acknowledgement says
+# ---------------------------------------------------------------------------
+
+#: nothing_separated, with a real but sub-threshold answer rate. 7 of 100
+#: unanswered is 7%, under LOW_ANSWER_RATE, so F-193's branch does not take
+#: this run and `nothing_separated` is what the user meets.
+SUB_THRESHOLD = _rep(records=100, answered=93, no_answer=7)
+
+
+def _nothing_separated(stage="EL"):
+    return run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                       llm_report=SUB_THRESHOLD, cancelled=False,
+                       not_screened=False, total_rows=85)
+
+
+def _low_rate(stage="EL"):
+    return run_outcome(stage=stage, counts=RUN_C_COUNTS,
+                       llm_report=RUN_C_REPORT, cancelled=False,
+                       not_screened=False, total_rows=85)
+
+
+class TestTheAcknowledgementProse:
+    """**CHARACTERISATION at this commit.** Every assertion in this class
+    records what the acknowledgements say *today*, so the commit that changes
+    them shows exactly which user-visible sentences moved. Four of them encode
+    F-192's defect on purpose and are marked.
+
+    The register these are measured against is F-173's, the wave-13c dialog:
+    name the thing, say plainly what it does, and do not tell the user what to
+    conclude — ending, in that dialog, *"Nothing here stops you … these are
+    notes, not a gate."*
+    """
+
+    def test_nothing_separated_tells_the_user_the_result_may_be_genuine(self):
+        """CHARACTERISATION, F-192. The sentence is now *true* — F-193's branch
+        takes every run whose answer rate is bad — but it is asserted rather
+        than shown, because the number it rests on is not in the text."""
+        assert "may well be genuine" in _nothing_separated().ack_reason
+
+    def test_nothing_separated_does_not_name_the_unanswered_count(self):
+        """CHARACTERISATION, F-192. 7 of 100 pairs came back unreadable and the
+        acknowledgement says only that 93 carry a decision. The reader is given
+        the reassuring half of the arithmetic and asked to take the rest."""
+        out = _nothing_separated()
+        assert "7" not in out.ack_reason.replace("record-criterion", "")
+
+    def test_the_low_rate_acknowledgement_names_no_cause(self):
+        """CHARACTERISATION, F-192. F-193 landed the branch with a factual
+        minimum. The `no_answers` acknowledgement one branch above lists what
+        the condition looks like — an unreachable server, a misspelled model, a
+        model never pulled, a rejected key — and this one lists nothing."""
+        body = _low_rate().ack_reason
+        assert not any(w in body for w in ("shape", "batch size", "engage"))
+
+    def test_the_low_rate_acknowledgement_points_nowhere(self):
+        """CHARACTERISATION, F-192. F-194 now retains a sample of what came
+        back, and nothing in the text sends the reader to it."""
+        assert "Log tab" not in _low_rate().ack_reason
+
+    def test_the_low_rate_acknowledgement_already_names_its_numbers(self):
+        """NOT a characterisation of a defect: this half is already right and
+        must survive the fix. The count and the percentage are on the face of
+        it."""
+        body = _low_rate().ack_reason
+        assert "137" in body and "170" in body and "33" in body and "19%" in body
+
+    def test_the_no_answers_acknowledgement_is_the_register_to_follow(self):
+        """The text F-192's replacement is measured against. It names the
+        number, states the consequence for the artefact, lists the conditions
+        that produce it, points at where to look, and asks — without telling
+        the reader what to conclude."""
+        out = run_outcome(stage="EL", counts=FLAGGED_ONLY,
+                          llm_report=WHOLLY_FAILED, cancelled=False,
+                          not_screened=False, total_rows=85)
+        body = out.ack_reason
+        assert "unreachable server" in body and "Log tab" in body
+        assert "Export anyway?" in body
+        assert "genuine" not in body
