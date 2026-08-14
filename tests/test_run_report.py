@@ -756,5 +756,49 @@ class TestTheReplyIsRetainedOnANoAnswer:
         entry = stats["no_answer_replies"]["[]"]
         assert entry["count"] == 4
         assert entry["finish_reason"] == ["stop"]
+    def test_the_log_line_names_the_count_and_shows_what_came_back(
+            self, llm, monkeypatch):
+        """The half a user actually reads. F-192's export dialog ends by
+        pointing at the Log tab, so something has to be there when they look.
+
+        Found unreached by wave 14b's refutation pass: every other test in
+        this class passes no ``log``, so the renderer had no coverage at all
+        while the tally it renders was fully covered."""
+        lines = []
+        monkeypatch.setattr(lc, "_openai_client_for",
+                            lambda *_a, **_k: _client(_raw("[]")))
+        items = [{"a_id": f"A{i:03d}", "title": f"T{i}", "abstract": "",
+                  "keywords": ""} for i in range(3)]
+        stats = lc.new_llm_call_stats()
+        lc.run_m1_llm_for_criterion(
+            {"id": CID, "type": "exclude", "operator": "llm", "target": "title",
+             "what": ["x"], "how": "llm", "label": "x", "threshold": 0.6},
+            items, stage="EL", build_messages=_build_messages, model="gemma3",
+            trunc_chars=1500, batch_size=3, stats=stats, log=lines.append,
+            cancel_token=threading.Event())
+        body = "".join(lines)
+        assert "3 record(s) received no verdict" in body
+        assert "'[]'" in body, "what came back, not only how much"
+        assert "unanswered, not as uncertain answers" in body, (
+            "the distinction the whole instrumentation exists to make"
+        )
+
+    def test_a_fully_answered_criterion_logs_no_such_line(self, llm, monkeypatch):
+        """One line per criterion, and only when there is something to say —
+        F-90's rule, for the same reason: a per-record line on an 800-record
+        corpus is 800 identical lines in a sub-tab nobody is looking at."""
+        lines = []
+        monkeypatch.setattr(lc, "_openai_client_for",
+                            lambda *_a, **_k: _client(_answers()))
+        items = [{"a_id": f"A{i:03d}", "title": f"T{i}", "abstract": "",
+                  "keywords": ""} for i in range(3)]
+        lc.run_m1_llm_for_criterion(
+            {"id": CID, "type": "exclude", "operator": "llm", "target": "title",
+             "what": ["x"], "how": "llm", "label": "x", "threshold": 0.6},
+            items, stage="EL", build_messages=_build_messages, model="gemma3",
+            trunc_chars=1500, batch_size=3, stats=lc.new_llm_call_stats(),
+            log=lines.append, cancel_token=threading.Event())
+        assert "received no verdict" not in "".join(lines)
+
 
 
