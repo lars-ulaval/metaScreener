@@ -89,3 +89,73 @@ raising the window server-side (WAIT FOR MAINTAINER: the
 `OLLAMA_CONTEXT_LENGTH=8192` restart and its sentinel confirmation, then the
 `docs/usage.md` procedure with the 32,768 ceiling and the CPU/RAM trade stated
 without a recommendation).
+
+## Handoffs
+
+**HO-1 — does the refusal message actually render in the Views?**
+
+The one link in the refusal chain no test executes. `tests/conftest.py`
+replaces `tkinter` and `tkinter.messagebox` with `MagicMock` before any plugin
+import, so no `ELView`/`ILView` method — including the worker's
+`except Exception` handler — ever runs under the suite (wave 14b's HO-2
+established this for the Views generally). Everything up to the dialog *is*
+suite-executed: the engines raise `ContextBudgetExceeded` with zero client
+calls (`tests/test_context_guard.py::TestTheEnginesRefuse`, both stages), and
+the handler that would catch it is read wiring:
+`plugins/06_el/ui.py::ELView` wraps the worker in
+`except Exception → messagebox.showerror("EL run failed", str(e))` and sets
+the status label to `EL failed.`; `plugins/07_il/ui.py` mirrors with
+`"IL run failed"`; both standalone shells carry the same handlers. Whether
+tkinter renders a five-paragraph `str(e)` legibly in that dialog is the
+residue.
+
+*Repro:* open the reference EL bundle (the wave-14d corpus, 147 records,
+EC-2/EC-3), leave the window setting untouched (no `context_window` key
+stored — the 4096 default applies), set **Batch size to 10** and Trunc chars
+to 1500, press Run. No server is needed and no request is sent — the refusal
+fires before the first call.
+
+*Expected, verbatim* (regenerated from the committed guard over the frozen
+corpus — the same numbers the CHANGELOG's live check produced):
+
+> This run was not started: the largest request it would send does not fit
+> the configured 4096-token context window.
+>
+> Criterion EC-2, batch 3 of 15 at batch size 10, measures an estimated 3923
+> prompt tokens plus a 800-token reply reserve — 4723 in total against the
+> 4096-token window.
+>
+> An overflowing request is not trimmed to fit: the server keeps only the
+> last half of it and drops the rest, instructions and criterion included,
+> then answers about the remainder.
+>
+> At this window, the largest batch size that fits every request for this
+> corpus is 8.
+>
+> The window is the application-level 'context_window' setting; the server's
+> own window must be at least as large.
+
+*Report:* whether a dialog titled **"EL run failed"** appears at all; whether
+all five paragraphs are visible and wrapped rather than clipped to one line;
+whether the status label reads **"EL failed."**; whether the run controls
+return to idle (the `finally` re-enables them); and whether the counts area
+stays empty — a refusal produces no rows, so Export must stay disabled. Then
+batch size 8, same bundle: the run must start normally.
+
+*Falsifiers:* a dialog titled anything else (the exception took a different
+path); a truncated or single-line message (tkinter's default `showerror`
+mishandles the length — the message would need re-shaping, not the guard);
+any `[EL-LLM]` line in the Log sub-tab before the dialog (a request was sent
+— the guard did not fire pre-run, contradicting
+`TestTheEnginesRefuse::test_an_oversized_run_never_reaches_the_client`);
+Export enabled after the refusal.
+
+*Logs:* the Log sub-tab content, verbatim, whatever it holds — expected
+empty of `[EL-LLM]` lines for the refused run.
+
+*Scope note:* the drift-abort dialog (`TokenEstimateDrift`) rides the
+identical wiring — same `except Exception`, same title — but cannot be
+provoked on demand against the measured server: the estimator is
+conservative for qwen2's tokenizer on every measured payload, and the check
+aborts only when reality *exceeds* the estimate. Its rendering is attested by
+this HO's answer to the extent the wiring is shared, and by nothing else.
