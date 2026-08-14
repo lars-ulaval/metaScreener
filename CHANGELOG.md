@@ -646,6 +646,27 @@ evaluates anything.
   to read a sample of what the model actually sent. A run whose answer rate is
   healthy is unaffected, and a run in which the model was never heard from at
   all keeps its own, more specific message.
+- **Batch size no longer changes which records get screened.** A controlled
+  comparison — same corpus, same criteria, same model, only the batch size
+  differing — showed a local model answering 17 of 294 record-criterion pairs
+  at batch size 1 against 241 of 294 at batch size 5, because at a batch of
+  one a correct “none of these match” reply is an empty list, which the
+  pipeline could not read as an answer. Requests to the model now carry a
+  JSON schema that requires exactly one verdict per record sent, so an empty
+  or partial reply stops being something the model can produce; a record
+  still left out is asked for again once, on its own, and anything
+  unanswered after that is counted and reported rather than silently marked
+  unresolved. **If your server does not support structured output**, the run
+  falls back to the previous request shape after one attempt, says so in the
+  log, and records which shape it used in the bundle's manifest. The
+  batch-size tooltip no longer calls the setting “a quality setting, not a
+  correctness one” — the comparison above is the measurement that retired
+  that sentence — and it now warns that cached decisions are reused across
+  batch sizes, so re-running at a different batch size is not an independent
+  second opinion. The evidence behind the comparison is committed under
+  `docs/data/wave14c_batch_runs/`, and the cached-answer fixtures were
+  re-keyed (values untouched, proven by the committed migration tool) to
+  keep old unconstrained answers from being served to constrained runs.
 
 ## [3.1.0] - 2026-04-29
 
