@@ -29,15 +29,21 @@ import pytest
 from plugins._common.bundle import NOT_SCREENED, _export_confirm_reason
 from plugins._common.stage_state import (
     parse_numeric_settings,
+    LOW_ANSWER_RATE,
     OUTCOME_CANCELLED,
+    OUTCOME_CODES,
+    OUTCOME_EXCLUSIONS_SUPPRESSED,
+    OUTCOME_LOW_ANSWER_RATE,
     OUTCOME_NOTHING_SEPARATED,
     OUTCOME_NO_ANSWERS,
     OUTCOME_NOT_SCREENED,
     OUTCOME_OK,
+    OUTCOME_PARTIAL_FAILURE,
     control_states,
     llm_readiness,
     run_outcome,
 )
+from plugins._common.bundle import EXCLUSION_SUPPRESSED
 
 
 STAGES = ["EL", "IL"]
@@ -333,3 +339,168 @@ class TestNumericSettings:
         text = " ".join(s.problems)
         assert "1500" in text, "say what was used instead"
         assert text.rstrip()[-1] in ".!"
+
+
+# ---------------------------------------------------------------------------
+# F-193 — the answer rate is a fact about the run, and nothing read it
+# ---------------------------------------------------------------------------
+
+def _rep(records=170, answered=137, no_answer=33, **kw):
+    """A run report with a real answer rate. Every pre-existing fixture in this
+    suite carries ``no_answer: 0`` — all 29 ``run_outcome`` call sites — which
+    is why no test classified a partially-answered run before this wave."""
+    base = {"records": records, "answered": answered, "no_answer": no_answer,
+            "failed": 0, "decisions_rejected": 0, "fields_rejected": 0,
+            "calls_made": 34, "calls_failed": 0, "batches_failed": 0}
+    base.update(kw)
+    return base
+
+
+#: wave 12's committed run C — qwen2.5:7b, batch 5, EL — as its manifest
+#: records it. 33 of 170 record-criterion pairs unanswered, and 42 records
+#: separated, so it reaches `ok` today and exports with no acknowledgement.
+RUN_C_REPORT = _rep()
+RUN_C_COUNTS = {"OUT": 4, "PASS_CLEAN": 38, "PASS_FLAGGED": 43}
+
+
+class TestTheAnswerRateIsRead:
+    """F-193. ``no_answer`` was derived by ``summarize_llm_evidence``, written
+    into the manifest, and read by nothing: ``run_outcome`` consulted
+    ``records``, ``answered``, ``failed``, ``decisions_rejected``,
+    ``calls_failed`` and the outcome histogram, and never the one number that
+    says how much of the run the model declined to address.
+    """
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_wave_12s_own_run_c_no_longer_reports_as_a_clean_success(self, stage):
+        """The measured case, from a committed artefact rather than a
+        hypothetical: 19.4% of pairs unanswered, reported as "EL done." with
+        no acknowledgement and both exports live."""
+        out = run_outcome(stage=stage, counts=RUN_C_COUNTS,
+                          llm_report=RUN_C_REPORT, cancelled=False,
+                          not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_LOW_ANSWER_RATE
+        assert out.label != f"{stage} done."
+        assert out.ack_reason, "an unacknowledged warning is what this row is about"
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_it_beats_nothing_separated(self, stage):
+        """Ordering, and the same argument branch 3 already makes against
+        branch 4: a near-silent model also separates nothing, and the two call
+        for opposite responses from the user."""
+        out = run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                          llm_report=_rep(records=85, answered=40, no_answer=45),
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_LOW_ANSWER_RATE
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_it_beats_exclusions_suppressed(self, stage):
+        """The branch that swallows run C's flag-only counterfactual. Placed
+        below it, this guard would not fire in the configuration flag-only
+        exists for — which is the configuration a weak local model runs in."""
+        counts = {"OUT": 0, "PASS_CLEAN": 0, "PASS_FLAGGED": 45,
+                  EXCLUSION_SUPPRESSED: 40}
+        out = run_outcome(stage=stage, counts=counts, llm_report=RUN_C_REPORT,
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_LOW_ANSWER_RATE
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_a_wholly_unheard_run_is_still_no_answers(self, stage):
+        """``answered == 0`` keeps its own diagnosis. A dead server, a typo'd
+        model, an unpulled model and a rejected key are all false at a 5%
+        answer rate — the server is up and the model is replying — so the two
+        states name different remedies and must not merge."""
+        out = run_outcome(stage=stage, counts=FLAGGED_ONLY,
+                          llm_report=WHOLLY_FAILED, cancelled=False,
+                          not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_NO_ANSWERS
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_a_fully_answered_run_is_untouched(self, stage):
+        """The property that keeps all 29 existing call sites green."""
+        out = run_outcome(stage=stage, counts=FLAGGED_ONLY, llm_report=WORKED,
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_NOTHING_SEPARATED
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_a_partially_failed_run_is_not_this(self, stage):
+        """The predicate is on ``no_answer``, not on ``answered``. Keyed on
+        ``answered`` this branch would steal a partially-*failed* run from
+        ``partial_failure``, which already owns it."""
+        out = run_outcome(stage=stage, counts=NORMAL,
+                          llm_report=_rep(records=85, answered=60, no_answer=0,
+                                          failed=25),
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_PARTIAL_FAILURE
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_the_threshold_is_inclusive(self, stage):
+        """Exactly at the threshold fires. A run sitting on the boundary is not
+        a run to stay quiet about."""
+        n = int(100 * LOW_ANSWER_RATE)
+        out = run_outcome(stage=stage, counts=NORMAL,
+                          llm_report=_rep(records=100, answered=100 - n,
+                                          no_answer=n),
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_LOW_ANSWER_RATE
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_below_the_threshold_falls_through(self, stage):
+        out = run_outcome(stage=stage, counts=NORMAL,
+                          llm_report=_rep(records=1000, answered=999,
+                                          no_answer=1),
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_OK
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_an_empty_report_does_not_divide_by_zero(self, stage):
+        out = run_outcome(stage=stage, counts=NORMAL, llm_report={},
+                          cancelled=False, not_screened=False, total_rows=85)
+        assert out.code in OUTCOME_CODES
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_cancellation_still_wins(self, stage):
+        """A run that stopped early tells you nothing about what it would have
+        screened, including about its answer rate."""
+        out = run_outcome(stage=stage, counts=RUN_C_COUNTS,
+                          llm_report=RUN_C_REPORT, cancelled=True,
+                          not_screened=False, total_rows=85)
+        assert out.code == OUTCOME_CANCELLED
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_no_criteria_still_wins(self, stage):
+        """A stage that evaluated nothing cannot have failed to get an answer."""
+        out = run_outcome(stage=stage, counts={NOT_SCREENED: 85},
+                          llm_report=RUN_C_REPORT, cancelled=False,
+                          not_screened=True, total_rows=85)
+        assert out.code == OUTCOME_NOT_SCREENED
+
+    def test_the_new_code_is_in_the_published_vocabulary(self):
+        """``OUTCOME_CODES`` is the closed set this module publishes; a member
+        that is not in it is a state no caller can name."""
+        assert OUTCOME_LOW_ANSWER_RATE in OUTCOME_CODES
+
+    def test_the_threshold_is_a_named_constant(self):
+        """It is a choice between two measured populations — 0/170 twice and
+        33/170 once — not a measurement. Named so a later wave can move it on
+        evidence rather than by grep."""
+        assert 0.0 < LOW_ANSWER_RATE < 1.0
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_the_export_gate_asks(self, stage):
+        """The user-visible half: this is the run that used to export in
+        silence. ``_export_confirm_reason`` returns the outcome's reason, and
+        both export paths put it up as a yes/no."""
+        out = run_outcome(stage=stage, counts=RUN_C_COUNTS,
+                          llm_report=RUN_C_REPORT, cancelled=False,
+                          not_screened=False, total_rows=85)
+        assert _export_confirm_reason(not_screened=False, stage=stage,
+                                      outcome_reason=out.ack_reason)
+
+    @pytest.mark.parametrize("stage", STAGES)
+    def test_no_criteria_still_wins_the_export_question(self, stage):
+        """F-34 first: a stage with no criteria never called anything, so its
+        report would otherwise read as an answer-rate problem."""
+        body = _export_confirm_reason(not_screened=True, stage=stage,
+                                      outcome_reason="whatever")
+        assert "no enabled criteria" in body

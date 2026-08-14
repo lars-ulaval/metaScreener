@@ -35,6 +35,7 @@ import types
 import pytest
 
 from plugins._common.stage_state import (
+    OUTCOME_LOW_ANSWER_RATE,
     NO_BUNDLE,
     NO_KEY,
     NO_MODEL,
@@ -315,6 +316,14 @@ class TestTheModelIsExtensible:
         existing branch keeping its meaning. That this assertion had to be
         edited is the point of writing it as an exact set — the vocabulary
         cannot grow by accident, and a wave that grows it says so here.
+
+        Wave 14b adds `low_answer_rate` (F-193), and says so. The new input
+        is `no_answer`, a field the report has carried since wave 8 part 1
+        and that nothing read. No existing branch changed meaning: the
+        branch is ordered above `nothing_separated` for the reason
+        `no_answers` is already ordered above it, and every fixture in this
+        suite carries `no_answer: 0`, so no existing state is reachable
+        differently than before.
         """
         assert set(READINESS_CODES) == {
             READY, NO_BUNDLE, NO_KEY, NO_MODEL,
@@ -323,7 +332,7 @@ class TestTheModelIsExtensible:
         assert set(OUTCOME_CODES) == {
             OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_NO_ANSWERS,
             OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK,
-            OUTCOME_EXCLUSIONS_SUPPRESSED}
+            OUTCOME_EXCLUSIONS_SUPPRESSED, OUTCOME_LOW_ANSWER_RATE}
 
     def test_readiness_takes_its_inputs_by_keyword_only(self):
         """So wave 10 can add an `endpoint=` and a `probe=` without

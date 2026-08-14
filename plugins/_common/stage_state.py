@@ -62,11 +62,39 @@ OUTCOME_OK = "ok"
 #: contract — no existing state changed meaning.
 OUTCOME_EXCLUSIONS_SUPPRESSED = "exclusions_suppressed"
 
+#: Wave 14b, F-193. Same contract: a new member, no existing state changed.
+OUTCOME_LOW_ANSWER_RATE = "low_answer_rate"
+
 OUTCOME_CODES = (
     OUTCOME_CANCELLED, OUTCOME_NOT_SCREENED, OUTCOME_NO_ANSWERS,
     OUTCOME_NOTHING_SEPARATED, OUTCOME_PARTIAL_FAILURE, OUTCOME_OK,
-    OUTCOME_EXCLUSIONS_SUPPRESSED,
+    OUTCOME_EXCLUSIONS_SUPPRESSED, OUTCOME_LOW_ANSWER_RATE,
 )
+
+LOW_ANSWER_RATE = 0.10
+"""The share of record-criterion pairs that may come back unreadable before a
+run stops being reported as a result (F-193).
+
+**A choice between two measured populations, not a measurement, and it is
+named so that a later wave can move it on evidence rather than by grep.**
+The only calibration this repository holds is its three committed local runs
+under ``docs/data/wave12_local_runs/``: ``llama3.2`` returned ``no_answer: 0``
+of 170 twice, and ``qwen2.5:7b`` returned 33 of 170 — 19.4%. The reported
+2026-08-13 run is 279 of 294, and is an observation this repository cannot
+check. There is no measured population between 0% and 19.4%, so any threshold
+in that open interval separates every degenerate run measured from every
+healthy one; 10% sits between the clusters with roughly 2x margin below run C
+and unbounded margin above runs A and B.
+
+**Both numbers are record-criterion pairs**, not records: ``summarize_llm_evidence``
+iterates an evidence map keyed ``(a_id, cid)``, so a 85-record corpus with two
+criteria reports ``records: 170``. ``total_rows`` in this module is the other
+quantity — records — and the two must not be mixed.
+
+No floor on ``records`` is applied. A four-record corpus with one unanswered
+record is 25% and worth stopping on, and a floor would create a silent zone
+exactly where a user is most likely to be testing their configuration.
+"""
 """The closed set of states a finished run can be in.
 
 The first two and the last are what the code distinguished before wave 8;
@@ -147,6 +175,9 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
     answered = int(llm_report.get("answered", 0) or 0)
     failed = int(llm_report.get("failed", 0) or 0)
     rejected = int(llm_report.get("decisions_rejected", 0) or 0)
+    # F-193. Derived by `summarize_llm_evidence`, written into the manifest,
+    # and — until this wave — read by nothing at all.
+    no_answer = int(llm_report.get("no_answer", 0) or 0)
     calls_failed = int(llm_report.get("calls_failed", 0) or 0)
     # From the outcome histogram the engine already built, not re-derived
     # by re-scanning the rows: two representations of one fact with nothing
@@ -179,6 +210,41 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"name, a model that was never pulled and a rejected key all "
                 f"look like. The Log tab names the cause of each failed "
                 f"call.\n\n"
+                f"Export anyway?"
+            ),
+        )
+
+    # F-193, and it sits here for the reason branch 3 sits above branch 4.
+    # A model that answers almost nothing also separates nothing, also
+    # suppresses nothing, and also produces a clean-looking `ok` when a few
+    # records happen to resolve — so every branch below would report the
+    # general case and send the user looking in the wrong place. **The
+    # measured case is the last of those**: wave 12's own committed run C
+    # (`no_answer: 33` of 170, 42 records separated) reaches `ok` today and
+    # exports in silence, and under flag-only it reaches
+    # `exclusions_suppressed` and exports in silence there too.
+    #
+    # The predicate is on `no_answer`, deliberately, and not on `answered`.
+    # The report partitions `records` into answered + no_answer + failed +
+    # decisions_rejected, and the last two already have owners — `no_answers`
+    # and `partial_failure`. Keyed on `answered`, this branch would take a
+    # partially-*failed* run away from `partial_failure`, which is a
+    # different condition with a different remedy.
+    if records and (no_answer / records) >= LOW_ANSWER_RATE:
+        pct = 100.0 * no_answer / records
+        return Outcome(
+            code=OUTCOME_LOW_ANSWER_RATE,
+            label=(f"{stage}: low answer rate — {answered} of {records} "
+                   f"record-criterion pairs carry a decision; {no_answer} "
+                   f"came back unreadable ({pct:.0f}%)."),
+            ack_reason=(
+                f"{stage} obtained a usable answer for {answered} of "
+                f"{records} record-criterion pairs. {no_answer} were sent "
+                f"and came back with nothing this stage could read — "
+                f"{pct:.0f}% of the run.\n\n"
+                f"Those records are flagged rather than screened, and an "
+                f"exported bundle will record that outcome as though the "
+                f"stage had run normally.\n\n"
                 f"Export anyway?"
             ),
         )
