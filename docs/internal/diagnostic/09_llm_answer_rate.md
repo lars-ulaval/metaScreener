@@ -616,6 +616,30 @@ label: EL: nothing separated — every record flagged (model answered 170 of 170
 Its label even prints the number that contradicts it. It is not measuring what its name
 says, and `separated` — an outcome histogram — is doing duty for a question about answers.
 
+*Retracted 2026-08-13 (wave 14b):* **the flag-only counterfactual above is not a state
+the producer can build, so the paragraph it supports does not hold.** Flag-only does not
+drop an excluding verdict — `plugins/06_el/screen.py::_excluded_by` appends it to
+`suppressed` and the record's outcome becomes `EXCLUSION_SUPPRESSED`, which **F-153**
+deliberately folded into `separated` so the gate would *not* fire on it. Run A's
+flag-only counterfactual is therefore `OUT: 0, EXCLUSION_SUPPRESSED: 40, PASS_FLAGGED:
+45`, not `OUT: 0, PASS_FLAGGED: 85`; **[measured]** on that state `run_outcome` returns
+`exclusions_suppressed` with `ack_reason=None` — **ungated**.
+
+**So the gate is not inverted. It is absent at both ends:** at a 100 % answer rate the
+run exports ungated, and at 19.4 % unanswered it exports ungated. That is the
+weaker-sounding and stronger claim, and it is the one **D-3** rests on — *“`no_answer`
+is computed, written to the manifest, and read by nothing”*, the paragraph immediately
+below, which is unaffected. So is the `runC` measurement three paragraphs above, and so
+is every other claim in this section; only this paragraph is withdrawn.
+
+The error was a hand-built state that was never checked against the producer that would
+create it — the check this document's own § *“What was not done”* names, and that this
+paragraph then skipped. Corrected in the register at `aa14d19`, where **F-193**'s
+Evidence cell carries the same note; the measured table is in
+`FIX_WAVE_14B_INSTRUMENTATION.md` §0.1. **Commit `bb428b0`'s message carries the
+retracted sentence too and is immutable history — it is not corrected, and is named here
+so a reader who meets it there knows what became of it.**
+
 **`no_answer` is computed, written to the manifest, and read by nothing. [measured]**
 `grep -r no_answer` over the tree excluding tests: it appears in `summarize_llm_evidence`,
 the wave-8 design document, two committed manifests and `07_criteria_parsing.md`.
