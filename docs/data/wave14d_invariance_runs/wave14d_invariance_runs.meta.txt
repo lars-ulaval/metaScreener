@@ -111,3 +111,5 @@ bundle_runI_sha256=4f8ab3130cfed0f4a325249c7a2170b0a6fd85fe57a0d32a627ae3d36db2c
 #                   are the size F-154 measures as overflowing
 #                   pessimistically, which may contribute to runI's rate
 #                   and is not separable from these artefacts.
+
+# 2026-08-14 (wave 15c, F-168 discipline): produced before the 15c routing/semantics fixes (F-65, F-204) — the criteria table behind these runs carries IC-5 at IL, unevaluated. The current software routes IC-5 to IH over all three named fields; the deterministic chain from the same inputs is now 776 -> 16 -> 760 -> 738 -> 22.

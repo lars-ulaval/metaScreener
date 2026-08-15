@@ -64,11 +64,14 @@ a handful of API requests. Check the OpenAI pricing page for current
 per-token rates. Subsequent runs are free because every response is
 cached by content hash; see the next question.
 
-> *Provenance note (2026-08-14, wave 15a — F-168):* the 85/84 counts come
-> from the shipped demonstration's harmonisation rules, retired at wave
-> 13d; the same criteria prose harmonised today sends 147 records to EL.
-> See `docs/data/study_input/study_input.meta.txt`. The cost logic above
-> is unchanged either way.
+> *Provenance note (2026-08-14, wave 15a — F-168; updated at wave 15c):*
+> the 85/84 counts come from the shipped demonstration's harmonisation
+> rules, retired at wave 13d; the same criteria prose harmonised today
+> sends 22 records to EL — the keyword criterion routes to the heuristic
+> stage and filters deterministically since wave 15c, where earlier
+> current-rules notes said 147 with it silently unevaluated. See
+> `docs/data/study_input/study_input.meta.txt`. The cost logic above is
+> unchanged either way.
 
 Beware a units confusion in the project's own write-ups: a figure
 like "170 EL calls" counts individual **decisions**, not HTTP

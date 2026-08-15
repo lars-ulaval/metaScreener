@@ -32,8 +32,10 @@ The deterministic 98.3% of that funnel is exactly reproducible from the committe
 > and EC-1 as `equals French` where its prose names French *or Spanish*. The
 > figures reproduce exactly and are kept as the record of the shipped
 > demonstration; a table harmonised from the same criteria prose today yields
-> `776 → 16 → 760 → 613 → 147` before the LLM stages, and the 85 records here
-> are a measured strict subset of those 147. The full note is at
+> `776 → 16 → 760 → 738 → 22` before the LLM stages (wave 15c: the
+> keyword criterion IC-5 now routes to the heuristic stage and reads all
+> three fields it names, so it filters — the chain read `…613 → 147`
+> while it silently did not). The full note is at
 > `docs/data/study_input/study_input.meta.txt`; the current-rules evidence is
 > committed under `docs/data/wave14c_batch_runs/` and
 > `docs/data/wave14d_invariance_runs/`.
@@ -331,7 +333,7 @@ Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 | `OPENAI_API_KEY` | Yes (for LLM stages) | — | Your OpenAI API key |
 | `SCREENA_EL_MODEL` | No | `gpt-4o-mini` | Model identifier for the EL stage |
 | `SCREENA_EL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM (EL) |
-| `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (EL). The interface offers **5** instead when a local provider is selected — a small model loses track of a fifty-item list. This is a throughput and quality setting, not a correctness one, and changing it does not invalidate the decision cache. |
+| `SCREENA_EL_BATCH_SIZE` | No | `50` | Number of records per LLM API call (EL). The interface offers **5** instead when a local provider is selected — a small model loses track of a fifty-item list. Batch size can change which records get screened, not only how fast: the project's own measurement found batch-size-dependent verdicts (see the batch-size tooltip in the interface for the measured numbers). Changing it does not invalidate the decision cache. |
 | `SCREENA_EL_USE_CACHE` | No | `1` | Enable (`1`) or disable (`0`) the persistent decision cache (EL) |
 | `SCREENA_IL_MODEL` | No | `gpt-4o-mini` | Model identifier for the IL stage |
 | `SCREENA_IL_TRUNC_CHARS` | No | `1500` | Maximum characters per field sent to the LLM (IL) |

@@ -110,3 +110,5 @@ bundle_runE_batch5_sha256=c5b05afb2479724788d1dbd3ca1592e27c9598b4529ac90c44479b
 #                   (CPU-only) (F-154).
 # request shape     both runs predate wave 14c's constrained decoding; both
 #                   sent the unconstrained three-parameter request.
+
+# 2026-08-14 (wave 15c, F-168 discipline): produced before the 15c routing/semantics fixes (F-65, F-204) — this table carries IC-5 at IL, unevaluated. The current software harmonises the same prose to IC-5 at IH over all three named fields; the deterministic chain from the same inputs is now 776 -> 16 -> 760 -> 738 -> 22.

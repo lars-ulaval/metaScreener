@@ -260,10 +260,13 @@ one expected difference.
 ![Plugin 05 IH after running on the demonstration corpus, showing 566 surviving records](images/usage/plugin05_ih.png)
 > *Figure: Plugin 05 (IH) after running on the post-EH bundle. The IH Criteria panel (top left) lists the deterministic inclusion rules that matched (IC-3 = language English, IC-4 = year ≥ 2018). The right panel previews the 566 surviving records; the status line reports `OUT: 566 CLEAN:85 FLAGGED:0`. All inclusion-pass records carry forward to Plugin 06.*
 
-> *Provenance note (2026-08-14, wave 15a — F-168): the screenshots and
-> counts on this page show the shipped demonstration, whose harmonisation
-> rules were retired at wave 13d; the same criteria prose harmonised today
-> gives `776 → 16 → 760 → 613 → 147` at this point in the pipeline. See
+> *Provenance note (2026-08-14, wave 15a — F-168; chain updated at wave
+> 15c): the screenshots and counts on this page show the shipped
+> demonstration, whose harmonisation rules were retired at wave 13d; the
+> same criteria prose harmonised today gives `776 → 16 → 760 → 738 → 22`
+> at this point in the pipeline — the keyword criterion IC-5 now routes
+> here and filters (waves 15c/F-65 and F-204), where the `…613 → 147`
+> chain carried it unevaluated. See
 > `docs/data/study_input/study_input.meta.txt` for the full note.*
 
 **Purpose.** Retains only records that match at least one
@@ -402,8 +405,9 @@ three practical implications:
 - **Cost predictability.** Only the records that survive the
   deterministic stages reach the LLM. On the demonstration corpus
   that is 85 records at EL and 84 at IL — 254 individual decisions in
-  total (under the shipped pre-13d rules; today's rules send 147 to EL —
-  see the provenance note above), which at the hosted default batch size of 50 is a handful of API
+  total (under the shipped pre-13d rules; today's rules send 22 to EL —
+  the keyword criterion filters deterministically since wave 15c; see
+  the provenance note above), which at the hosted default batch size of 50 is a handful of API
   requests, not thousands. Subsequent runs use zero. (Selecting a local
   provider offers a batch size of 5 instead, which is more requests to a
   server that charges nothing for them; it does not change the number of
@@ -486,21 +490,27 @@ such a restart, a request of about 7,000 tokens was reported by the
 server as processed in full (`usage.prompt_tokens = 7047`), where
 the default window keeps only the last ~2,048.
 
-**Hosted and other servers.** The check applies to every provider,
-and the default window is the *local* server's measured default — a
-hosted model's real window is generally far larger. For a hosted
-endpoint there is no server of yours to restart: the remedy is the
-setting alone, set to the context length your model's documentation
-states. Other local servers (LM Studio, llama.cpp, vLLM) have their
-own window flags; whatever the server, the rule is the same — the
-setting must never exceed what the server actually serves.
+**Hosted and other servers.** The check applies to every provider.
+OpenAI's own endpoint defaults to the 128,000-token window described
+under "The setting"; any other hosted endpoint keeps the conservative
+local default, and for it there is no server of yours to restart:
+the remedy is the setting alone, set to the context length your
+model's documentation states. Other local servers (LM Studio,
+llama.cpp, vLLM) have their own window flags; whatever the server,
+the rule is the same — the setting must never exceed what the server
+actually serves.
 
-**The setting.** `context_window`, application-level, default
-**4096** — the serving window measured on this project's reference
-Ollama out of the box. Ollama chooses that default from the
+**The setting.** `context_window`, application-level. The default is
+per-provider: **4096** — the serving window measured on this
+project's reference Ollama out of the box — unless your configured
+provider resolves to OpenAI's own endpoint, which defaults to
+**128,000**, the context window OpenAI's model documentation states
+for the gpt-4o family. Ollama chooses its own default from the
 machine's hardware, so a different machine can serve a different
-window; the default here is the measured one, not a promise. There
-is no GUI field for the setting; it lives in the settings file
+window; the local default here is the measured one, not a promise,
+and a hosted endpoint other than OpenAI's keeps the conservative
+local default (the refusal dialog names this setting as the remedy).
+There is no GUI field for the setting; it lives in the settings file
 (`%APPDATA%\metaScreener\settings.json` on Windows;
 `$XDG_CONFIG_HOME/metaScreener/settings.json` if that variable is
 set, `~/.config/metaScreener/settings.json` otherwise). The file
