@@ -164,7 +164,11 @@ class ProviderDialog(tk.Toplevel):
                   "cannot tell whether a quote is relevant, and at "
                   "temperature 0 the same model did not exclude the same "
                   "papers twice. Leave this off unless you have validated "
-                  "the model on your own corpus."))
+                  "the model on your own corpus. Whatever this setting, a "
+                  "removal the model justifies by absence — answering "
+                  "not_meet on an inclusion criterion — is never applied "
+                  "automatically: there is no quote that can prove an "
+                  "absence, so those records always go to human review."))
         self.lbl_exclude.grid(row=12, column=0, columnspan=3, sticky="w",
                               padx=10, pady=(0, 4))
 

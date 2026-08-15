@@ -683,8 +683,11 @@ def run_il_screen(
     if log_cb and not allow_exclusion:
         log_cb("[IL] flag-only: an LLM verdict may flag a record for review "
                "but may not exclude it. The provider dialog can permit "
-               "exclusion, once the model has been validated on this "
-               "corpus.\n")
+               "exclusion for removals justified by presence, once the "
+               "model has been validated on this corpus; a removal "
+               "justified by absence (not_meet on an include-type "
+               "criterion) is never auto-acted, whatever the setting "
+               "(wave 15e).\n")
 
     if log_cb:
         # F-119's lesson: say what the code observed. Whether the variable
