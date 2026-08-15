@@ -56,7 +56,7 @@ class TestSpecParsing:
         assert spec["spec_version"] == 1
         keys = [a["key"] for a in spec["arms"]]
         assert keys[0] == "arm0_baseline"
-        assert len(keys) == 6 and len(set(keys)) == 6
+        assert len(keys) == 8 and len(set(keys)) == 8
 
     def test_every_arm_has_intents_recorded(self, spec):
         """Landings-vs-intent is only honest if intent predates the run."""
@@ -152,6 +152,68 @@ class TestRawProbeSemantics:
         # F-208: the blank-enabled row is silently absent at EH/IH.
         assert "R4" not in [c["id"] for c in probe["EH"]["loaded"]]
         assert not any("R4" in w for w in probe["EH"]["warnings"])
+
+
+class TestDerivedArms:
+    """Wave 16a-deltas: the s1 supplement arms (bundle corpus, derived rows)."""
+
+    def test_spec_carries_the_two_supplement_arms(self, spec):
+        keys = [a["key"] for a in spec["arms"]]
+        assert keys[-2:] == ["s1a_wording_el", "s1b_polarity_il"]
+        assert len(keys) == 8
+        for arm in spec["arms"][-2:]:
+            assert arm["kind"] == "derived_rows"
+            assert arm.get("comparison"), "comparison plan must be recorded"
+        assert "population_banner" in spec["corpus_bundle"]
+
+    def test_rejects_derived_arm_without_bundle(self, tmp_path):
+        bad = {"spec_version": 1, "corpus": "x", "corpus_sha256": "y",
+               "window": 4096, "trunc_chars": 1500,
+               "arms": [{"key": "p", "kind": "free_text", "source": "s"},
+                        {"key": "d", "kind": "derived_rows", "source": "s",
+                         "derive_from": "p", "ids": ["A"], "stage": "EL"}]}
+        p = tmp_path / "bad.json"
+        p.write_text(json.dumps(bad), encoding="utf-8")
+        with pytest.raises(ValueError, match="corpus_bundle"):
+            rce.load_spec(p)
+
+    def test_derivation_is_byte_identical_to_the_parent(self, mods, spec, corpus):
+        _parse, a_columns, text_stats = corpus
+        arm = next(a for a in spec["arms"] if a["key"] == "s1a_wording_el")
+        rows, derived_csv, _psha = rce.derive_rows_from_parent(
+            mods, spec, arm, a_columns, text_stats)
+        assert [r["id"] for r in rows] == ["EC-2", "EC-3"]
+        parent = next(a for a in spec["arms"] if a["key"] == "g1_paraphrase")
+        parent_rows = rce.translate_free_text(
+            mods, (PROJECT_ROOT / parent["source"]).read_text(encoding="utf-8-sig"),
+            a_columns, text_stats)
+        parent_csv = mods.h_exporters._criteria_csv_text(parent_rows)
+        parent_lines = set(parent_csv.splitlines())
+        for line in derived_csv.splitlines()[1:]:
+            assert line in parent_lines
+
+    def test_derivation_rejects_missing_ids(self, mods, spec, corpus):
+        _parse, a_columns, text_stats = corpus
+        arm = dict(next(a for a in spec["arms"] if a["key"] == "s1a_wording_el"))
+        arm["ids"] = ["EC-2", "EC-999"]
+        with pytest.raises(SystemExit, match="not all present"):
+            rce.derive_rows_from_parent(mods, spec, arm, a_columns, text_stats)
+
+    def test_supplement_call_arithmetic(self):
+        assert rce.calls_for(147, 2, 5) == 60   # per supplement arm
+        assert rce.calls_for(147, 2, 1) == 294
+
+    @pytest.mark.skipif(
+        not Path("S:/Alejandro_/projet julien (prisma-hub)/_archive_bundles").exists(),
+        reason="external bundle archive not present on this machine")
+    def test_bundle_identified_by_manifest_content_then_zip_digest(self, mods, spec):
+        parse, ident = rce.resolve_bundle_corpus(mods, spec["corpus_bundle"])
+        assert len(parse.rows) == 147
+        assert ident["zip_sha256"] == spec["corpus_bundle"]["zip_sha256"]
+        assert ident["member_sha256_verified"]["data/current.csv"] == (
+            spec["corpus_bundle"]["member_sha256"]["data/current.csv"])
+        assert ident["criteria_member_sha256"].startswith("5dd51aaa")
+        assert ident["population_banner"]
 
 
 class TestDryModeIsStructurallyOffline:

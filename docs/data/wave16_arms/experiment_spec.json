@@ -1,6 +1,6 @@
 {
   "spec_version": 1,
-  "authored": "2026-08-15 (wave 16a); intents recorded BEFORE the first dry run",
+  "authored": "2026-08-15 (wave 16a); intents recorded BEFORE the first dry run; s1 supplement arms added at wave 16a-deltas, intents likewise pre-run",
   "corpus": "samples/20260122_1654_aggregate.csv",
   "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
   "window": 4096,
@@ -22,6 +22,16 @@
       "EL": 5,
       "IL": 5
     }
+  },
+  "corpus_bundle": {
+    "dir": "S:/Alejandro_/projet julien (prisma-hub)/_archive_bundles",
+    "zip_sha256": "0bd1604aee1e7bf1fae825641a03659b49ee1942491fbb98bab0bf3c34a93c4b",
+    "member_sha256": {
+      "data/current.csv": "f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599"
+    },
+    "criteria_member_sha256_prefix": "5dd51aaa",
+    "expected_records": 147,
+    "population_banner": "F-168-style caveat, carried on every artifact that names this population: the 147-record corpus predates the wave-15c routing/semantics fixes - the current deterministic chain from the same raw inputs is 776 -> 16 -> 760 -> 738 -> 22, not -> 613 -> 147. It is a REGRESSION population chosen for byte-identity with the frozen 14d/15e baselines (runJ/runK/runL), not a representation of the current pipeline."
   },
   "arms": [
     {
@@ -480,6 +490,84 @@
         }
       },
       "source_sha256": "9e2352b3f232d9765f70cfeefff95f2f55e749973b1e451da882698417d46bc3"
+    },
+    {
+      "key": "s1a_wording_el",
+      "kind": "derived_rows",
+      "derive_from": "g1_paraphrase",
+      "ids": [
+        "EC-2",
+        "EC-3"
+      ],
+      "stage": "EL",
+      "source": "docs/data/wave16_arms/g1_paraphrase.txt",
+      "comparison": "vs frozen runJ (docs/data/wave15e_acceptance_runs/), identity map on (local_id, EC-2/EC-3): isolates WORDING - same stage, same EL_v3_nullquote template, same 147-record corpus, same batch 5 / qwen2.5:7b / temp 0 / trunc 1500 / window 4096 / flag-only config; only the criterion prose differs (byte-identical to g1's harmonized rows)",
+      "intents": [
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "g1's paraphrased maze-navigation exclusion, byte-identical row; wording-robustness probe against runJ's frozen decisions"
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "g1's paraphrased rubber-hand exclusion, byte-identical row; same probe"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "6adfeafdf6058d85f325333b430b6d4988d1a9e9c90d3e08d975e9ae1d385191"
+    },
+    {
+      "key": "s1b_polarity_il",
+      "kind": "derived_rows",
+      "derive_from": "g2_polarity",
+      "ids": [
+        "IC-21",
+        "IC-22"
+      ],
+      "stage": "IL",
+      "source": "docs/data/wave16_arms/g2_polarity.txt",
+      "comparison": "vs frozen runJ, inversion map (meet <-> not_meet) on (local_id, EC-2/EC-3 vs IC-21/IC-22): product-level polarity coherence. CONFOUND STATED: template (IL vs EL), stage and polarity differ together - that composite IS the product reality for a mirrored criterion; s1b measures the composite, not polarity alone",
+      "intents": [
+        {
+          "id": "IC-21",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "g2's include-mirror of EC-2, byte-identical row; inversion-coherence probe against runJ"
+        },
+        {
+          "id": "IC-22",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "g2's include-mirror of EC-3, byte-identical row; same probe"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "d0a1aa9727669e38ab65c9cbfc06fdedcfe7b7498e972de3922ede4d7480f5c1"
     }
   ]
 }

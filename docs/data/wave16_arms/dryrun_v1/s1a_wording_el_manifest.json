@@ -1,0 +1,224 @@
+{
+  "arm": "s1a_wording_el",
+  "kind": "derived_rows",
+  "source": "docs/data/wave16_arms/g1_paraphrase.txt",
+  "derive_from": "g1_paraphrase",
+  "derived_ids": [
+    "EC-2",
+    "EC-3"
+  ],
+  "stage": "EL",
+  "source_sha256": "6adfeafdf6058d85f325333b430b6d4988d1a9e9c90d3e08d975e9ae1d385191",
+  "parent_harmonized_sha256": "900261bb2e4646068ac1d62a220af92ac9b6dbda4320ec0ac65eba022bbd9168",
+  "harmonized_sha256": "bf71b7ad8f94aae7b0d81795abc815bed29e3a1f3103e0ee763790f5ee43c65f",
+  "byte_identity": "every derived data row appears verbatim in the parent arm's harmonized CSV (asserted)",
+  "corpus_bundle": {
+    "identified_by": "manifest content (member sha256 map), then byte verification; filename recorded as opaque key only",
+    "zip_opaque_key": "20260814_071007_post_EL_bundle.zip",
+    "zip_sha256": "0bd1604aee1e7bf1fae825641a03659b49ee1942491fbb98bab0bf3c34a93c4b",
+    "manifest_created_at": "2026-08-13T21:40:59",
+    "manifest_created_by": "screen_a_ih_plugin",
+    "member_sha256_verified": {
+      "data/current.csv": "f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599"
+    },
+    "criteria_member_sha256": "5dd51aaa6e2f3c33d356099819d41e1d590d9625d7685f8876a3e5e50ddd026e",
+    "records": 147,
+    "population_banner": "F-168-style caveat, carried on every artifact that names this population: the 147-record corpus predates the wave-15c routing/semantics fixes - the current deterministic chain from the same raw inputs is 776 -> 16 -> 760 -> 738 -> 22, not -> 613 -> 147. It is a REGRESSION population chosen for byte-identity with the frozen 14d/15e baselines (runJ/runK/runL), not a representation of the current pipeline."
+  },
+  "population_banner": "F-168-style caveat, carried on every artifact that names this population: the 147-record corpus predates the wave-15c routing/semantics fixes - the current deterministic chain from the same raw inputs is 776 -> 16 -> 760 -> 738 -> 22, not -> 613 -> 147. It is a REGRESSION population chosen for byte-identity with the frozen 14d/15e baselines (runJ/runK/runL), not a representation of the current pipeline.",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "EL",
+      "id": "EC-2",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper is chiefly about navigating virtual mazes for spatial wayfinding, with no social or collaborative component."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-3",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper's main subject is the rubber hand illusion."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "EC-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-3": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [],
+      "IH": [],
+      "EL": [
+        {
+          "id": "EC-2",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-3",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": []
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": [
+        "No IL criteria found (stage=IL)."
+      ]
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "EC-2",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "g1's paraphrased maze-navigation exclusion, byte-identical row; wording-robustness probe against runJ's frozen decisions"
+    },
+    {
+      "id": "EC-3",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "g1's paraphrased rubber-hand exclusion, byte-identical row; same probe"
+    }
+  ],
+  "funnel": {
+    "input": 147,
+    "eh": {
+      "out": "",
+      "survivors": "",
+      "pass_flagged": "",
+      "impacts": {}
+    },
+    "ih": {
+      "out": "",
+      "survivors": "",
+      "pass_flagged": "",
+      "impacts": {}
+    },
+    "records_at_el": 147,
+    "records_at_il": 0,
+    "il_input_assumption": "single-stage supplement arm: the bundle population is the stage input directly; no deterministic chain runs"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-2",
+        "EC-3"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 2328,
+              "reserve": 400,
+              "n_batches": 30,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 2299,
+              "reserve": 400,
+              "n_batches": 30,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 698,
+              "reserve": 80,
+              "n_batches": 147,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 669,
+              "reserve": 80,
+              "n_batches": 147,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {}
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {}
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 60,
+      "IL": 0,
+      "total": 60,
+      "wall_clock_s_est": 528.0
+    },
+    "batch1": {
+      "EL": 294,
+      "IL": 0,
+      "total": 294,
+      "wall_clock_s_est": 1020.0
+    }
+  }
+}

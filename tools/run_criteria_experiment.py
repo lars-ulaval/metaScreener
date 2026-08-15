@@ -50,6 +50,7 @@ import json
 import math
 import sys
 import threading
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
@@ -172,7 +173,7 @@ def wall_clock_seconds(calls: int, batch_size: int) -> float:
 # ---------------------------------------------------------------------------
 
 REQUIRED_ARM_FIELDS = ("key", "kind", "source")
-ARM_KINDS = ("free_text", "harmonized_csv")
+ARM_KINDS = ("free_text", "harmonized_csv", "derived_rows")
 
 
 def load_spec(path: Path) -> Dict[str, Any]:
@@ -192,7 +193,137 @@ def load_spec(path: Path) -> Dict[str, Any]:
         if arm["key"] in keys:
             raise ValueError(f"duplicate arm key: {arm['key']}")
         keys.add(arm["key"])
+        if arm["kind"] == "derived_rows":
+            for field in ("derive_from", "ids", "stage"):
+                if not arm.get(field):
+                    raise ValueError(
+                        f"derived arm {arm['key']}: missing {field}")
+            if arm["stage"] not in ("EL", "IL"):
+                raise ValueError(
+                    f"derived arm {arm['key']}: stage must be EL or IL")
+            if "corpus_bundle" not in spec:
+                raise ValueError(
+                    "derived arms require a spec-level corpus_bundle")
+    for arm in spec["arms"]:
+        if arm["kind"] == "derived_rows":
+            if not any(a["key"] == arm["derive_from"] for a in spec["arms"]
+                       if a["kind"] == "free_text"):
+                raise ValueError(
+                    f"derived arm {arm['key']}: derive_from must name a "
+                    f"free_text arm")
     return spec
+
+
+def resolve_bundle_corpus(mods: _Mods, bundle_cfg: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
+    """Locate the corpus bundle BY MANIFEST CONTENT, never by filename: scan
+    the directory's zips, match the manifest's own sha256 map against the
+    spec's member digests, then verify member bytes and the whole-zip digest
+    before trusting anything. Returns (ParseReport, identification block)."""
+    bdir = Path(bundle_cfg["dir"])
+    want_members: Dict[str, str] = bundle_cfg["member_sha256"]
+    want_crit_prefix = bundle_cfg.get("criteria_member_sha256_prefix", "")
+    matches = []
+    for zp in sorted(bdir.glob("*.zip")):
+        try:
+            with zipfile.ZipFile(zp) as z:
+                man_names = [n for n in z.namelist()
+                             if n.endswith("manifest.json") and n.count("/") <= 1]
+                if not man_names:
+                    continue
+                manifest = json.loads(z.read(man_names[0]).decode("utf-8"))
+        except Exception:
+            continue
+        sha_map = manifest.get("sha256") or {}
+        if all(sha_map.get(m) == d for m, d in want_members.items()) and (
+                not want_crit_prefix or str(sha_map.get(
+                    "criteria/criteria_harmonized.csv", "")).startswith(
+                        want_crit_prefix)):
+            matches.append((zp, man_names[0], manifest, sha_map))
+    if not matches:
+        raise SystemExit(
+            f"bundle identification by manifest content matched no zip in "
+            f"{bdir} — refusing")
+    # Manifest content under-determines the artifact: same-state re-exports
+    # carry identical manifest digests in byte-different zips (measured: six
+    # such siblings for the 15e input). Disambiguate inside the equivalence
+    # class by the whole-zip digest — still content, never the filename.
+    want_zip_sha = bundle_cfg.get("zip_sha256")
+    if len(matches) > 1 and not want_zip_sha:
+        raise SystemExit(
+            f"bundle identification matched {len(matches)} same-state zips "
+            f"and the spec pins no zip_sha256 to pick one — refusing")
+    chosen = []
+    for zp, man_name, manifest, sha_map in matches:
+        zip_bytes = zp.read_bytes()
+        got = _sha256_bytes(zip_bytes)
+        if not want_zip_sha or got == want_zip_sha:
+            chosen.append((zp, man_name, manifest, sha_map, zip_bytes, got))
+    if len(chosen) != 1:
+        raise SystemExit(
+            f"bundle identification: {len(matches)} manifest-content matches, "
+            f"{len(chosen)} surviving the zip-digest pin — refusing "
+            f"(need exactly 1)")
+    zp, man_name, manifest, sha_map, zip_bytes, got_zip_sha = chosen[0]
+    root = man_name[: -len("manifest.json")]
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+        member_bytes = {m: z.read(root + m) for m in want_members}
+        crit_bytes = z.read(root + "criteria/criteria_harmonized.csv")
+    for m, want in want_members.items():
+        got = _sha256_bytes(member_bytes[m])
+        if got != want:
+            raise SystemExit(f"bundle member {m} digest {got} != {want}")
+    crit_sha = _sha256_bytes(crit_bytes)
+    if want_crit_prefix and not crit_sha.startswith(want_crit_prefix):
+        raise SystemExit(
+            f"bundle criteria member digest {crit_sha[:12]} lacks the "
+            f"expected prefix {want_crit_prefix}")
+    corpus_text = member_bytes["data/current.csv"].decode("utf-8-sig")
+    parse = mods.common_parser._parse_csv_tolerant_text(corpus_text)
+    expected = int(bundle_cfg.get("expected_records", 0))
+    if expected and len(parse.rows) != expected:
+        raise SystemExit(
+            f"bundle corpus has {len(parse.rows)} records, expected {expected}")
+    ident = {
+        "identified_by": "manifest content (member sha256 map), then byte "
+                         "verification; filename recorded as opaque key only",
+        "zip_opaque_key": zp.name,
+        "zip_sha256": got_zip_sha,
+        "manifest_created_at": manifest.get("created_at"),
+        "manifest_created_by": manifest.get("created_by"),
+        "member_sha256_verified": {m: _sha256_bytes(b)
+                                   for m, b in member_bytes.items()},
+        "criteria_member_sha256": crit_sha,
+        "records": len(parse.rows),
+        "population_banner": bundle_cfg.get("population_banner", ""),
+    }
+    return parse, ident
+
+
+def derive_rows_from_parent(mods: _Mods, spec: Dict[str, Any],
+                            arm: Dict[str, Any], a_columns: List[str],
+                            text_stats: Dict[str, float]) -> Tuple[List[Dict[str, Any]], str, str]:
+    """Translate the parent free-text arm and keep only the named ids. The
+    derived CSV's data rows must be BYTE-IDENTICAL to the parent's harmonized
+    output rows — asserted line-by-line. Returns (rows, derived_csv_text,
+    parent_harmonized_sha256)."""
+    parent = next(a for a in spec["arms"] if a["key"] == arm["derive_from"])
+    parent_text = _read_text(PROJECT_ROOT / parent["source"])
+    parent_rows = translate_free_text(mods, parent_text, a_columns, text_stats)
+    parent_csv = mods.h_exporters._criteria_csv_text(parent_rows)
+    keep = [r for r in parent_rows if r["id"] in set(arm["ids"])]
+    if len(keep) != len(arm["ids"]):
+        raise SystemExit(
+            f"derived arm {arm['key']}: ids {arm['ids']} not all present in "
+            f"parent {arm['derive_from']}")
+    derived_csv = mods.h_exporters._criteria_csv_text(keep)
+    parent_lines = set(parent_csv.splitlines())
+    derived_lines = derived_csv.splitlines()
+    for line in derived_lines[1:]:  # skip header, compare data rows
+        if line not in parent_lines:
+            raise SystemExit(
+                f"derived arm {arm['key']}: row not byte-identical to the "
+                f"parent's harmonized output: {line[:80]!r}")
+    return keep, derived_csv, _sha256_bytes(parent_csv.encode("utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -456,6 +587,10 @@ def run_arm_dry(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
     trunc = int(spec["trunc_chars"])
     batches = [int(b) for b in spec.get("batch_sizes_reported", [5, 1])]
 
+    if arm["kind"] == "derived_rows":
+        return _run_derived_arm_dry(mods, spec, arm, a_columns, text_stats,
+                                    window, trunc, batches)
+
     if arm["kind"] == "free_text":
         rows = translate_free_text(mods, src_text, a_columns, text_stats)
         harmonized_text = mods.h_exporters._criteria_csv_text(rows)
@@ -539,6 +674,81 @@ def run_arm_dry(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
                 f"impacts_ok={impacts_ok}. The harness is wrong — STOPPING; do "
                 f"not touch the pinned test.")
     return manifest
+
+
+def _run_derived_arm_dry(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
+                         a_columns: List[str], text_stats: Dict[str, float],
+                         window: int, trunc: int,
+                         batches: List[int]) -> Dict[str, Any]:
+    """Supplement arms (wave 16a-deltas): rows derived byte-identically from a
+    free-text arm's harmonized output, run at ONE LLM stage over a bundle
+    corpus identified by manifest content. No deterministic chain runs — the
+    bundle's data/current.csv IS the stage population, with its F-168-style
+    banner carried on every artifact."""
+    stage = arm["stage"]
+    rows, derived_csv, parent_sha = derive_rows_from_parent(
+        mods, spec, arm, a_columns, text_stats)
+    bundle_parse, ident = resolve_bundle_corpus(mods, spec["corpus_bundle"])
+    bundle_cols = list(bundle_parse.header)
+
+    validator = validator_pass(mods, rows, bundle_cols)
+    linter = linter_pass(mods, rows, bundle_cols, bundle_parse.rows)
+    landings = stage_landings(mods, derived_csv)
+    diff = landings_vs_intent(landings, [i for i in arm.get("intents", [])
+                                         if i.get("intended_stage") is not None])
+    n_records = len(bundle_parse.rows)
+    budget = {
+        "EL": budget_pass(mods, "EL", derived_csv, bundle_parse.header,
+                          bundle_parse.rows, batches, window, trunc),
+        "IL": budget_pass(mods, "IL", derived_csv, bundle_parse.header,
+                          bundle_parse.rows, batches, window, trunc),
+    }
+    n_el = len(budget["EL"]["llm_criteria"])
+    n_il = len(budget["IL"]["llm_criteria"])
+    records_el = n_records if n_el else 0
+    records_il = n_records if n_il else 0
+    calls = arithmetic(mods, records_el, records_il, n_el, n_il, batches)
+
+    return {
+        "arm": arm["key"],
+        "kind": arm["kind"],
+        "source": arm["source"],
+        "derive_from": arm["derive_from"],
+        "derived_ids": arm["ids"],
+        "stage": stage,
+        "source_sha256": _sha256_bytes((PROJECT_ROOT / arm["source"]).read_bytes()),
+        "parent_harmonized_sha256": parent_sha,
+        "harmonized_sha256": _sha256_bytes(derived_csv.encode("utf-8")),
+        "byte_identity": "every derived data row appears verbatim in the "
+                         "parent arm's harmonized CSV (asserted)",
+        "corpus_bundle": ident,
+        "population_banner": ident["population_banner"],
+        "window": window,
+        "trunc_chars": trunc,
+        "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+        "harmonized_rows": [{
+            "stage": r.get("stage"), "id": r.get("id"), "type": r.get("type"),
+            "operator": r.get("operator"), "target": r.get("target"),
+            "what": r.get("what"), "threshold": r.get("threshold"),
+            "enabled": r.get("enabled"),
+        } for r in rows],
+        "validator": validator,
+        "linter": linter,
+        "landings": landings,
+        "landings_vs_intent": diff,
+        "funnel": {
+            "input": n_records,
+            "eh": {"out": "", "survivors": "", "pass_flagged": "", "impacts": {}},
+            "ih": {"out": "", "survivors": "", "pass_flagged": "", "impacts": {}},
+            "records_at_el": records_el,
+            "records_at_il": records_il,
+            "il_input_assumption": "single-stage supplement arm: the bundle "
+                                   "population is the stage input directly; "
+                                   "no deterministic chain runs",
+        },
+        "budget_guard": budget,
+        "call_arithmetic": calls,
+    }
 
 
 def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[Dict[str, Any]]:
@@ -666,10 +876,16 @@ def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
     lc._openai_client_for = (  # type: ignore[assignment]
         lambda *a, **k: _BudgetEnforcedClient(real_builder(*a, **k), counter, budget))
     try:
-        surv_chain = run_chain(mods, parse, harmonized_text)
-        surv = surv_chain.pop("survivor_rows_ih")
+        if arm["kind"] == "derived_rows":
+            surv = parse.rows  # the bundle population IS the stage input
+            stage_plan = [(arm["stage"],
+                           mods.el_screen if arm["stage"] == "EL" else mods.il_screen)]
+        else:
+            surv_chain = run_chain(mods, parse, harmonized_text)
+            surv = surv_chain.pop("survivor_rows_ih")
+            stage_plan = [("EL", mods.el_screen), ("IL", mods.il_screen)]
         results = {}
-        for stage, screen in (("EL", mods.el_screen), ("IL", mods.il_screen)):
+        for stage, screen in stage_plan:
             crits = screen._parse_criteria_harmonized_csv(
                 harmonized_text, stage_filter=stage)
             stage_parse = screen.ParseReport(header=parse.header, rows=surv, skipped=[])
@@ -740,7 +956,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             raise SystemExit("--live requires --arm, --budget and --yes-live")
         arm = arms[0]
         src_text = _read_text(PROJECT_ROOT / arm["source"])
-        if arm["kind"] == "free_text":
+        if arm["kind"] == "derived_rows":
+            _rows, harmonized_text, _psha = derive_rows_from_parent(
+                mods, spec, arm, a_columns, text_stats)
+            parse, _ident = resolve_bundle_corpus(mods, spec["corpus_bundle"])
+        elif arm["kind"] == "free_text":
             rows = translate_free_text(mods, src_text, a_columns, text_stats)
             harmonized_text = mods.h_exporters._criteria_csv_text(rows)
         else:
