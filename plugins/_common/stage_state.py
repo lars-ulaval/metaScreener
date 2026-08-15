@@ -171,6 +171,38 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
             ack_reason=None,
         )
 
+    # F-65 (wave 15c): criteria the stage could not evaluate, recorded by
+    # the engine per criterion (`not_evaluated: {cid: reason}`). The skip
+    # changes no classification — the arithmetic below already describes
+    # the model truthfully now that the engines stopped counting skipped
+    # pairs as model silence — it is NAMED on top of whatever the run
+    # classifies as, in F-173's register: the criterion, what happened,
+    # what it keeps happening to the outcome column, and no conclusion.
+    # Cancelled and not-screened runs return above untouched: they tell
+    # you nothing about what would have been screened, including this.
+    not_evaluated = dict(llm_report.get("not_evaluated") or {})
+
+    def _named(outcome: "Outcome") -> "Outcome":
+        if not not_evaluated:
+            return outcome
+        naming = " ".join(f"{cid} was {reason}."
+                          for cid, reason in sorted(not_evaluated.items()))
+        para = " ".join(
+            f"{cid} was {reason}. It marked every record UNCERTAIN "
+            f"without evaluating it: no record was included or excluded "
+            f"by it, and its presence keeps every surviving record "
+            f"flagged for review rather than passed clean. "
+            f"Re-harmonising the criteria routes it to the stage that "
+            f"executes it."
+            for cid, reason in sorted(not_evaluated.items()))
+        if outcome.ack_reason:
+            ack = f"{para}\n\n{outcome.ack_reason}"
+        else:
+            ack = f"{para}\n\nExport anyway?"
+        return Outcome(code=outcome.code,
+                       label=f"{outcome.label} {naming}",
+                       ack_reason=ack)
+
     records = int(llm_report.get("records", 0) or 0)
     answered = int(llm_report.get("answered", 0) or 0)
     failed = int(llm_report.get("failed", 0) or 0)
@@ -194,7 +226,7 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                  + suppressed)
 
     if records and answered == 0:
-        return Outcome(
+        return _named(Outcome(
             code=OUTCOME_NO_ANSWERS,
             label=(f"{stage}: NO ANSWERS — 0 of {records} record-criterion "
                    f"pairs carry a decision ({failed} failed)."),
@@ -212,7 +244,7 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"call.\n\n"
                 f"Export anyway?"
             ),
-        )
+        ))
 
     # F-193, and it sits here for the reason branch 3 sits above branch 4.
     # A model that answers almost nothing also separates nothing, also
@@ -232,7 +264,7 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
     # different condition with a different remedy.
     if records and (no_answer / records) >= LOW_ANSWER_RATE:
         pct = 100.0 * no_answer / records
-        return Outcome(
+        return _named(Outcome(
             code=OUTCOME_LOW_ANSWER_RATE,
             label=(f"{stage}: low answer rate — {answered} of {records} "
                    f"record-criterion pairs carry a decision; {no_answer} "
@@ -276,10 +308,10 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"came back.\n\n"
                 f"Export anyway?"
             ),
-        )
+        ))
 
     if total_rows and separated == 0:
-        return Outcome(
+        return _named(Outcome(
             code=OUTCOME_NOTHING_SEPARATED,
             label=(f"{stage}: nothing separated — every record flagged "
                    f"(model answered {answered} of {records})."),
@@ -303,7 +335,7 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
                 f"human review.\n\n"
                 f"Export anyway?"
             ),
-        )
+        ))
 
     if suppressed:
         # F-153, the wave 12 review's confirmed finding. This branch used
@@ -327,7 +359,7 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
         # either way.
         gaps = (f" {failed} failed and {rejected} unreadable of {records}."
                 if (failed or rejected) else "")
-        return Outcome(
+        return _named(Outcome(
             code=OUTCOME_EXCLUSIONS_SUPPRESSED,
             label=(f"{stage} done, flag-only — {suppressed} record(s) carry "
                    f"a model exclusion that was not acted on.{gaps}"),
@@ -341,17 +373,18 @@ def run_outcome(*, stage: str, counts: Mapping[str, int],
             # truth; asking a user to acknowledge a working safety gate as
             # damage would be the same error with the sign flipped.
             ack_reason=None,
-        )
+        ))
 
     if failed or rejected:
-        return Outcome(
+        return _named(Outcome(
             code=OUTCOME_PARTIAL_FAILURE,
             label=(f"{stage} done, with gaps — {failed} failed and "
                    f"{rejected} unreadable of {records}."),
             ack_reason=None,
-        )
+        ))
 
-    return Outcome(code=OUTCOME_OK, label=f"{stage} done.", ack_reason=None)
+    return _named(Outcome(code=OUTCOME_OK, label=f"{stage} done.",
+                          ack_reason=None))
 
 
 # ----------------------------

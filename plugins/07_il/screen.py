@@ -523,12 +523,20 @@ def run_il_screen(
     # is filled, which is what makes that true.
     policy: Dict[str, Any] = {}
 
+    # F-65 (wave 15c): criteria this stage cannot evaluate, {cid: reason}.
+    # Filled by the criterion loop, carried into the run report and from
+    # there into the manifest's history entry — the two places that used
+    # to say nothing while the criterion silently did nothing.
+    not_evaluated: Dict[str, str] = {}
+
     def _run_report(evidence: Dict[Tuple[str, str], Dict[str, Any]]) -> Dict[str, Any]:
         report: Dict[str, Any] = dict(summarize_llm_evidence(evidence))
         report.update(call_stats)
         if provenance:
             report["provenance"] = dict(provenance)
         report.update(policy)
+        if not_evaluated:
+            report["not_evaluated"] = dict(not_evaluated)
         return report
 
     if not crits:
@@ -791,10 +799,21 @@ def run_il_screen(
                     cache_out[k] = dict(ev)
 
         elif c.operator != "llm":
-            # deterministic operator (rare in IL). Mark uncertain; real deterministic logic can be added later.
-            for it in to_call:
-                a_id = _safe_str(it.get("a_id","")).strip()
-                llm_results[(a_id, c.id)] = {"used": False, "decision":"uncertain","confidence":0.0,"field":"abstract","quote":"","span":None,"valid_quote":False}
+            # F-65 (wave 15c): a deterministic operator here is never
+            # evaluated — the row loop marks every record UNCERTAIN with
+            # its note, unchanged. What changed: the inert stubs this
+            # branch used to write into `llm_results` are gone. Nothing
+            # ever read them for a decision (the row loop short-circuits
+            # first), but `summarize_llm_evidence` counted each as
+            # `no_answer` — model silence — so one such criterion made
+            # `run_outcome` diagnose "low answer rate … came back
+            # unreadable" about requests that were never sent, into the
+            # manifest. The skip is recorded per criterion instead, where
+            # the report, the manifest and the completion message can
+            # say it.
+            not_evaluated[c.id] = (
+                f"not evaluated: deterministic operator '{c.operator}' "
+                f"at IL, which runs llm only (F-65)")
 
         if progress_cb:
             progress_cb(ci / max(1, len(crits)) * 0.7)

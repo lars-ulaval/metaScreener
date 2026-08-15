@@ -1121,7 +1121,13 @@ class ELView(ttk.Frame):
         box = ttk.Labelframe(win, text="Per-criterion evidence (from el_evidence_json)")
         box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-        cols = ["cid", "type", "operator", "targets", "what", "threshold", "status", "decision", "confidence", "field", "quote_valid", "quote"]
+        # F-65 (wave 15c): "note" is the EH/IH detail modal's precedent
+        # column. The evidence JSON has carried a per-criterion note —
+        # "non-llm operator in EL stage" — in every export since the
+        # stages existed, and this modal parsed it and dropped it, so
+        # the one place a user inspects a record never said WHY a
+        # criterion sat at UNCERTAIN.
+        cols = ["cid", "type", "operator", "targets", "what", "threshold", "status", "decision", "confidence", "field", "quote_valid", "quote", "note"]
         table = DataTable(box, on_sort=lambda _c: None, on_row_activate=None)
         table.pack(fill="both", expand=True, padx=6, pady=6)
         table.set_columns(cols)
@@ -1158,6 +1164,7 @@ class ELView(ttk.Frame):
                 "field": field,
                 "quote_valid": qv,
                 "quote": quote,
+                "note": _safe_str(obj.get("note", "")),
             })
 
         table.render_rows_incremental(detail_rows)
