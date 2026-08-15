@@ -517,3 +517,71 @@ class TestTheBudgetGuard:
         import inspect
         sig = inspect.signature(lc.check_context_budget)
         assert sig.parameters["noun"].default == "record"
+
+
+# ---------------------------------------------------------------------------
+# 8. F-186 — a failure names its cause, with the numbers
+# ---------------------------------------------------------------------------
+
+class TestTheFailureRecord:
+    """F-186: truncation, malformation, refusal and a repetition loop
+    used to produce one indistinguishable 200-character message that
+    misled the first person to read it. Every fact that was in hand at
+    the old raise site — finish_reason, all three token counts, the
+    reply length, the parse exception's own message — now reaches the
+    diagnostics record and the log; the dialog keeps the plain
+    sentence."""
+
+    def test_an_unusable_chunk_records_all_four_facts(self, monkeypatch):
+        in_rows = [_row(i) for i in range(4)]
+        bad = '{"rows": [{"id": "IC-0", "type": '
+        _rows_out, outcome, _c, logs = _run(monkeypatch, in_rows,
+                                            [bad, bad])
+        recs = [d for d in outcome.diagnostics if "unusable reply" in d]
+        assert recs, outcome.diagnostics
+        rec = recs[0]
+        assert "finish_reason=stop" in rec
+        assert "prompt_tokens=100" in rec
+        assert "completion_tokens=50" in rec
+        assert "total_tokens=150" in rec
+        assert "reply_chars=%d" % len(bad) in rec
+        assert any(rec in l for l in logs), "the record reaches the log"
+
+    def test_the_parse_exception_survives_with_its_position(
+            self, monkeypatch):
+        """The old message quoted 200 chars ending mid-token and threw
+        the JSONDecodeError away; the error's own message names the
+        offending position and now survives."""
+        in_rows = [_row(i) for i in range(4)]
+        bad = '{"rows": [{"id": "IC-0", "type": '
+        _rows_out, outcome, _c, _l = _run(monkeypatch, in_rows,
+                                          [bad, bad])
+        rec = [d for d in outcome.diagnostics if "unusable reply" in d][0]
+        assert "parse_error=" in rec
+        assert "JSONDecodeError" in rec or "Expecting" in rec
+
+    def test_wrong_shape_is_distinguishable_from_malformed(
+            self, monkeypatch):
+        """Valid JSON with no rows list is a different failure from
+        JSON that never parsed, and the record must say which."""
+        in_rows = [_row(i) for i in range(4)]
+        wrong_shape = json.dumps({"verdict": "looks fine"})
+        _rows_out, outcome, _c, _l = _run(monkeypatch, in_rows,
+                                          [wrong_shape, wrong_shape])
+        rec = [d for d in outcome.diagnostics if "unusable reply" in d][0]
+        assert "carried no rows list" in rec
+        assert "JSONDecodeError" not in rec
+
+    def test_the_dialog_stays_in_the_users_register(self, monkeypatch):
+        """The numbers go to the log; the dialog says what happened in
+        plain words (the adjudicated split of F-186's remedy)."""
+        in_rows = [_row(i) for i in range(4)]
+        bad = '{"rows": [{"id": "IC-0", '
+        rows, outcome, _c, _l = _run(monkeypatch, in_rows, [bad, bad])
+        vr = _vreport()
+        report = vr.build_validation_report(
+            rows, COLS, show_ok=True, kept_notes=outcome.kept)
+        body = report.dialog.body
+        assert "kept your original" in body
+        assert "finish_reason" not in body
+        assert "JSONDecodeError" not in body
