@@ -677,6 +677,35 @@ evaluates anything.
   for your review rather than acting on anything. Batch size 1 was the
   measured-clean setting at five times the requests of batch 5; the tooltip
   beside the box now gives you these numbers and leaves the choice with you.
+- **A keyword criterion filters records now, instead of silently doing
+  nothing.** A criterion like *"the title, abstract, or keywords mention
+  training"* was routed to the LLM stages, which run only `llm` rules —
+  so it marked every record "uncertain" without ever being evaluated, on
+  every run since the software existed. Such criteria now route to the
+  deterministic stage that executes them, and they read **every** field
+  they name: the evaluator used to check only the first non-empty field,
+  so a three-field OR was in practice a title-only test. Both together
+  change the demonstration corpus's deterministic funnel from
+  `776 → … → 147` to `776 → 16 → 760 → 22` under today's rules — the
+  keyword criterion turns out to remove most of the corpus, which the
+  criteria Preview now warns about before anything is spent. Already-
+  exported bundles still run exactly as before; what changes for them is
+  honesty, not outcomes: the run report and the bundle manifest record
+  per criterion that it was not evaluated, the completion message names
+  the criterion and the cause instead of misreporting a "low answer
+  rate" about requests that were never sent, and the record detail
+  window shows the reason column the heuristic stages always had.
+  Authoring such a table is refused with a named row error, and a rule
+  the model's refinement mis-stages is repaired and the repair is shown,
+  not just logged.
+- **A hosted OpenAI configuration is no longer refused at the default
+  batch size.** The context-window guard's default now follows the
+  provider: 4,096 — the measured local serving window — for local
+  servers, and 128,000 for OpenAI's own endpoint, per its model
+  documentation. A stored `context_window` still wins over either, and
+  the refusal message for a hosted endpoint now says the remedy that
+  actually exists there (the setting; there is no server of yours to
+  restart) instead of describing a local server's truncation behaviour.
 - **A run that would silently overflow the model's context window now
   refuses to start.** Measured on a local server: when a request exceeds the
   window, the server does not trim the excess — it keeps only the tokens
