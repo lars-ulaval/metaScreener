@@ -51,6 +51,33 @@ OPERATORS = (
     "llm",
 )
 
+#: Every operator except ``llm`` — what the deterministic evaluator
+#: (`plugins/_common/evaluator.py::_eval_criterion`) implements.
+DETERMINISTIC_OPERATORS = frozenset(OPERATORS) - {"llm"}
+
+#: Which operators actually EXECUTE at each stage — the stage-routing
+#: rule's compatibility half (F-65). Hoisted here from ``linter.py`` at
+#: wave 15c so the translator, the row validator, the refiner, the
+#: linter and the preview all read one map instead of five prose copies
+#: (F-109's discipline); ``linter.py`` re-exports it, and
+#: ``tests/test_criteria_linter.py`` pins it against the real evaluator
+#: rather than trusting this comment.
+EXECUTABLE_BY_STAGE = {
+    "EH": DETERMINISTIC_OPERATORS,
+    "IH": DETERMINISTIC_OPERATORS,
+    # EL/IL mark every non-`llm` operator UNCERTAIN *without evaluating
+    # it* — F-65's fall-through in the stage engines.
+    "EL": frozenset({"llm"}),
+    "IL": frozenset({"llm"}),
+}
+
+
+def executable_operators(stage: str) -> Tuple[str, ...]:
+    """Which operators actually execute at ``stage``. Empty for an
+    unknown stage."""
+    return tuple(sorted(EXECUTABLE_BY_STAGE.get(
+        _safe_str(stage).strip().upper(), ())))
+
 
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")

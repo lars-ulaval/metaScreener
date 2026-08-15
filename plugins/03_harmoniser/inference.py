@@ -16,9 +16,14 @@ Concerns owned by this module:
     assembling the final harmonised rows.
 
 The inference engine evaluates six pattern categories in sequence
-(language, year, document type, venue/journal, DOI, keyword-in-text)
-and falls back to operator='llm' (EL/IL stage) when no deterministic
-pattern matches. See manuscript Algorithm 1 for the full specification.
+(language, year, document type, venue/journal, DOI, keyword-in-text) —
+every one of them emitting a deterministic rule at the heuristic stage
+of its criterion's type — and falls back to operator='llm' (EL/IL
+stage) when no deterministic pattern matches. See manuscript Algorithm 1
+for the full specification. (Until wave 15c this paragraph was wrong
+about branch 6, and so was branch 6: keyword-in-text emitted `contains`
+at IL/EL, where it was never evaluated — F-65. `_validate_row` now
+rejects that pairing from any producer.)
 
 Imports only from .parser; no GUI, no LLM dependencies. Safe to reuse
 standalone.
@@ -34,6 +39,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from .parser import (
     STAGES,
     OPERATORS,
+    EXECUTABLE_BY_STAGE,
+    executable_operators,
     _safe_str,
     _canonicalize_targets,
     _parse_what_cell,
@@ -308,7 +315,14 @@ def _infer_criterion_details(
                         # fallback: use label itself
                         what = [label]
 
-            stage = "IL" if crit_type == "include" else "EL"
+            # F-65 (wave 15c): a `contains` rule is deterministic and
+            # routes to the heuristic stage of its type, like every
+            # other deterministic branch. This branch used to say
+            # `"IL" if include else "EL"` — the only branch pairing a
+            # deterministic operator with a stage that runs llm only,
+            # which marked the criterion UNCERTAIN for every record of
+            # every run without evaluating it.
+            stage = "IH" if crit_type == "include" else "EH"
             return {"stage": stage, "operator": operator, "target": target, "what": what}
 
     return {"stage": stage, "operator": operator, "target": target, "what": what}
@@ -334,6 +348,21 @@ def _validate_row(row: Dict[str, Any], a_columns: Sequence[str]) -> Tuple[List[s
     op = _safe_str(row.get("operator")).strip().lower()
     if op not in OPERATORS:
         errs.append("Invalid operator")
+
+    # F-65 (wave 15c): stage and operator were validated separately, so
+    # a deterministic rule at an LLM stage — silently never evaluated by
+    # the engines — passed with zero errors and zero warnings, from
+    # every producer: the translator, the refiner, a hand edit, an
+    # imported table. The cross-check is the net over all of them, and
+    # it is an ERROR because the row it admits does nothing at all —
+    # 13c's linter deliberately kept warn-never-block for itself and
+    # recorded this error as the deferred other half.
+    if stage in EXECUTABLE_BY_STAGE and op in OPERATORS \
+            and op not in EXECUTABLE_BY_STAGE[stage]:
+        errs.append(
+            f"operator '{op}' cannot execute at stage {stage}: "
+            f"{stage} runs {', '.join(executable_operators(stage))} only"
+        )
 
     target = _safe_str(row.get("target")).strip()
     if not target:

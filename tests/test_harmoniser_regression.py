@@ -122,8 +122,11 @@ EXPECTED_RULES = {
     "IC-1": ("IL", "llm", "keywords", 1),
     "IC-3": ("IH", "equals", "lang", ["English"]),
     "IC-4": ("IH", "gte", "year", ["2018"]),
-    # F-65: `contains` at an LLM stage, never evaluated. Not this wave's.
-    "IC-5": ("IL", "contains", "title,abstract,keywords",
+    # F-65 REPAIRED in wave 15c: a `contains` rule is deterministic and
+    # routes to the heuristic stage of its type, where the evaluator
+    # actually runs it. (Its corpus effect is pinned by
+    # tests/test_stage_routing.py::TestTheChainAsRouted.)
+    "IC-5": ("IH", "contains", "title,abstract,keywords",
              ["training", "vocational", "workplace"]),
     # F-167 REPAIRED in wave 13d: both languages the label names.
     "EC-1": ("EH", "in_list", "lang", ["French", "Spanish"]),

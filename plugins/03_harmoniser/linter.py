@@ -41,6 +41,16 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .parser import TARGET_ALIASES, _parse_what_cell, _safe_str
+# Wave 15c (F-65/F-109): the executable-operators map moved to
+# ``parser.py``, the package's vocabulary home, so the translator and the
+# row validator can enforce what this module reports. Re-exported under
+# the old names — ``preview.py`` and ``validate_report.py`` keep
+# importing from here, and ``tests/test_criteria_linter.py`` keeps
+# pinning the map against the real evaluator.
+from .parser import (
+    EXECUTABLE_BY_STAGE as _EXECUTABLE_BY_STAGE,
+    executable_operators,
+)
 
 # --------------------------------------------------------------------------
 # Severity. Deliberately NOT the findings register's Critical/High/Medium/Low:
@@ -398,22 +408,8 @@ def _check_dropped_operand(row: Dict[str, Any]) -> Optional[Finding]:
 
 INERT_AT_STAGE = "inert-at-stage"
 
-_DETERMINISTIC_OPERATORS = frozenset({
-    "equals", "contains", "regex", "in_list", "not_in", "gte", "lte", "between",
-})
-
-_EXECUTABLE_BY_STAGE = {
-    "EH": _DETERMINISTIC_OPERATORS,
-    "IH": _DETERMINISTIC_OPERATORS,
-    # EL/IL mark every non-`llm` operator UNCERTAIN *without evaluating it*.
-    "EL": frozenset({"llm"}),
-    "IL": frozenset({"llm"}),
-}
-
-
-def executable_operators(stage: str) -> Tuple[str, ...]:
-    """Which operators actually execute at ``stage``. Empty for an unknown stage."""
-    return tuple(sorted(_EXECUTABLE_BY_STAGE.get(_safe_str(stage).strip().upper(), ())))
+# (The executable-operators map lived here until wave 15c; see the
+# re-export beside the parser imports at the top of the module.)
 
 
 def _check_inert_at_stage(row: Dict[str, Any]) -> Optional[Finding]:

@@ -125,12 +125,13 @@ class TestTheChainReproducesARealRun:
     def test_the_corpus_size_is_reported(self, report):
         assert report.corpus_n == 776
 
-    def test_the_deterministic_chain_is_776_760_147(self, report):
-        """Wave 13d's measured chain, reproduced through the preview."""
+    def test_the_deterministic_chain_is_776_760_22(self, report):
+        """Wave 15c's measured chain: IC-5 routed to IH (F-65) under the
+        union evaluator (F-204). Wave 13d's 147 held until this wave."""
         eh, ih = _stage(report, "EH"), _stage(report, "IH")
         assert (eh.in_n, eh.out_n) == (776, 760)
-        assert (ih.in_n, ih.out_n) == (760, 147)
-        assert report.survivors_n == 147
+        assert (ih.in_n, ih.out_n) == (760, 22)
+        assert report.survivors_n == 22
 
     def test_it_agrees_with_run_screen_criterion_by_criterion(self, report,
                                                               harmonised, corpus):
@@ -190,11 +191,13 @@ class TestTheDisplayCannotProduceAMisleadingTotal:
     """Six records fail both IC-3 and IC-4. 8 + 611 = 619, but IH removes 613."""
 
     def test_the_overlap_is_real_on_this_corpus(self, report):
+        """Routed (wave 15c), the overlap is enormous: IC-4 and IC-5
+        each remove most of the corpus, largely the same records."""
         ih = _stage(report, "IH")
         naive = sum(c.removed_n for c in ih.criteria if c.evaluated)
-        assert naive == 619
-        assert ih.removed_n == 613
-        assert ih.overlap_n == 6
+        assert naive == 8 + 611 + 690
+        assert ih.removed_n == 738
+        assert ih.overlap_n == 565
 
     def test_the_stage_total_is_never_the_sum_of_its_criteria(self, report):
         for s in report.stages:
@@ -226,10 +229,11 @@ class TestTheDisplayCannotProduceAMisleadingTotal:
 class TestLlmRowsAreVisiblyNotEvaluated:
     """Four of the eight reference criteria are `llm`. Silence would misrepresent."""
 
-    def test_all_four_llm_criteria_are_present(self, report):
+    def test_all_three_llm_criteria_are_present(self, report):
+        """Three since wave 15c: IC-5 routed to IH and EVALUATES now."""
         seen = {c.criterion_id for s in report.stages for c in s.criteria
                 if not c.evaluated}
-        assert seen == {"IC-1", "IC-5", "EC-2", "EC-3"}
+        assert seen == {"IC-1", "EC-2", "EC-3"}
 
     def test_they_are_marked_not_evaluated_rather_than_zero(self, report):
         for cid in ("IC-1", "EC-2", "EC-3"):
@@ -240,32 +244,50 @@ class TestLlmRowsAreVisiblyNotEvaluated:
                 "different claim from 'was not run'")
             assert c.not_evaluated_reason
 
-    def test_ic5_is_a_deterministic_operator_stranded_at_an_llm_stage(self, report):
-        """F-65: `contains` at IL is never evaluated by anything, ever.
+    STRAND_HEADER = ["local_id", "lang", "keywords"]
+    STRAND_CORPUS = [{"local_id": "a", "lang": "en", "keywords": "x"},
+                     {"local_id": "b", "lang": "fr", "keywords": "y"}]
 
-        This is a different problem for the reader from "the preview makes no model
-        calls", and the two reasons must not collapse into one another: IC-1 will run
-        when the user screens, IC-5 will not run then either.
-        """
-        stranded = _crit(report, "IC-5")
-        plain_llm = _crit(report, "IC-1")
+    @pytest.fixture(scope="class")
+    def stranded_report(self):
+        """A hand-stranded row beside a plain llm row. The translator no
+        longer produces the stranded pairing (wave 15c routed branch 6)
+        and `_validate_row` errors on it, but every already-harmonised
+        bundle still carries it — the preview must keep telling the two
+        kinds of not-evaluated apart."""
+        return _preview().build_criteria_preview(
+            [_row(id="IC-S", type="include", stage="IL",
+                  operator="contains", target="keywords", what=["x"],
+                  threshold="0.60"),
+             _row(id="IC-L", type="include", stage="IL", operator="llm",
+                  target="keywords", what=["x"], threshold="0.60")],
+            self.STRAND_HEADER, self.STRAND_CORPUS)
+
+    def test_a_stranded_row_is_still_told_apart_from_a_plain_llm_row(
+            self, stranded_report):
+        """F-65's class on an old bundle: `contains` at IL is never
+        evaluated by anything, ever — a different problem for the reader
+        from "the preview makes no model calls". IC-L will run when the
+        user screens; IC-S will not run then either."""
+        stranded = _crit(stranded_report, "IC-S")
+        plain_llm = _crit(stranded_report, "IC-L")
         assert stranded.evaluated is False and plain_llm.evaluated is False
         assert stranded.operator == "contains"
         assert "never run" in stranded.not_evaluated_reason, (
-            "F-65 is permanent, not a limitation of this preview")
+            "F-65 is permanent for this table, not a preview limitation")
         assert "F-65" in stranded.not_evaluated_reason
-        assert "never run" not in plain_llm.not_evaluated_reason, (
-            "IC-1 WILL run when the user screens; only the preview skips it")
+        assert "never run" not in plain_llm.not_evaluated_reason
         assert stranded.not_evaluated_reason != plain_llm.not_evaluated_reason
 
-    def test_the_body_distinguishes_the_two_kinds_of_not_evaluated(self, report):
-        body = report.dialog.body
+    def test_the_body_distinguishes_the_two_kinds_of_not_evaluated(
+            self, stranded_report):
+        body = stranded_report.dialog.body
         assert "never run" in body
         assert "makes no model calls" in body
 
     def test_the_body_says_so_in_words(self, report):
         body = report.dialog.body
-        for cid in ("IC-1", "IC-5", "EC-2", "EC-3"):
+        for cid in ("IC-1", "EC-2", "EC-3"):
             assert cid in body
         assert "not evaluated" in body.lower()
 
@@ -483,7 +505,7 @@ class TestTheLogLineAndDialogShape:
 
     def test_the_log_line_names_the_chain(self, report):
         assert report.log_line == (
-            "Preview: 776 records, EH 776->760, IH 760->147, 147 survive")
+            "Preview: 776 records, EH 776->760, IH 760->22, 22 survive")
 
     def test_an_empty_criteria_table_is_handled_rather_than_crashing(self, corpus):
         header, rows = corpus
@@ -593,9 +615,15 @@ class TestAStageThatRemovesNearlyEverythingIsNotable:
             assert c.removed_fraction < 0.75
         assert "high-removal" not in {n.kind for n in wipeout.notes}
 
-    def test_the_reference_corpus_is_not_flagged_as_a_wipeout(self, report):
-        assert "stage-wipeout" not in {n.kind for n in report.notes}, (
-            "IH removes 81%, which is notable per criterion but not a wipeout")
+    def test_the_routed_reference_corpus_IS_flagged_as_a_wipeout(self, report):
+        """Until wave 15c IH removed 81% and this test asserted no
+        wipeout note. Routed, IH removes 738 of 760 (97%) — and the
+        note firing is the preview doing exactly its job: the user sees
+        the 22-survivor funnel before spending anything on it."""
+        kinds = {n.kind for n in report.notes}
+        assert "stage-wipeout" in kinds
+        assert any(n.kind == "stage-wipeout" and n.criterion_id == "IH"
+                   for n in report.notes)
 
 
 class TestDuplicateCriterionIdsAreCalledOut:
@@ -675,12 +703,18 @@ class TestTheOvercountIsCarriedSeparatelyFromTheRecordCount:
     def test_the_overstatement_is_two(self, triple):
         assert triple.stages[0].overcount_n == 2
 
-    def test_they_differ_here_and_coincide_on_the_reference_corpus(self, triple,
-                                                                   report):
+    def test_they_differ_here_and_on_the_routed_reference_corpus(self, triple,
+                                                                 report):
+        """Until wave 15c the reference corpus had overlap == overcount
+        == 6 — the coincidence that made the first cut's docstring look
+        true. Routed, the two quantities separate on the reference
+        corpus as well: 565 records removed by more than one criterion,
+        571 excess row-tallies."""
         assert triple.stages[0].overlap_n != triple.stages[0].overcount_n
         ih = _stage(report, "IH")
-        assert ih.overlap_n == ih.overcount_n == 6, (
-            "the coincidence that made the first cut's docstring look true")
+        assert ih.overlap_n == 565
+        assert ih.overcount_n == 571
+        assert ih.overlap_n != ih.overcount_n
 
     def test_the_body_states_the_true_shortfall(self, triple):
         assert "do not add up to 1" in triple.dialog.body

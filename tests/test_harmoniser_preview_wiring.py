@@ -177,16 +177,20 @@ class TestPressingItShowsTheRealNumbers:
         kind, title, body = shown[0]
         assert kind in _ui()._SHOW, "the kind must be dispatchable, not invented"
         assert title == "Criteria preview"
-        assert "776" in body and "760" in body and "147" in body
+        assert "776" in body and "760" in body and "22" in body
         assert "EC-4 removed no records" in body
         assert "IC-4 removed 611" in body
+        # Wave 15c: IC-5 evaluates at IH and removes most of the corpus;
+        # the wipeout note is the preview's warning about the routed
+        # funnel, on the same surface.
+        assert "IC-5 removed 690" in body
 
     def test_it_logs_the_chain(self, rows_and_columns, monkeypatch):
         rows, cols = rows_and_columns
         stub = _Stub([dict(r) for r in rows], cols, str(CORPUS))
         _run_preview(stub, monkeypatch)
         assert stub.logged == [
-            "Preview: 776 records, EH 776->760, IH 760->147, 147 survive"]
+            "Preview: 776 records, EH 776->760, IH 760->22, 22 survive"]
 
     def test_it_names_the_llm_rows_as_not_evaluated(
             self, rows_and_columns, monkeypatch):
@@ -194,9 +198,12 @@ class TestPressingItShowsTheRealNumbers:
         stub = _Stub([dict(r) for r in rows], cols, str(CORPUS))
         _ok, shown, _w = _run_preview(stub, monkeypatch)
         body = shown[0][2]
-        for cid in ("IC-1", "IC-5", "EC-2", "EC-3"):
+        # Three llm rows since wave 15c — IC-5 routes to IH and runs.
+        # The "never run" phrasing for a stranded row is pinned against
+        # a hand-stranded fixture in tests/test_criteria_preview.py.
+        for cid in ("IC-1", "EC-2", "EC-3"):
             assert cid in body
-        assert "never run" in body, "F-65's row is a different case and must read so"
+        assert "makes no model calls" in body
 
     def test_it_does_not_mutate_the_views_criteria_rows(
             self, rows_and_columns, monkeypatch):

@@ -32,7 +32,7 @@ does not invoke the LLM path) confirms that the rule-based output is unchanged.
 
 import json
 import os
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .parser import (
     STAGES,
@@ -180,8 +180,14 @@ def _llm_refine(
     a_columns: Sequence[str],
     model: str,
     log: Optional[callable] = None,
-) -> List[Dict[str, Any]]:
-    """LLM-assisted refinement (guardrailed)."""
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """LLM-assisted refinement (guardrailed).
+
+    Returns ``(rows, repairs)``. ``repairs`` names every stage↔operator
+    pairing this function corrected in the model's reply (F-65) — the
+    caller surfaces them on the completion dialog beside the other
+    validation notes, so a repair the refiner makes is never silent.
+    """
     def _log(msg: str) -> None:
         if log:
             log(msg)
@@ -222,6 +228,9 @@ def _llm_refine(
         "- Keep SAME number of rows.\n"
         "- Do NOT change ids or types.\n"
         "- target MUST be subset of allowed A columns.\n"
+        "- Stage and operator MUST pair: EH/IH run the deterministic "
+        "operators only; EL/IL run llm only. A deterministic operator "
+        "at EL/IL is never evaluated.\n"
         "- If unsure, prefer operator=llm and stage IL/EL.\n"
         "- Threshold: blank for EH/IH; for EL/IL must be 0..1 string (default 0.60).\n\n"
         "Output schema:\n"
@@ -250,6 +259,7 @@ def _llm_refine(
     expected = [(r.get("id"), r.get("type")) for r in rows]
 
     out_rows: List[Dict[str, Any]] = []
+    repairs: List[str] = []
     for i, rr in enumerate(got):
         if not isinstance(rr, dict):
             raise RuntimeError("LLM produced a non-object row")
@@ -277,6 +287,32 @@ def _llm_refine(
             nr["what"] = _parse_what_cell(nr["operator"] or "contains", nr["what"])
         nr["what"] = [str(x) for x in nr["what"] if str(x).strip()]
 
+        # F-65 (wave 15c): the prompt above nudges the model toward
+        # stage IL/EL, and a model that obeys the stage half while
+        # keeping a deterministic operator proposes exactly the pairing
+        # `_validate_row` now rejects. Repair by the router's own rule
+        # instead of failing the whole refine — and NAME the repair:
+        # the notes are returned to the caller, which puts them on the
+        # completion dialog beside every other validation note, not
+        # only in the log.
+        op0 = nr["operator"]
+        stage0 = nr["stage"]
+        if stage0 in ("EL", "IL") and op0 in OPERATORS and op0 != "llm":
+            nr["stage"] = "IH" if nr["type"] == "include" else "EH"
+            nr["threshold"] = ""
+            note = (f"{nr['id']}: the model put deterministic operator "
+                    f"'{op0}' at {stage0}, which runs llm only; "
+                    f"re-staged to {nr['stage']}")
+            repairs.append(note)
+            _log(f"LLM refine repair: {note}")
+        elif stage0 in ("EH", "IH") and op0 == "llm":
+            nr["stage"] = "IL" if nr["type"] == "include" else "EL"
+            note = (f"{nr['id']}: the model put operator 'llm' at "
+                    f"{stage0}, which never asks a model; re-staged to "
+                    f"{nr['stage']}")
+            repairs.append(note)
+            _log(f"LLM refine repair: {note}")
+
         errs, warns = _validate_row(nr, a_columns)
         if errs:
             raise RuntimeError(f"LLM refined row invalid ({nr.get('id')}): {', '.join(errs)}")
@@ -286,5 +322,5 @@ def _llm_refine(
         out_rows.append(nr)
 
     _log("LLM refine: done.")
-    return out_rows
+    return out_rows, repairs
 

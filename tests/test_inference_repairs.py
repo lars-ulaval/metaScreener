@@ -199,7 +199,8 @@ class TestTheSixCorrectRowsNeverMoved:
         "IC-1": ("IL", "llm", "keywords"),
         "IC-3": ("IH", "equals", "lang"),
         "IC-4": ("IH", "gte", "year"),
-        "IC-5": ("IL", "contains", "title,abstract,keywords"),
+        # IC-5 left this table at wave 15c: F-65's repair routes it to
+        # IH, its own wave, exactly as its row warned. Pinned below.
         "EC-2": ("EL", "llm", "keywords"),
         "EC-3": ("EL", "llm", "keywords"),
     }
@@ -209,11 +210,13 @@ class TestTheSixCorrectRowsNeverMoved:
         stage, operator, target = self.UNCHANGED[crit_id]
         assert _reference_rules()[crit_id][:3] == (stage, operator, target)
 
-    def test_IC_5_is_still_F_65s_row(self):
-        """Not this wave's, and deliberately not moved: `contains` at `IL` is
-        never evaluated, and F-65's cell warns that repairing it changes
-        screening outcomes."""
-        assert _reference_rules()["IC-5"][:2] == ("IL", "contains")
+    def test_IC_5_is_F_65s_row_repaired(self):
+        """Was pinned at `("IL", "contains")` — deliberately unmoved by
+        waves 13b–13d because F-65's cell warned the repair changes
+        screening outcomes. Wave 15c is that repair, adjudicated with
+        its measured corpus effect (147 → 22 under the F-204 union
+        evaluator; see tests/test_stage_routing.py)."""
+        assert _reference_rules()["IC-5"][:2] == ("IH", "contains")
 
     def test_a_gloss_cannot_pull_a_criterion_INTO_venue_either(self):
         """The other direction of the same rule, and the mutation battery found

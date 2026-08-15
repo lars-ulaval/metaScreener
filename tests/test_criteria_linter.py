@@ -324,17 +324,41 @@ class TestInertAtStage:
 
     CHECK = "inert-at-stage"
 
-    def test_it_fires_on_IC_5(self, rows, a_columns):
+    def test_the_translator_no_longer_strands_anything(self, rows, a_columns):
+        """Until wave 15c IC-5 arrived here as `contains` at IL and this
+        test asserted the check fired on it. The router repair (F-65)
+        routes every deterministic branch to IH/EH, so the reference
+        table now lints clean of this check — and the check's live
+        coverage moves to the hand-stranded fixture below, which is its
+        real remaining arrival route (hand edits, imported tables)."""
         lint = _linter()
         found = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)
+        assert _ids(found) == []
+
+    def _stranded(self, rows):
+        """IC-5 as every pre-15c table carries it: `contains` at IL."""
+        out = []
+        for r in rows:
+            r = dict(r)
+            if r["id"] == "IC-5":
+                r["stage"] = "IL"
+                r["threshold"] = "0.60"
+            out.append(r)
+        return out
+
+    def test_it_fires_on_a_stranded_row(self, rows, a_columns):
+        lint = _linter()
+        found = _by_check(
+            lint.lint_criteria(self._stranded(rows), a_columns), self.CHECK)
         assert _ids(found) == ["IC-5"], (
-            "IC-5 is `contains` at IL, where only `llm` executes. It has never "
-            "been applied to any record in any run (F-65)."
+            "`contains` at IL, where only `llm` executes — F-65's class, "
+            "as any already-harmonised bundle still carries it."
         )
 
     def test_the_finding_says_the_rule_will_not_run(self, rows, a_columns):
         lint = _linter()
-        f = _by_check(lint.lint_criteria(rows, a_columns), self.CHECK)[0]
+        f = _by_check(
+            lint.lint_criteria(self._stranded(rows), a_columns), self.CHECK)[0]
         assert f.severity == "INERT"
         assert "IL" in f.message and "contains" in f.message
 
@@ -346,8 +370,10 @@ class TestInertAtStage:
         for r in rows:
             r = dict(r)
             if r["id"] == "IC-5":
+                r["stage"] = "IL"
                 r["operator"] = "llm"
                 r["what"] = [r["label"]]
+                r["threshold"] = "0.60"
             as_llm.append(r)
         found = _by_check(lint.lint_criteria(as_llm, a_columns), self.CHECK)
         assert _ids(found) == []
@@ -774,8 +800,11 @@ class TestItStaysQuietOnHarderProse:
             "wave 13d repairs 'French, Spanish, or Portuguese' into in_list, so "
             "this adversarial row is now correct too — the repair generalises."
         )
-        assert "IC-5" in _ids(_by_check(report, "inert-at-stage")), (
-            "IC-5 is `contains` at IL — F-65's class on new input."
+        assert "IC-5" not in _ids(_by_check(report, "inert-at-stage")), (
+            "wave 15c routes keyword-in-text to IH/EH, so the adversarial "
+            "IC-5 is no longer stranded either — the repair generalises "
+            "exactly as 13d's did. The check's live coverage is the "
+            "hand-stranded fixture in TestInertAtStage."
         )
 
 

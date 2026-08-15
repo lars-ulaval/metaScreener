@@ -263,29 +263,45 @@ class TestTheLinterReadsAllThreeShapesIdentically:
             % (in_memory, reloaded, raw)
         )
 
-    def test_the_three_defective_rows_are_found_in_every_shape(self, rows, a_columns):
+    def test_the_live_table_lints_clean_and_the_classes_are_still_caught(
+            self, rows, a_columns):
+        """Until wave 15c IC-5 arrived stranded (`contains` at IL) and
+        this test asserted the linter fired on it. F-65's router repair
+        cleans the live table entirely; every defect class stays caught
+        on the pre-repair golden, which is the repository's own record
+        of all three."""
         lint = _linter()
         found = _findings(lint.lint_criteria(rows, a_columns))
-        assert found == [("IC-5", "inert-at-stage")], (
-            "F-166 and F-167 are repaired in wave 13d; only F-65's row remains, "
-            "and it is its own wave's"
-        )
-        # ...and the CLASS is still caught, on the pre-repair table:
+        assert found == []
         pre = _findings(lint.lint_criteria(_pre_repair_rows(), a_columns))
         assert ("EC-4", "target-mismatch") in pre        # F-166
         assert ("EC-1", "dropped-operand") in pre        # F-167
+        assert ("IC-5", "inert-at-stage") in pre         # F-65
 
-    def test_the_five_correct_rows_are_silent(self, rows, a_columns):
+    def test_all_eight_live_rows_are_silent(self, rows, a_columns):
         lint = _linter()
         noisy = {cid for cid, _ in _findings(lint.lint_criteria(rows, a_columns))}
-        assert noisy == {"IC-5"}, (
-            "after wave 13d every row except F-65's is correctly translated "
-            "and must produce nothing: %s" % sorted(noisy)
+        assert noisy == set(), (
+            "after waves 13d and 15c every reference row is correctly "
+            "translated and routed, and must produce nothing: %s"
+            % sorted(noisy)
         )
 
 
 def _report():
     return _import_plugin("03_harmoniser", "validate_report")
+
+
+def _findings_only_rows():
+    """Pre-repair rows that produce linter findings WITHOUT row errors:
+    EC-1 (dropped operand) and EC-4 (target mismatch, dropped operand).
+
+    IC-5's stranded row is deliberately absent: since wave 15c the
+    stage↔operator cross-check makes `contains` at IL a row ERROR — a
+    gate — and the tests using this fixture are about the notes that
+    are not one. The gate itself is pinned in
+    `TestTheLinterIsWiredInAndBlocksNothing`."""
+    return [r for r in _pre_repair_rows() if r["id"] in {"EC-1", "EC-4"}]
 
 
 class TestValidateAsItStandsToday:
@@ -307,14 +323,23 @@ class TestValidateAsItStandsToday:
         assert report.n_warning_rows == 0
         assert report.ok is True
 
-    def test_it_no_longer_says_all_good(self, rows, a_columns):
-        """FLIPPED. Was: kind=info, title="Validation OK",
-        body="All good. Warnings: 0" — with three mistranslated rows on screen."""
+    def test_all_good_is_true_when_said_and_unsaid_with_findings(
+            self, rows, a_columns):
+        """FLIPPED at 13c, RE-FLIPPED at 15c. 13c's defect: "All good"
+        with three mistranslated rows on screen. 15c routes the live
+        table clean, so "All good" is TRUE of it and shown again — the
+        guarantee that matters is that it is never shown with findings
+        outstanding, pinned on the pre-repair fixture."""
         vr = _report()
-        dialog = vr.build_validation_report(rows, a_columns).dialog
-        assert dialog.kind == "info"
-        assert dialog.title == "Criteria checked"
-        assert "All good" not in dialog.body
+        clean = vr.build_validation_report(rows, a_columns).dialog
+        assert clean.kind == "info"
+        assert "All good" in clean.body
+
+        noisy = vr.build_validation_report(
+            _findings_only_rows(), a_columns).dialog
+        assert noisy.kind == "info"
+        assert noisy.title == "Criteria checked"
+        assert "All good" not in noisy.body
 
     def test_the_dialog_now_names_every_criterion(self, rows, a_columns):
         """FLIPPED TWICE. Was: named no criterion at all. Then: a bare count,
@@ -342,9 +367,10 @@ class TestValidateAsItStandsToday:
                 "%s is the engine's vocabulary, not the user's." % check_name
             )
 
-    def test_the_dialog_says_it_does_not_block(self, rows, a_columns):
+    def test_the_dialog_says_it_does_not_block(self, a_columns):
         vr = _report()
-        body = vr.build_validation_report(rows, a_columns).dialog.body
+        body = vr.build_validation_report(
+            _findings_only_rows(), a_columns).dialog.body
         assert "these are notes, not a gate" in body
 
     def test_the_per_check_strings_now_reach_the_dialog(
@@ -455,51 +481,68 @@ class TestValidateAsItStandsToday:
         assert sum(1 for m in report.marks if m.tag == vr.TAG_WARN) == 0
 
     def test_the_log_line_now_carries_the_finding_count(self, rows, a_columns):
-        """FLIPPED. Was: "Validate: 8 rows, errors=0, warnings=0"."""
+        """FLIPPED at 13c (was: no findings count at all). The live
+        table's count fell to 0 at wave 15c; the non-zero pin moves to
+        the findings fixture so the count is still proven carried."""
         vr = _report()
-        report = vr.build_validation_report(rows, a_columns)
-        assert report.log_line == (
-            "Validate: 8 rows, errors=0, warnings=0, findings=1")
+        assert vr.build_validation_report(rows, a_columns).log_line == (
+            "Validate: 8 rows, errors=0, warnings=0, findings=0")
+        assert vr.build_validation_report(
+            _findings_only_rows(), a_columns).log_line == (
+            "Validate: 2 rows, errors=0, warnings=0, findings=3")
 
 
 class TestTheLinterIsWiredInAndBlocksNothing:
     """The constraint that defines the feature: warn, never block."""
 
-    def test_the_three_defective_rows_produce_findings_through_the_wired_path(
+    def test_the_defect_classes_produce_findings_through_the_wired_path(
             self, rows, a_columns):
         """Not through `lint_criteria` directly — through what Validate builds."""
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
-        found = sorted((f.criterion_id, f.check) for f in report.findings)
-        assert found == [("IC-5", "inert-at-stage")], (
-            "F-166 and F-167 are repaired; F-65's row is not this wave's"
-        )
+        assert sorted((f.criterion_id, f.check) for f in report.findings) \
+            == [], "the live table is clean since waves 13d and 15c"
         pre = vr.build_validation_report(_pre_repair_rows(), a_columns)
         pre_found = sorted((f.criterion_id, f.check) for f in pre.findings)
         assert ("EC-4", "target-mismatch") in pre_found
         assert ("EC-1", "dropped-operand") in pre_found
+        assert ("IC-5", "inert-at-stage") in pre_found
 
-    def test_the_five_correct_rows_produce_nothing_through_the_wired_path(
+    def test_all_eight_live_rows_produce_nothing_through_the_wired_path(
             self, rows, a_columns):
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
-        noisy = {f.criterion_id for f in report.findings}
-        assert noisy == {"IC-5"}
-        for quiet in ("IC-1", "IC-3", "IC-4", "EC-1", "EC-2", "EC-3", "EC-4"):
-            assert quiet not in noisy
+        assert {f.criterion_id for f in report.findings} == set()
 
-    def test_findings_do_not_change_the_verdict(self, rows, a_columns):
-        """`ok` is what gates export. Four findings, and it is still True."""
+    def test_findings_do_not_change_the_verdict(self, a_columns):
+        """`ok` is what gates export. Three findings, and it is still
+        True — for the finding kinds that are notes."""
+        vr = _report()
+        report = vr.build_validation_report(_findings_only_rows(), a_columns)
+        assert len(report.findings) == 3
+        assert report.ok is True
+
+    def test_the_cross_check_error_DOES_change_the_verdict(self, a_columns):
+        """Wave 15c's gate, in the open: the full pre-repair table
+        carries IC-5 stranded (`contains` at IL), which is now a row
+        ERROR — re-exporting an old defective table through the
+        harmoniser blocks until the row is re-staged. The stages
+        themselves still run such bundles; only authoring gates."""
         vr = _report()
         report = vr.build_validation_report(_pre_repair_rows(), a_columns)
+        assert report.ok is False
+        assert report.n_error_rows == 1
+        bad = [m for m in report.marks if m.errors]
+        assert [m.criterion_id for m in bad] == ["IC-5"]
+        assert "cannot execute" in bad[0].errors[0]
+        # The linter's findings ride along unchanged, gate or no gate.
         assert len(report.findings) == 4
-        assert report.ok is True
 
     def test_a_table_of_nothing_but_findings_still_passes(self, a_columns):
         """Every row mistranslated, and export is still permitted."""
         vr = _report()
         _rows, cols = _production_rows()
-        bad = [r for r in _pre_repair_rows() if r["id"] in {"EC-1", "EC-4", "IC-5"}]
+        bad = _findings_only_rows()
         report = vr.build_validation_report(bad, cols)
         assert len(report.findings) >= 3
         assert report.ok is True
@@ -579,8 +622,10 @@ class TestTheDialogUnderVolume:
 
     @staticmethod
     def _many(n_copies):
+        # EC-1/EC-4 copies only since wave 15c: a stranded IC-5 copy is
+        # now a row ERROR, and this class stresses the notes.
         _rows, cols = _production_rows()
-        bad = [r for r in _pre_repair_rows() if r["id"] in {"EC-1", "EC-4", "IC-5"}]
+        bad = _findings_only_rows()
         out = []
         for i in range(n_copies):
             for r in bad:
@@ -593,7 +638,7 @@ class TestTheDialogUnderVolume:
         vr = _report()
         rows, cols = self._many(12)
         report = vr.build_validation_report(rows, cols)
-        assert len(report.findings) == 48
+        assert len(report.findings) == 36
         bullets = [l for l in report.dialog.body.splitlines()
                    if l.strip().startswith("•")]
         assert len(bullets) <= vr.MAX_LISTED
@@ -616,8 +661,8 @@ class TestTheDialogUnderVolume:
         vr = _report()
         rows, cols = self._many(12)
         body = vr.build_validation_report(rows, cols).dialog.body
-        assert "and 29 more of these" in body
-        assert "and 11 more of these" in body
+        assert "and 28 more of these" in body
+        assert "24 criteria may not do what their wording says:" in body
         assert "in the log below the table" in body
 
     def test_the_headings_count_criteria_not_findings(self, rows, a_columns):
@@ -653,17 +698,18 @@ class TestRowTints:
     the new one; neither can be settled from a test.
     """
 
-    def test_the_three_flagged_rows_are_tinted_lint(self, rows, a_columns):
+    def test_flagged_rows_are_tinted_lint(self, a_columns):
         vr = _report()
-        report = vr.build_validation_report(rows, a_columns)
+        report = vr.build_validation_report(_findings_only_rows(), a_columns)
         tinted = {m.criterion_id for m in report.marks if m.tag == vr.TAG_LINT}
-        assert tinted == {"IC-5"}
+        assert tinted == {"EC-1", "EC-4"}
 
-    def test_the_five_correct_rows_are_not_tinted(self, rows, a_columns):
+    def test_all_eight_live_rows_are_not_tinted(self, rows, a_columns):
         vr = _report()
         report = vr.build_validation_report(rows, a_columns)
         untinted = {m.criterion_id for m in report.marks if not m.tag}
-        assert untinted == {"IC-1", "IC-3", "IC-4", "EC-1", "EC-2", "EC-3", "EC-4"}
+        assert untinted == {"IC-1", "IC-3", "IC-4", "IC-5",
+                           "EC-1", "EC-2", "EC-3", "EC-4"}
 
     def test_every_finding_has_a_tinted_row(self, rows, a_columns):
         """The dialog's promise, asserted."""
@@ -960,25 +1006,25 @@ class TestTheViewItself:
         return ok, shown, stub
 
     def test_the_validate_button_really_calls_the_linter(
-            self, rows, a_columns, monkeypatch):
-        """Reverting `_validate` to its pre-session body must fail HERE."""
+            self, a_columns, monkeypatch):
+        """Reverting `_validate` to its pre-session body must fail HERE.
+        Driven on the findings fixture since wave 15c — the live table
+        lints clean, which would make this test vacuous against it."""
         ok, shown, stub = self._run_validate(
-            [dict(r) for r in rows], a_columns, monkeypatch)
+            [dict(r) for r in _findings_only_rows()], a_columns, monkeypatch)
         assert ok is True
         assert len(shown) == 1
         kind, title, body = shown[0]
         assert kind == "showinfo"
         assert title == "Criteria checked"
-        assert "IC-5" in body, "F-65's row is the one finding that survives 13d"
-        assert "EC-4" not in body, "F-166 repaired"
-        assert "EC-1" not in body, "F-167 repaired"
+        assert "EC-4" in body and "EC-1" in body
         assert "All good" not in body
 
     def test_the_validate_button_logs_the_finding_count(
-            self, rows, a_columns, monkeypatch):
+            self, a_columns, monkeypatch):
         _ok, _shown, stub = self._run_validate(
-            [dict(r) for r in rows], a_columns, monkeypatch)
-        assert stub.logged == ["Validate: 8 rows, errors=0, warnings=0, findings=1"]
+            [dict(r) for r in _findings_only_rows()], a_columns, monkeypatch)
+        assert stub.logged == ["Validate: 2 rows, errors=0, warnings=0, findings=3"]
 
     def test_the_validate_button_uses_the_right_messagebox(
             self, a_columns, monkeypatch):
@@ -995,14 +1041,19 @@ class TestTheViewItself:
         assert shown[0][1] == "Validation failed"
 
     def test_render_rows_paints_the_lint_tint(self, rows, a_columns):
-        stub = self._Stub([dict(r) for r in rows], a_columns, self._Tree())
+        stub = self._Stub([dict(r) for r in _findings_only_rows()],
+                          a_columns, self._Tree())
         self._method("_render_rows")(stub, with_validation=True)
         painted = {vals[1]: (tags[0] if tags else "")
                    for vals, tags in stub.tree.rows}
-        assert painted["IC-5"] == "lint", "F-65's row, still flagged"
-        assert painted["IC-3"] == ""
-        assert painted["EC-1"] == "", "F-167 repaired in wave 13d"
-        assert painted["EC-4"] == "", "F-166 repaired in wave 13d"
+        assert painted["EC-1"] == "lint"
+        assert painted["EC-4"] == "lint"
+
+        # ...and the live table paints nothing (routed clean, wave 15c).
+        live = self._Stub([dict(r) for r in rows], a_columns, self._Tree())
+        self._method("_render_rows")(live, with_validation=True)
+        assert all(tags == () or not tags[0]
+                   for _vals, tags in live.tree.rows)
 
     def test_render_rows_paints_nothing_without_validation(self, rows, a_columns):
         stub = self._Stub([dict(r) for r in rows], a_columns, self._Tree())

@@ -107,6 +107,7 @@ def build_validation_report(
     *,
     show_ok: bool = True,
     lint: Optional[Callable[..., Any]] = None,
+    repair_notes: Sequence[str] = (),
 ) -> ValidationReport:
     """Decide what Validate should say and how the rows should be tinted.
 
@@ -116,6 +117,12 @@ def build_validation_report(
 
     ``lint`` is injectable so a test can induce a failing linter; production
     passes nothing and gets `linter.py::lint_criteria`.
+
+    ``repair_notes`` (wave 15c, F-65): what the LLM refiner corrected in
+    the model's reply before accepting it — passed by the View on the
+    validate that follows a refine, rendered in the dialog beside the
+    other notes, and absent from ``ok``: a named repair is a note, not a
+    gate.
     """
     if not rows:
         # `_validate` returns False here without saying anything at all. Kept.
@@ -231,7 +238,8 @@ def build_validation_report(
 
     dialog: Optional[Dialog] = None
     if show_ok:
-        dialog = compose_dialog(n_err, marks, findings, lint_error)
+        dialog = compose_dialog(n_err, marks, findings, lint_error,
+                                repair_notes=repair_notes)
 
     # `ok` is computed from `n_err` alone. Findings do not appear in it, and a
     # linter that failed outright does not appear in it either.
@@ -378,6 +386,7 @@ def compose_dialog(
     marks: Sequence[RowMark],
     findings: Sequence[Finding],
     lint_error: str,
+    repair_notes: Sequence[str] = (),
 ) -> Dialog:
     """The whole message. Never a prompt; never a question; never a gate.
 
@@ -392,6 +401,20 @@ def compose_dialog(
             n_error_rows,
             "1 row has an error and export is blocked until it is fixed.",
             "%d rows have errors and export is blocked until they are fixed."))
+
+    # F-65 (wave 15c): what the refiner corrected in the model's reply.
+    # First, because the user should learn the table is not verbatim the
+    # model's before reading anything else about it.
+    if repair_notes:
+        body.append("")
+        body.append(_plural(
+            len(repair_notes),
+            "1 adjustment was made to the model's refinement before it "
+            "was accepted:",
+            "%d adjustments were made to the model's refinement before "
+            "it was accepted:"))
+        for note in repair_notes:
+            body.append("  • %s" % note)
     # ONE budget for the whole dialog, not one per section. There are up to
     # five sections -- bad rows, warned rows, and three severity groups -- and
     # a per-section cap let them each spend eight, which is how a "screenful"

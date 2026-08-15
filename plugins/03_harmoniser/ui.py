@@ -671,8 +671,13 @@ class HarmoniserView(ttk.Frame):
 
         def worker():
             try:
-                refined = _llm_refine(self.state.rows, full_text, self.state.a_columns, model=model, log=self._thread_log)
+                refined, repairs = _llm_refine(self.state.rows, full_text, self.state.a_columns, model=model, log=self._thread_log)
                 self.state.rows = refined
+                # F-65: the repairs are surfaced by `_poll_worker` on the
+                # completion dialog, beside the other validation notes —
+                # a repair made silently would be the defect class this
+                # wave closes, made in-house.
+                self._refine_repairs = list(repairs)
                 self._worker_err = None
             except Exception as e:
                 self._worker_err = str(e)
@@ -713,11 +718,16 @@ class HarmoniserView(ttk.Frame):
         else:
             self._log("Worker finished successfully")
             self._render_rows(with_validation=True)
-            self._validate(show_ok=True)
+            # Consumed exactly once: the validate that follows the work
+            # that made the repairs. Set only by the refine worker.
+            repairs = tuple(getattr(self, "_refine_repairs", ()) or ())
+            self._refine_repairs = []
+            self._validate(show_ok=True, repair_notes=repairs)
 
         self._refresh_buttons()
 
-    def _validate(self, show_ok: bool = True) -> bool:
+    def _validate(self, show_ok: bool = True,
+                  repair_notes: "tuple" = ()) -> bool:
         # The decision lives in `validate_report.build_validation_report`, which
         # is pure and therefore testable; this method is the part that needs a
         # widget. Extracted unchanged in wave 13c B — see
@@ -729,7 +739,8 @@ class HarmoniserView(ttk.Frame):
             return False
 
         report = build_validation_report(
-            self.state.rows, self.state.a_columns, show_ok=show_ok
+            self.state.rows, self.state.a_columns, show_ok=show_ok,
+            repair_notes=repair_notes,
         )
 
         # Hand the marks down rather than letting `_render_rows` build a SECOND
