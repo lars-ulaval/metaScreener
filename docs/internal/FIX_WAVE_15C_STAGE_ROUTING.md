@@ -187,7 +187,7 @@ ladder requires `not uncertain`), so every survivor is PASS_FLAGGED (EL)
 **Worse, the stubs corrupt the run's own diagnosis [read → inferred].**
 `summarize_llm_evidence` counts each stub as `no_answer` (no `"error"`
 key, `used is not True`), so a deterministic criterion inflates
-`no_answer` by one per record; `stage_state.py::run_outcome` then
+`no_answer` by one per record; `plugins/_common/stage_state.py::run_outcome` then
 misclassifies the run — sole criterion: *"NO ANSWERS"* blaming *"an
 unreachable server, a misspelled model name"*; one of ≤10: *"low answer
 rate… came back unreadable"* about pairs that were never sent. The
@@ -196,7 +196,7 @@ message never names the criterion or the cause.
 
 **What already speaks, needing nothing [read — one brief premise
 corrected]:** the linter *already has* the check — Check 4,
-`linter.py::_check_inert_at_stage`, severity INERT, F-65-tagged, firing
+`plugins/03_harmoniser/linter.py::_check_inert_at_stage`, severity INERT, F-65-tagged, firing
 on both directions today (the brief's "the linter gains a check" was
 already true since 13c). The preview *already lists* the criterion as
 `evaluated=False` with reason *"will never run: IL evaluates only llm…
@@ -248,7 +248,7 @@ returns unconditionally; the floor's rejects fall through to the new
 default logic).
 
 **Keyed on the resolved pair, not the provider label.** The instrument
-is `stage_state.py::is_paid_vendor(endpoint)` on the endpoint
+is `plugins/_common/stage_state.py::is_paid_vendor` over the endpoint on the endpoint
 `_stage_config(stage)` resolves — session C's principle, and the harm
 direction picks it: the drift check aborts only when reality *exceeds*
 the estimate, and a server that front-truncates reports *fewer* tokens,
@@ -313,7 +313,7 @@ usage.md, and no per-provider mechanism changes it.
 fallback-`== 4096` assertions become pair-aware, with provider/endpoint
 inputs controlled; stored-wins survives unchanged; new hosted and
 unconfigured pins), the `CONTEXT_WINDOW_DEFAULT == 4096` constant pin
-(stays — the local default is unchanged), `settings.py::defaults`' key
+(stays — the local default is unchanged), `plugins/_common/settings.py::defaults`' key
 comment, usage.md §The setting, and F-203's three falsified passages —
 un-falsified by this design once the hosted flow stops being refused —
 plus a **fourth** stale passage the reading found beside them:
@@ -344,3 +344,48 @@ intake, corrected with the other three).
 3. F-203: the pair-keyed rule and the 128k hosted constant as designed,
    including DeepSeek's stated exclusion.
 4. The four candidate intakes.
+
+## Handoffs (Part B — the View strings the suite cannot draw)
+
+`tests/conftest.py` MagicMocks tkinter before any plugin import, so no
+View method executes under the suite. Everything below is pure-function
+tested up to its last link; the link itself is the observation.
+
+**HO-1 — does the EL/IL detail modal render the new `note` column?**
+*Repro:* open any EL/IL FULL row's detail modal (double-click) on a
+bundle whose criteria table carries a non-`llm` row at that stage — any
+pre-15c bundle, including the golden-era demonstration bundle.
+*Expected:* a `note` column, last, showing
+`non-llm operator in EL stage` (IL twin) on the stranded criterion's
+row and empty on the llm rows — exactly what the EH/IH modals have
+always shown for their mirror case.
+*Falsifiers:* no `note` column; the column present but empty on the
+stranded row; the modal erroring on old evidence JSON.
+
+**HO-2 — does the completion dialog carry the refiner's repairs?**
+The pure half is tested
+(`tests/test_stage_routing.py::TestTheDialogNamesTheRepair`); the View
+threading — worker → `_poll_worker` → `_validate(repair_notes=…)` — is
+Tk-mocked.
+*Repro:* Harmonise (LLM) with any model; if the log gains a
+`LLM refine repair:` line, the completion dialog must open with
+*"N adjustment(s) were made to the model's refinement before it was
+accepted:"* and the same text as a bullet.
+*Falsifiers:* the repair line in the log with an "All good." dialog; the
+dialog naming repairs the log does not have; repairs surviving into a
+LATER Validate press (they are consumed once, by design).
+
+**HO-3 — does the not-evaluated naming reach the status line and the
+export acknowledgement?** `run_outcome`'s label and ack are pure-tested
+(`tests/test_loud_skip.py::TestTheCompletionMessageNamesIt`); the Views
+render them through pre-existing wiring.
+*Repro:* run EL or IL on a pre-15c bundle carrying `contains` at that
+stage.
+*Expected:* the status line and the `[EL]`/`[IL]` log line end with
+*"IC-5 was not evaluated: deterministic operator 'contains' at IL,
+which runs llm only (F-65)."*, and the export confirm opens with the
+same criterion named and the re-harmonise remedy, ending "Export
+anyway?".
+*Falsifiers:* a bare "IL done."; an export with no acknowledgement; the
+old "low answer rate — came back unreadable" misdiagnosis, which this
+wave removed at the source.
