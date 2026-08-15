@@ -270,3 +270,50 @@ the completion dialog showed; absent entirely if the export is redone
 after a fresh no-LLM harmonise.
 *Falsifiers:* the block missing after a refine; reasons differing from
 the dialog's; the block present on a table that never met the model.
+
+## The acceptance run, recorded (2026-08-14, live)
+
+**Six calls of the twelve budgeted; two full passes; no abort; the
+invariant held byte-exactly.** One harness note first, disclosed: the
+first attempt imported the test conftest, whose isolated settings store
+left the provider unchosen — one `create()` went to the vendor default
+and was refused 401 (no key sent, no completion served, nothing
+billed; zero Ollama calls). The product's own `llm_readiness` gate
+blocks that path in the GUI; the harness was rebuilt conftest-free so
+the maintainer's real store resolved `http://localhost:11434/v1`,
+asserted before any call.
+
+Both passes, `qwen2.5:7b`, window 4096, byte-identical to each other:
+
+- chunk 1 (IC-1, IC-3, IC-4, IC-5): all four refined and validated.
+- chunk 2 (EC-1..EC-4): EC-1 refined; the model answered the rest of
+  the chunk with rows for **IC-1, IC-3, IC-5** — the cross-chunk
+  hallucination class 08 measured at n=8 and the battery's one
+  surviving mutant reproduced. The foreign-id guard discarded every
+  one, named each discard in the diagnostics, and without it chunk 2's
+  confused reply would have OVERWRITTEN chunk 1's legitimate
+  refinements. The class the suite pinned with a double materialised
+  on the first live run.
+- re-ask (EC-2, EC-3, EC-4): the model again returned IC-ids;
+  discarded again; all three kept the deterministic rows with *"the
+  model did not return a usable answer for this criterion"*.
+- Result both passes: **5 refined, 3 kept-with-reason, 0 repaired**,
+  eight rows in input order, kept rows byte-identical to the
+  deterministic parse; dialog `Criteria checked` listing the three
+  kept criteria in plain language, no validator string anywhere; the
+  exported manifest's `refinement` block identical to the dialog's
+  kept map (same object upstream, same content on disk).
+
+**One live observation for the coordinator, [measured] at n=2 runs,
+deterministic:** every chunk payload carries the full criteria text as
+context (the original design's choice), and this model answers a
+chunk partly about the TEXT's criteria rather than the chunk's rows —
+the likely mechanism of the EC-chunk's IC-replies. The containment
+makes this cost three fallbacks instead of a table; trimming the
+context per chunk, or listing the chunk's ids in the instruction, is a
+plausible quality improvement and is left as a candidate for intake
+(F-207 territory), not done here.
+
+HO-1 and HO-2 reduce to the Tk painting alone: every string, count and
+block the dialogs and manifest must show has now been produced live by
+the real engine and the real pure renderers.
