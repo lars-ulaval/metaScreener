@@ -305,13 +305,23 @@ cost.
 
 **Inputs.** The bundle from Plugin 05.
 
-**Evidence gating.** A record is excluded by EL only when the LLM's
-response includes both (1) a confidence score at or above the
-configured threshold (default 0.6) and (2) a verbatim quotation
-from the record's title, abstract, or keywords that triggers the
-exclusion. Records that fail either condition are flagged for
-human review rather than auto-excluded. The thresholds and the
-human-review queue are visible in the plugin's UI panel.
+**Evidence gating.** The gate asks what a verdict would *do* to the
+record, and what kind of justification it rests on. A verdict that
+**removes** a record by pointing at something *present* in the text —
+EL's `meet` on an exclusion criterion — is accepted only with (1) a
+confidence score at or above the configured threshold (default 0.6)
+and (2) a verbatim quotation of substance (at least 20 characters
+after whitespace normalisation) from the record's title, abstract, or
+keywords. A verdict that **keeps** a record needs the confidence score
+only: a quote is not required — for a `not_meet` the honest answer is
+often that there is nothing to quote — but a quote that is offered is
+still validated and recorded. A verdict that would remove a record by
+pointing at an *absence* ("the record does not meet inclusion
+criterion X") is **never applied automatically**: no quotation can
+prove an absence, so those records always go to human review, whatever
+the provider or settings. Records whose verdicts fail their gate are
+flagged for human review rather than auto-excluded. The thresholds and
+the human-review queue are visible in the plugin's UI panel.
 
 **Flag-only, and it is the rule that decides removal on a local
 provider.** Passing the gate is necessary for an exclusion and is no
@@ -319,7 +329,10 @@ longer sufficient. On a `local` or `custom` provider metaScreener runs
 **flag-only** by default: a verdict that clears the gate marks the record
 `EXCLUSION_SUPPRESSED` and the record **survives** to human review
 instead of being removed. Exclusion is permitted by default only for
-OpenAI, and the provider dialog can change it either way.
+OpenAI, and the provider dialog can change it either way — but the
+permission reaches presence-justified removals only; an
+absence-justified removal is never applied automatically, whatever the
+setting.
 
 The reason is measured, not precautionary: the gate verifies that a
 quoted span is *present*, not that it *supports the verdict*, and local
@@ -335,7 +348,8 @@ corpus](llm-evaluation.md#local-models-on-this-corpus-a-direct-measurement).
 **What it produces.** A bundle with the surviving records plus a
 report (`reports/EL_FULL.csv`) containing per-criterion status
 (`MET` = passes the screen, `FAILED` = excluded, `SUPPRESSED` = the
-model asked for exclusion and flag-only did not act on it, `UNCERTAIN` =
+model asked for exclusion and policy — flag-only, or the
+absence rule above — did not act on it, `UNCERTAIN` =
 no verdict could be acted on — the gate refused one, or the criterion is
 not an LLM criterion at this stage, `MISSING` = the record has no text in
 any field the criterion targets, so nothing could be judged), confidence,
@@ -344,8 +358,13 @@ enough that it appears in none of the committed artefacts, which is why
 it went unnamed here for several releases.
 `SUPPRESSED` and `UNCERTAIN` are deliberately distinct: the first means
 the model was confident and was overruled, the second that it was not
-confident enough to be acted on. The record-level `el_outcome` column
-carries `EXCLUSION_SUPPRESSED` for the first case. The full
+confident enough to be acted on; the record's reason line names which
+policy overruled. The record-level `el_outcome` column
+carries `EXCLUSION_SUPPRESSED` for the first case. One reading note:
+`PASS_CLEAN` means every criterion was met at threshold confidence,
+with quotes validated **where offered** — a keeping verdict does not
+need a quote, so a clean record can carry a criterion met on
+confidence alone. The full
 `el_evidence_json` column is also added to the canonical record
 table for downstream use - this is the column from which the
 [LLM validation study](llm-evaluation.md) computes agreement
@@ -379,13 +398,18 @@ the manual full-text review queue.
 inclusion criteria, plus the same shape of decision report and an
 `il_evidence_json` column on the record table.
 
-Flag-only applies here too, and the polarity is worth stating because it
-is easy to get backwards. IL's criteria are *inclusion* criteria, so the
-verdict that removes a record is `not_meet` — the model saying the record
-does **not** satisfy the criterion. Under flag-only that verdict is
-recorded as `EXCLUSION_SUPPRESSED` and the record survives, exactly as an
-EL `meet` verdict does. The mirror image of the verdict; the same action
-declined.
+The polarity is worth stating because it is easy to get backwards.
+IL's criteria are *inclusion* criteria, so the verdict that removes a
+record is `not_meet` — the model saying the record does **not** satisfy
+the criterion. That is a removal justified by **absence**, and it is
+**never applied automatically — for any provider, at any confidence,
+whatever the exclusion setting**: no quotation can prove an absence, so
+there is nothing a gate could check. Such a verdict is recorded as
+`EXCLUSION_SUPPRESSED` and the record survives to human review. In
+practice this means IL flags and ranks; it does not remove. If you
+re-run an IL screen produced by an earlier version, expect records the
+old gate excluded to be **kept** now, marked for your review — that is
+this rule working, not a defect.
 
 **Common gotchas.** Identical to EL's: trust the cache, do not trust
 unverified outputs, treat `UNCERTAIN` as "human review needed" not
@@ -419,6 +443,15 @@ three practical implications:
   the criterion is itself sufficient: the key covers the whole
   rendered prompt, so changed wording no longer matches a stored
   entry.
+- **Re-running an old bundle after an upgrade.** The prompt version is
+  part of the key, so a run made under an older prompt re-asks the
+  model rather than replaying stale answers. Since the evidence-gate
+  change above, a re-run can also *re-decide*: records an earlier IL
+  screen excluded will be kept and routed to review (absence-justified
+  removals are never auto-acted now), and records EL once flagged for
+  a missing quote on a keeping verdict can come out clean. Both are
+  the current rules working, and the report's reason lines say which
+  rule applied.
 
 The cache is not a directory on disk. It travels **inside the
 bundle**, as `cache/EL_cache.jsonl` and `cache/IL_cache.jsonl`, which

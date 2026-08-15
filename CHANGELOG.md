@@ -313,6 +313,29 @@ defect was fixed can no longer be served by any code path, so an old
 cache does not need to be distrusted. It needs only to be re-filled.
 *(F-89, F-143)*
 
+**19. A record could be removed on the model's word that something was
+absent.** An inclusion criterion's removing verdict is `not_meet` — "this
+record does not meet the criterion" — a claim about what the text *lacks*.
+No quotation can prove an absence, yet the prompt demanded one for every
+verdict, and the evidence gate then judged that unprovable claim by
+whether the model's quote happened to validate: on a measured batch-5 run
+one in five answered verdicts carried a quote that appears nowhere in the
+text it cites, and between two runs of the identical configuration the
+same gate flipped its accept/reject answer on 32 of 294 verdicts. A
+removal was riding on noise. Such removals are now **never applied
+automatically** — any provider, any confidence, any setting: the record
+is kept, marked, and routed to your review, with the reason line saying
+so. The prompt and the request schema also stopped demanding a quote
+where none can exist, so the fabrication that gate spent itself rejecting
+is no longer manufactured to order. **Re-check if:** you ran IL (or EL
+with an include-typed criterion) with exclusion permitted — an OpenAI
+key, or the setting turned on — and any record went `OUT` at that stage.
+Re-running keeps those records and shows them to you instead; that is
+the rule working, and it can change your PRISMA numbers in the record's
+favour. Verdicts that *keep* records are also judged on confidence alone
+now, so a `PASS_FLAGGED` caused only by a keeping verdict's failed quote
+can come out `PASS_CLEAN`. *(F-195, F-21)*
+
 **What cannot be determined.** For item 1 there is a test that can
 clear a verdict but none that can convict one. If the quote filed
 against a record occurs nowhere in the corpus except that record's own
@@ -337,7 +360,10 @@ Narrowed to the five verdicts that actually removed a record from that
 study, four are provably not products of this defect and one — record
 `A452` on criterion `IC-1` — is undecidable, and will remain so. The
 same check can be run against your own bundle, and the same limit
-applies to it.
+applies to it. (Since item 19, the question is also moot in the way that
+matters: `A452`'s verdict was an absence-justified removal, and that
+class no longer removes — under today's rules the record is kept and
+routed to review.)
 
 Not on this list, deliberately: no released version applied a criterion that had
 been switched off in the criteria table. That was investigated during this wave
@@ -677,6 +703,24 @@ evaluates anything.
   for your review rather than acting on anything. Batch size 1 was the
   measured-clean setting at five times the requests of batch 5; the tooltip
   beside the box now gives you these numbers and leaves the choice with you.
+- **The evidence gate now asks what a verdict would do, not just what it
+  says.** A verdict that would remove a record by pointing at something
+  present in the text still needs its verbatim quote — and the quote must
+  now carry substance (twenty characters after collapsing whitespace),
+  because the commonest fabricated justification was a bare topic term
+  pasted from the criterion. A verdict that keeps a record is judged on
+  its confidence alone: demanding a quotation for "this text does not
+  mention X" forced the model to invent one, and a fifth of those
+  inventions failed the check they were invented for — flagging records
+  for a reason that had nothing to do with your criteria and changing
+  from run to run. The model may now answer `null` where there is nothing
+  to quote. And a removal justified by absence is never applied
+  automatically at all — those records go to your review queue with the
+  reason stated. `PASS_CLEAN` accordingly reads "every criterion met at
+  threshold confidence, quotes validated where offered". If a re-run
+  keeps records an older version excluded, or clears flags an older
+  version raised, that is this change; the entry above under *"If you
+  produced results with an earlier version"* says what to re-check.
 - **"Harmonise + LLM" works on real criteria files now, and it can no
   longer lose your table.** It used to send every criterion to the model
   in one giant request, which failed on this project's own eight-criterion

@@ -177,13 +177,20 @@ are not signed.
 
 ### What is "evidence gating"?
 
-A safeguard on the LLM stages (EL and IL). A record is excluded
-(EL) or included (IL) only when the LLM's response contains both
-(1) a confidence at or above the configured threshold (default
-0.6) and (2) a verbatim quotation from the title, abstract, or
-keywords that supports the decision. Records that fail either
-condition receive `UNCERTAIN` status and are surfaced for human
-review. See
+A safeguard on the LLM stages (EL and IL). The gate asks what a
+verdict would do to the record, and what kind of justification it
+rests on. A verdict that would **remove** a record by pointing at
+something *present* in the text needs both (1) a confidence at or
+above the configured threshold (default 0.6) and (2) a verbatim
+quotation of substance from the title, abstract, or keywords. A
+verdict that **keeps** a record needs the confidence only — a quote
+is welcome and is validated when offered, but is not demanded where
+none can exist. A verdict that would remove a record by pointing at
+an *absence* ("it does not meet inclusion criterion X") is never
+applied automatically: no quotation can prove an absence, so those
+records always go to human review, whatever the provider. Verdicts
+that fail their gate receive `UNCERTAIN` status and are surfaced for
+human review. See
 [Plugin 06 EL](usage.md#plugin-06---el-exclusion-by-llm).
 
 ### Why does the LLM say `UNCERTAIN` so often?

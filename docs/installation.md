@@ -363,8 +363,10 @@ failure.** metaScreener runs **flag-only** by default on a `local` or
 not remove it. A smoke run will therefore show records marked
 `EXCLUSION_SUPPRESSED` or flagged for review and **none** marked `OUT`.
 That is the stage working. The run summary line reports the suppressed
-count, the provider dialog can permit exclusion, and the measurement
-behind the default is in [LLM
+count, the provider dialog can permit exclusion for presence-justified
+removals (an absence-justified removal — `not_meet` on an inclusion
+criterion — is never applied automatically, whatever the setting), and
+the measurement behind the default is in [LLM
 evaluation](llm-evaluation.md#local-models-on-this-corpus-a-direct-measurement).
 
 ## Troubleshooting

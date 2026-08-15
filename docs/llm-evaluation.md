@@ -921,6 +921,15 @@ configuration the validation study above measured, and the setting is
 user-changeable for any provider from the provider dialog, where this
 measurement is restated.
 
+*Updated at wave 15e:* the rule above gained a second, provider-independent
+companion. A removal justified by **absence** — `not_meet` on an inclusion
+criterion, IL's own removing verdict — is **never** applied automatically,
+for any provider, at any confidence, whatever the exclusion setting: no
+quotation can prove an absence, so the evidence gate has nothing it could
+check for that verdict class. Permitting exclusion in the provider dialog
+reaches presence-justified removals only. In practice IL flags and ranks;
+it does not remove.
+
 **The argument does not depend on resolving anything in the previous
 section.** Suppose the criterion wording is at fault; suppose
 quantisation is; suppose it is model size. The observation stands
@@ -934,19 +943,26 @@ The cost is small on this pipeline, and it is worth stating precisely
 rather than reassuringly — which means not mixing two runs inside one
 sentence, as an earlier draft of this paragraph did.
 
-**In the committed goldens**, the funnel removes 696 records: EH 125 and
-IH 566 deterministically, EL 1 and IL 4 by LLM verdict. Flag-only changes
-the reviewer's workload from 80 records to 85 — **five more abstracts** —
-and the deterministic share is 691/696 = **99.3%**.
+**In the committed goldens**, the funnel removes 692 records: EH 125 and
+IH 566 deterministically, EL 1 by LLM verdict, and IL none — since wave
+15e an absence-justified removal is never auto-acted, so IL's four
+confident `not_meet` verdicts route to review as `EXCLUSION_SUPPRESSED`
+instead of removing. (They did remove, until 15e: the goldens carried
+them as `OUT`, and moved with the rule — before 15e this paragraph read
+"696 removed, EL 1 and IL 4 by LLM verdict, 99.3%".) Flag-only changes
+the reviewer's workload from 84 records to 85 — **one more abstract** —
+and the deterministic share is 691/692 = **99.9%**.
 
 **In the manuscript run**, the funnel removes 703, of which the
 deterministic stages account for the same 691 and the LLM stages for
 **12**; there the cost would be twelve more abstracts and the
 deterministic share is 691/703 = **98.3%**. Both ratios are published in
-this repository and they are not the same measurement: 99.3% is the
-goldens, 98.3% is the manuscript run. The earlier draft set the scale
-with 703 and supplied the numerator from the goldens, which makes 691 + 5
-= 696 ≠ 703 and leaves a reader unable to reconcile the two figures.
+this repository and they are not the same measurement: 99.9% is the
+goldens under today's rules, 98.3% is the manuscript run under the rules
+it was produced with. An earlier draft set the scale with 703 and
+supplied the numerator from the goldens, leaving a reader unable to
+reconcile the two figures — kept named here because mixing the two
+denominators is exactly how such numbers go wrong.
 
 Either way the trade is the same in kind: a handful of abstracts, in
 exchange for removing the false-exclusion class entirely while keeping
