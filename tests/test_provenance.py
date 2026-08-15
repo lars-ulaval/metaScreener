@@ -171,7 +171,7 @@ class TestTheEngineRecordsItsProvenance:
         assert prov["temperature"] == 0.25
         assert prov["trunc_chars"] == 1500
         assert prov["batch_size"] == 4
-        assert prov["prompt_version"] == f"{stage}_v2_jsonschema"
+        assert prov["prompt_version"] == f"{stage}_v3_nullquote"
 
     @pytest.mark.parametrize("getter,stage", PARAMS, ids=["el", "il"])
     def test_the_endpoint_is_the_resolved_one(
@@ -227,7 +227,7 @@ class TestTheBundleCarriesIt:
             "provenance": {"model": "gemma3",
                            "endpoint": "http://localhost:11434/v1",
                            "temperature": 0.0,
-                           "prompt_version": "EL_v2_jsonschema",
+                           "prompt_version": "EL_v3_nullquote",
                            "trunc_chars": 1500, "batch_size": 4}})
         assert entry["provenance"]["model"] == "gemma3"
         assert entry["provenance"]["endpoint"] == "http://localhost:11434/v1"

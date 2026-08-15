@@ -27,10 +27,11 @@ from typing import Any, Dict, List
 from plugins._common.llm_client import _safe_str
 
 
-PROMPT_VERSION = "IL_v2_jsonschema"
-"""Bumped at wave 14c with EL's — see plugins/06_el/prompt.py; the two
-stages share run_m1_llm_for_criterion, so the request shape and the
-version move together or the unmoved stage keeps the defect."""
+PROMPT_VERSION = "IL_v3_nullquote"
+"""Bumped at wave 15e with EL's — see plugins/06_el/prompt.py; the two
+stages share run_m1_llm_for_criterion, so the template and the version
+move together or the unmoved stage keeps demanding evidence that cannot
+exist (F-195)."""
 
 
 def _build_llm_messages_for_criterion(criterion: Dict[str, Any], items: List[Dict[str, Any]], trunc_chars: int) -> List[Dict[str, str]]:
@@ -38,8 +39,13 @@ def _build_llm_messages_for_criterion(criterion: Dict[str, Any], items: List[Dic
         "You are scoring research items against ONE screening criterion. "
         "For each item, answer with JSON only. Keys per item: "
         "a_id, decision ('meet'|'not_meet'|'uncertain'), confidence (0..1), "
-        "field ('title'|'abstract'|'keywords'), quote (exact substring from that field), span [start,end]. "
-        "Return a JSON list of objects, nothing else."
+        "field ('title'|'abstract'|'keywords'), "
+        "quote (for 'meet': an exact substring from that field that supports the verdict; "
+        "for 'not_meet' or 'uncertain': null, unless an exact substring genuinely supports the verdict), "
+        "span ([start, end] of the quote, or null when quote is null). "
+        "Return a JSON list of objects, one object for every item sent, "
+        "including items whose decision is 'not_meet'. "
+        "An empty list is never a valid answer."
     )
 
     c_pack = {

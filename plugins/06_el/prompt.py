@@ -27,16 +27,20 @@ from typing import Any, Dict, List
 from plugins._common.llm_client import _safe_str
 
 
-PROMPT_VERSION = "EL_v2_jsonschema"
-"""Bumped at wave 14c (F-191/F-197): the request now carries a
-``response_format`` JSON schema with per-batch cardinality. The rendered
-prompt is byte-identical to v1 — the constraint rides on the request
-parameter — so this bump is the deliberate lever ``_cache_key`` reserves
-for a semantic change that moves no byte of the template: without it,
-verdicts cached from unconstrained runs would be served to constrained
-runs and back, indistinguishably. The goldens were re-keyed, not
-re-captured; tools/rekey_cache_goldens.py --migration prompt-version
-holds the proof and tests/test_golden_rekey.py re-verifies it.
+PROMPT_VERSION = "EL_v3_nullquote"
+"""Bumped at wave 15e (F-195/F-21): the template stops demanding a quote
+for every verdict. A ``not_meet`` on an exclusion criterion is justified
+by ABSENCE — no substring exists to quote — so v2's unconditional
+"quote (exact substring)" clause demanded fabrication, and the gate then
+spent itself rejecting output the prompt had made impossible to produce
+honestly (F-195; 49 of 241 answered pairs carried an invalid quote on
+the wave-14c batch-5 run). v3 asks for a quote where one can exist
+('meet'), for ``null`` where one cannot, and states that an empty list
+is never a valid answer — F-191's outstanding prompt-side clause.
+Unlike 14c's bump, this one MOVES TEMPLATE BYTES, so the cache goldens'
+re-key needs the tool's ``--migration template`` mode, which freezes the
+v2 system string; tools/rekey_cache_goldens.py holds the proof and
+tests/test_golden_rekey.py re-verifies it on every suite run.
 """
 
 
@@ -45,8 +49,13 @@ def _build_llm_messages_for_criterion(criterion: Dict[str, Any], items: List[Dic
         "You are scoring research items against ONE screening criterion. "
         "For each item, answer with JSON only. Keys per item: "
         "a_id, decision ('meet'|'not_meet'|'uncertain'), confidence (0..1), "
-        "field ('title'|'abstract'|'keywords'), quote (exact substring from that field), span [start,end]. "
-        "Return a JSON list of objects, nothing else."
+        "field ('title'|'abstract'|'keywords'), "
+        "quote (for 'meet': an exact substring from that field that supports the verdict; "
+        "for 'not_meet' or 'uncertain': null, unless an exact substring genuinely supports the verdict), "
+        "span ([start, end] of the quote, or null when quote is null). "
+        "Return a JSON list of objects, one object for every item sent, "
+        "including items whose decision is 'not_meet'. "
+        "An empty list is never a valid answer."
     )
 
     c_pack = {

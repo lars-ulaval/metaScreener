@@ -158,6 +158,26 @@ class TestTheSchemaIsSent:
         assert tuple(item["properties"]["field"]["enum"]) == \
             lc.FIELD_VOCABULARY
 
+    def test_quote_and_span_are_nullable_and_still_required(self, monkeypatch):
+        """Wave 15e (F-195): the honest answer to a verdict justified by
+        absence is ``null``, so the schema must make null EXPRESSIBLE —
+        ``anyOf`` string/null and pair/null — while both keys stay in
+        ``required``. Nullable-not-conditional is measured, not stylistic:
+        the wave's probes showed ``anyOf [string, null]`` honoured end to
+        end while a JSON-Schema ``if/then`` conditional was accepted and
+        silently ignored. A regression to ``{"type": "string"}`` would
+        re-demand fabrication in grammar; a regression that drops the keys
+        from ``required`` would let a reply omit them silently."""
+        rec = _Recorder(_answers_all)
+        _run(monkeypatch, rec, n_items=1, batch_size=1)
+        item = rec.calls[0]["response_format"]["json_schema"]["schema"][
+            "properties"]["results"]["items"]
+        assert {"type": "null"} in item["properties"]["quote"]["anyOf"]
+        assert {"type": "string"} in item["properties"]["quote"]["anyOf"]
+        assert {"type": "null"} in item["properties"]["span"]["anyOf"]
+        assert "quote" in item["required"]
+        assert "span" in item["required"]
+
     def test_the_messages_are_unchanged_by_the_schema(self, monkeypatch):
         """The constraint rides on the request parameter, not the prompt:
         the rendered messages must be byte-identical to what the builder

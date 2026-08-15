@@ -189,6 +189,51 @@ V1_PROMPT_VERSIONS = {"EL": "EL_v1_jsonlist", "IL": "IL_v1_jsonlist"}
 
 
 # --------------------------------------------------------------------------
+# The wave-15e migration: (v2 version + v2 template) -> (v3 version + v3
+# template)
+# --------------------------------------------------------------------------
+#: The version strings as they stood before wave 15e bumped them for the
+#: nullable-quote template (F-195/F-21).
+V2_PROMPT_VERSIONS = {"EL": "EL_v2_jsonschema", "IL": "IL_v2_jsonschema"}
+
+#: The v2 SYSTEM string, frozen byte-identically from
+#: ``plugins/{06_el,07_il}/prompt.py`` as they stood before wave 15e
+#: (identical in both stages; the stages' builders were byte-identical
+#: twins). Frozen here for the same reason ``_old_cache_key`` reimplements
+#: the pre-F-89 formula: the live builder no longer renders it, and
+#: recovering it from git history is what makes the mapping reproducible
+#: by anyone. 14c's ``prompt-version`` migration could reuse the live
+#: renderer because that bump moved no template byte; 15e's moved the
+#: system string — and ONLY the system string, which is why swapping it
+#: back into the live builder's output reproduces the v2 rendering
+#: exactly. Self-validating as ever: one wrong byte here and obligation 1
+#: fails at 0/170, 0/84.
+V2_SYSTEM_STRING = (
+    "You are scoring research items against ONE screening criterion. "
+    "For each item, answer with JSON only. Keys per item: "
+    "a_id, decision ('meet'|'not_meet'|'uncertain'), confidence (0..1), "
+    "field ('title'|'abstract'|'keywords'), quote (exact substring from that field), span [start,end]. "
+    "Return a JSON list of objects, nothing else."
+)
+
+
+def _v2_rendered_prompt(mod, crit_pack, item, trunc_chars: int) -> str:
+    """Render one pair's prompt as the v2 template rendered it.
+
+    The live user-message construction is unchanged by wave 15e (the
+    design pins this: only the system clause moved), so the v2 rendering
+    is the live messages with the system content swapped for the frozen
+    v2 string.
+    """
+    from plugins._common.llm_client import _render_prompt_for_key
+    messages = mod._build_llm_messages_for_criterion(
+        crit_pack, [item], trunc_chars)
+    v2_messages = [dict(m) for m in messages]
+    v2_messages[0]["content"] = V2_SYSTEM_STRING
+    return _render_prompt_for_key(v2_messages)
+
+
+# --------------------------------------------------------------------------
 # Pair enumeration — must match run_{el,il}_screen exactly
 # --------------------------------------------------------------------------
 def _enumerate_pairs(mod, stage: str, input_csv: Path, trunc_chars: int):
@@ -476,6 +521,87 @@ def rekey_stage_prompt_version(stage: str, endpoint: str) -> Tuple[RekeyReport, 
     return report, _serialise(envelope)
 
 
+def rekey_stage_template(stage: str, endpoint: str) -> Tuple[RekeyReport, bytes]:
+    """The wave-15e migration: relabel every entry from the v2 pair —
+    ``prompt_version`` AND rendered template — to the live v3 pair. Same
+    mechanism as the other two migrations: same enumeration, same five
+    obligations, same refuse-unless-all-hold. The difference from 14c's:
+    the old key's ``prompt`` member is rendered with the frozen
+    :data:`V2_SYSTEM_STRING`, because this bump moved template bytes and
+    the live builder no longer produces them.
+
+    Self-validating the same way: if the frozen string or the v2 version
+    were wrong by a byte, the derived old keys would not match the
+    committed golden and obligation 1 would fail at 0/170, 0/84.
+    """
+    cfg = STAGES[stage]
+    mod = _import_plugin(cfg["subdir"])
+
+    raw = json.loads(cfg["cache"].read_text(encoding="utf-8"))
+    invocation = raw["_invocation"]
+    old_cache: Dict[str, Dict[str, Any]] = raw["cache"]
+
+    model = invocation["model"]
+    trunc_chars = invocation["trunc_chars"]
+    temperature = 0.0
+
+    from plugins._common.llm_client import _cache_key as _shared_cache_key
+
+    mapping: Dict[str, str] = {}
+    pairs = 0
+    for crit_pack, item in _enumerate_pairs(mod, stage, cfg["input"], trunc_chars):
+        pairs += 1
+        old = _shared_cache_key(
+            prompt_version=V2_PROMPT_VERSIONS[stage], model=model,
+            rendered_prompt=_v2_rendered_prompt(mod, crit_pack, item,
+                                                trunc_chars),
+            endpoint=endpoint, temperature=temperature,
+        )
+        if old not in old_cache:
+            continue
+        new = mod._cache_key(
+            model=model, criterion=crit_pack, item=item,
+            trunc_chars=trunc_chars, endpoint=endpoint, temperature=temperature,
+        )
+        mapping[old] = new
+
+    new_cache: Dict[str, Dict[str, Any]] = {}
+    collisions: List[str] = []
+    for old_key, value in old_cache.items():
+        new_key = mapping.get(old_key)
+        if new_key is None:
+            continue
+        if new_key in new_cache:
+            collisions.append(new_key)
+        new_cache[new_key] = value
+
+    orphans = [k for k in old_cache if k not in mapping]
+
+    def _multiset(values) -> Counter:
+        return Counter(
+            json.dumps(v, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":"))
+            for v in values
+        )
+
+    envelope = {"_invocation": invocation, "cache": new_cache}
+
+    report = RekeyReport(
+        stage=stage,
+        entries_before=len(old_cache),
+        entries_after=len(new_cache),
+        pairs_derived=pairs,
+        old_keys_matched=len(mapping),
+        orphans=orphans,
+        collisions=collisions,
+        values_multiset_equal=_multiset(old_cache.values()) == _multiset(new_cache.values()),
+        key_sets_disjoint=not (set(old_cache) & set(new_cache)),
+        invocation_preserved=envelope["_invocation"] == raw["_invocation"],
+        invocation=dict(invocation),
+    )
+    return report, _serialise(envelope)
+
+
 # --------------------------------------------------------------------------
 # Re-verification of an ALREADY migrated golden
 # --------------------------------------------------------------------------
@@ -515,7 +641,16 @@ class VerifyReport:
     #: Wave 14c: committed keys reproduced by the five-member formula with
     #: the pre-bump v1 prompt_version. Must be 0 after the v1->v2 re-key,
     #: for the same reason old_keys_present must be 0 after F-89's.
+    #: (Since wave 15e the live renderer produces the v3 template, so this
+    #: derivation no longer reproduces a historical v1 key byte-exactly —
+    #: its guarantee holds a fortiori: even v2 keys cannot hit, see below.)
     v1_keys_present: int = 0
+    #: Wave 15e: committed keys reproduced by the v2 pair — v2
+    #: prompt_version AND the frozen v2 template. Must be 0 after the
+    #: template re-key: a committed key still derivable the v2 way would
+    #: be an entry the pre-bump code could hit, serving quote-demanded
+    #: answers to a run whose prompt no longer demands them.
+    v2_keys_present: int = 0
 
     @property
     def values_unchanged(self) -> bool:
@@ -527,6 +662,7 @@ class VerifyReport:
             self.new_keys_present == self.entries
             and self.old_keys_present == 0
             and self.v1_keys_present == 0
+            and self.v2_keys_present == 0
             and self.values_unchanged
         )
 
@@ -544,6 +680,9 @@ class VerifyReport:
             f"  {tick(self.v1_keys_present == 0)} "
             f"no committed key is reproduced with the v1 prompt_version "
             f"({self.v1_keys_present} found; wave 14c's re-key is complete)",
+            f"  {tick(self.v2_keys_present == 0)} "
+            f"no committed key is reproduced by the v2 version + v2 template "
+            f"({self.v2_keys_present} found; wave 15e's re-key is complete)",
             f"  {tick(self.values_unchanged)} "
             f"values unchanged since c5e2100 "
             f"(sha256 {self.value_multiset_sha256[:16]}...)",
@@ -575,6 +714,7 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
     new_hits: set = set()
     old_hits: set = set()
     v1_hits: set = set()
+    v2_hits: set = set()
     pairs = 0
     for crit_pack, item in _enumerate_pairs(mod, stage, cfg["input"], trunc_chars):
         pairs += 1
@@ -600,6 +740,14 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
         )
         if v1 in committed:
             v1_hits.add(v1)
+        v2 = _shared_cache_key(
+            prompt_version=V2_PROMPT_VERSIONS[stage], model=model,
+            rendered_prompt=_v2_rendered_prompt(mod, crit_pack, item,
+                                                trunc_chars),
+            endpoint=endpoint, temperature=temperature,
+        )
+        if v2 in committed:
+            v2_hits.add(v2)
 
     values = sorted(
         json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -613,6 +761,7 @@ def verify_stage(stage: str, endpoint: str) -> VerifyReport:
         new_keys_present=len(new_hits),
         old_keys_present=len(old_hits),
         v1_keys_present=len(v1_hits),
+        v2_keys_present=len(v2_hits),
         pairs_derived=pairs,
         value_multiset_sha256=digest,
         invocation=dict(invocation),
@@ -626,12 +775,15 @@ def main(argv: List[str] | None = None) -> int:
     ap.add_argument("--migrate", action="store_true",
                     help="derive the mapping from PRE-F-89 goldens and write "
                          "them. Run once; see the module docstring.")
-    ap.add_argument("--migration", choices=("endpoint", "prompt-version"),
+    ap.add_argument("--migration",
+                    choices=("endpoint", "prompt-version", "template"),
                     default="endpoint",
                     help="which migration --migrate performs: 'endpoint' is "
                          "F-89's (pre-F-89 four-member key -> five-member); "
                          "'prompt-version' is wave 14c's (v1 prompt_version "
-                         "-> the live one, same formula).")
+                         "-> the live one, same formula); 'template' is wave "
+                         "15e's (v2 prompt_version + frozen v2 template -> "
+                         "the live v3 pair).")
     args = ap.parse_args(argv)
 
     _setup_headless_imports()
@@ -649,8 +801,9 @@ def main(argv: List[str] | None = None) -> int:
               if ok else "VERIFICATION FAILED.")
         return 0 if ok else 1
 
-    migrate_fn = (rekey_stage_prompt_version
-                  if args.migration == "prompt-version" else rekey_stage)
+    migrate_fn = {"endpoint": rekey_stage,
+                  "prompt-version": rekey_stage_prompt_version,
+                  "template": rekey_stage_template}[args.migration]
     print(f"Re-keying ({args.migration}) to endpoint "
           f"{DEFAULT_OPENAI_BASE_URL!r}\n")
     results = []

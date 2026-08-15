@@ -155,13 +155,24 @@ class TestTheRekeyHolds:
         cache mixing the bump exists to prevent."""
         assert reports[stage].v1_keys_present == 0
 
+    def test_no_v2_key_survives(self, reports, stage):
+        """Wave 15e's obligation 4, over ITS migration: the nullable-quote
+        template (F-195/F-21) moved TEMPLATE BYTES as well as the version
+        string, so this derivation renders the frozen v2 system string —
+        the tool's ``V2_SYSTEM_STRING``, recovered from git history the way
+        ``_old_cache_key`` recovers the pre-F-89 formula. A committed key
+        still derivable the v2 way would be an entry the pre-bump code
+        could hit, serving quote-demanded answers to a run whose prompt no
+        longer demands them."""
+        assert reports[stage].v2_keys_present == 0
+
     def test_values_are_untouched(self, reports, stage):
         """Obligation 3. This is what makes it a re-key and not a
         re-capture: no API call was made and no decision was recomputed.
-        The pinned digest predates BOTH migrations — F-89's endpoint
-        re-key and wave 14c's prompt-version re-key — and must survive
-        every later one, which is the standing proof that each was a pure
-        relabelling."""
+        The pinned digest predates every migration — F-89's endpoint
+        re-key, wave 14c's prompt-version re-key and wave 15e's template
+        re-key — and must survive every later one, which is the standing
+        proof that each was a pure relabelling."""
         r = reports[stage]
         assert r.values_unchanged, (
             f"{stage} cache VALUES changed. A re-key relabels; if a value "

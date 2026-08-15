@@ -1064,12 +1064,24 @@ def _response_format_for(n: int) -> Dict[str, Any]:
     normalisation and rejection code stays, because the unconstrained
     fallback still needs it.
 
-    The **messages are untouched** on purpose: the constraint rides on the
-    request parameter, so the rendered prompt — which the cache key hashes —
-    is byte-identical under both shapes. What changes the key is
-    ``PROMPT_VERSION``, bumped with this wave, which is the deliberate,
-    greppable lever ``_cache_key``'s docstring reserves for a semantic
-    change that does not move a byte of the template.
+    At wave 14c the messages were untouched — the constraint rode on the
+    request parameter alone, and ``PROMPT_VERSION`` was bumped as the
+    lever for a semantic change that moved no template byte. Wave 15e
+    (F-195/F-21) moved both: the template now instructs ``null`` for a
+    verdict justified by absence, and this schema stopped forcing the
+    fabrication the gate exists to reject — ``quote`` and ``span`` are
+    nullable (required, but ``anyOf`` string/null and pair/null).
+
+    **Nullable, not conditional, and that is measured, not stylistic**
+    (wave 15e design §3, four declared probes against Ollama 0.32.9):
+    ``anyOf [string, null]`` was honoured end to end — the model emitted
+    genuine JSON ``null`` — while a JSON-Schema ``if/then`` conditional
+    ("quote required when decision is meet") was **accepted and silently
+    ignored**: instructed adversarially, the server let ``decision:
+    "meet"`` through with ``quote: null``. Accepted-but-ignored looks
+    like enforcement until the day it is not, so the requirement lives in
+    the prompt text and the GATE stays the enforcement point
+    (``plugins/_common/verdict_gate.py``), which no server can decline.
     """
     verdict = {
         "type": "object",
@@ -1078,9 +1090,16 @@ def _response_format_for(n: int) -> Dict[str, Any]:
             "decision": {"type": "string", "enum": list(DECISION_VOCABULARY)},
             "confidence": {"type": "number"},
             "field": {"type": "string", "enum": list(FIELD_VOCABULARY)},
-            "quote": {"type": "string"},
-            "span": {"type": "array", "items": {"type": "integer"},
-                     "minItems": 2, "maxItems": 2},
+            # F-195: nullable. A not_meet justified by absence has no
+            # substring to give; a schema that requires a string anyway
+            # demands fabrication in grammar.
+            "quote": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            # Nullable WITH the quote, or a null quote still forces a
+            # fabricated span.
+            "span": {"anyOf": [
+                {"type": "array", "items": {"type": "integer"},
+                 "minItems": 2, "maxItems": 2},
+                {"type": "null"}]},
         },
         "required": ["a_id", "decision", "confidence", "field", "quote",
                      "span"],

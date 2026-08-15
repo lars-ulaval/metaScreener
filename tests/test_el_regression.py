@@ -71,9 +71,9 @@ CRITERIA_GOLDEN = GOLDEN_DIR / "criteria_harmonized_v3.1.0.csv"
 # Prompt-hash assertions (captured by tools/capture_el_il_goldens.py
 # --print-hashes). If this hash changes, EL prompt construction has
 # drifted; re-capture goldens deliberately.
-EXPECTED_PROMPT_VERSION = "EL_v2_jsonschema"
+EXPECTED_PROMPT_VERSION = "EL_v3_nullquote"
 EXPECTED_PROMPT_HASH = (
-    "5e82291d4b999ed55cdb3a75e9603b7ea3d4f05fed44f233870c802f43a3d010"
+    "871a8b5ddd56d61b38d3bdef145b610d05644f3740cca50851332e840ddd92d5"
 )
 
 # Must match capture script and IL test
