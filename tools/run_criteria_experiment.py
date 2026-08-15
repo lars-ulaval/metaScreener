@@ -808,10 +808,16 @@ def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[D
 # before the first call on any mismatch; the budget enforcer is a hard stop.
 # ---------------------------------------------------------------------------
 
+DRY_MANIFEST_DIR = PROJECT_ROOT / "docs" / "data" / "wave16_arms" / "dryrun_v1"
+
+
 def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
-                   parse: Any, harmonized_text: str) -> Dict[str, Any]:
+                   parse: Any, harmonized_text: str,
+                   dry_manifest_dir: Path = DRY_MANIFEST_DIR) -> Dict[str, Any]:
     """15e pattern: assert everything, spend nothing. Models and batch sizes
-    come EXPLICITLY from the arm's live config — never store-resolved."""
+    come EXPLICITLY from the arm's live config — never store-resolved. Every
+    assertion here REFUSES the run rather than spending a call on a
+    configuration nobody declared."""
     lc = mods.llm_client
     live = arm.get("live") or spec.get("live_defaults")
     if not live:
@@ -821,6 +827,8 @@ def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
             raise SystemExit(f"live: model for {stage} must be explicit in the spec")
         if not live.get("batch_size", {}).get(stage):
             raise SystemExit(f"live: batch_size for {stage} must be explicit in the spec")
+    if live.get("use_cache") is not False:
+        raise SystemExit("live: spec must declare use_cache false (F-101) — REFUSING")
     facts: Dict[str, Any] = {}
     for stage in ("EL", "IL"):
         endpoint = lc.resolve_openai_base_url(stage)
@@ -828,7 +836,9 @@ def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
         allow = lc.llm_exclusion_allowed(stage)
         keyok = lc._has_openai_key(stage)
         facts[stage] = {"endpoint": endpoint, "window": window,
-                        "allow_exclusion": allow, "key_gate_passes": keyok}
+                        "allow_exclusion": allow, "key_gate_passes": keyok,
+                        "model_explicit": live["model"][stage],
+                        "batch_size_explicit": live["batch_size"][stage]}
         expected_endpoint = spec.get("expected_endpoint", "http://localhost:11434/v1")
         assert endpoint == expected_endpoint, (
             f"resolved {stage} endpoint {endpoint!r} != expected "
@@ -838,12 +848,39 @@ def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
         assert keyok, f"{stage} key gate refuses; engine would skip every call"
         assert window == int(spec["window"]), (
             f"{stage} window {window} != spec window {spec['window']} — REFUSING")
-    corpus_bytes = (PROJECT_ROOT / spec["corpus"]).read_bytes()
-    assert _sha256_bytes(corpus_bytes) == spec["corpus_sha256"], (
-        "corpus digest mismatch — REFUSING")
-    facts["criteria_sha256"] = _sha256_bytes(harmonized_text.encode("utf-8"))
+    # Corpus: the aggregate for chained arms, the bundle for derived arms.
+    if arm["kind"] == "derived_rows":
+        _p, ident = resolve_bundle_corpus(mods, spec["corpus_bundle"])
+        assert ident["records"] == len(parse.rows), (
+            f"bundle population {ident['records']} != parse rows "
+            f"{len(parse.rows)} — REFUSING")
+        facts["corpus"] = {"kind": "bundle", "zip_sha256": ident["zip_sha256"],
+                           "members": ident["member_sha256_verified"],
+                           "records": ident["records"],
+                           "population_banner": ident["population_banner"]}
+    else:
+        corpus_bytes = (PROJECT_ROOT / spec["corpus"]).read_bytes()
+        got = _sha256_bytes(corpus_bytes)
+        assert got == spec["corpus_sha256"], (
+            f"corpus digest {got} != {spec['corpus_sha256']} — REFUSING")
+        facts["corpus"] = {"kind": "aggregate", "sha256": got,
+                           "records": len(parse.rows)}
+    # The criteria this arm will actually screen with must be the criteria the
+    # dry run measured, byte for byte.
+    crit_sha = _sha256_bytes(harmonized_text.encode("utf-8"))
+    dry_path = dry_manifest_dir / f"{arm['key']}_manifest.json"
+    dry = json.loads(dry_path.read_text(encoding="utf-8"))
+    assert crit_sha == dry["harmonized_sha256"], (
+        f"criteria digest {crit_sha[:12]} != dry manifest "
+        f"{dry['harmonized_sha256'][:12]} — REFUSING")
+    facts["criteria_sha256"] = crit_sha
+    facts["dry_manifest_sha256"] = dry["harmonized_sha256"]
     facts["prompt_versions"] = {"EL": mods.el_prompt.PROMPT_VERSION,
                                 "IL": mods.il_prompt.PROMPT_VERSION}
+    for stage, want in (("EL", "EL_v3_nullquote"), ("IL", "IL_v3_nullquote")):
+        got = facts["prompt_versions"][stage]
+        assert got == want, f"{stage} prompt version {got!r} != {want!r} — REFUSING"
+    facts["cache"] = {"use_cache": False, "cache_in": "{}"}
     print(json.dumps(facts, indent=2))
     print("LIVE PREFLIGHT OK — zero calls made so far.")
     return facts
@@ -865,51 +902,165 @@ class _BudgetEnforcedClient:
         self.chat = type("Chat", (), {"completions": _Completions()})()
 
 
+class AnomalyStop(RuntimeError):
+    """A named wave-16b anomaly stop. Artifacts are written before this is
+    raised; the run pauses and waits for the maintainer."""
+
+
+def _check_anomalies(stage: str, counts: Dict[str, int], report: Dict[str, Any],
+                     declared: int, spent: int) -> List[str]:
+    """The wave-16b anomaly stops, evaluated on one stage's outcome."""
+    stops: List[str] = []
+    out = int(counts.get("OUT", 0) or 0)
+    if out > 0:
+        stops.append(
+            f"ANOMALY[record-removed-at-{stage}]: counts OUT={out}; every arm "
+            f"predicted 0 removals under flag-only — gate/policy regression")
+    if spent > declared:
+        stops.append(
+            f"ANOMALY[budget-exceeded-at-{stage}]: calls_made={spent} > "
+            f"declared={declared}; the enforcer should have made this impossible")
+    # Rule (c): an absence-justified removal is never auto-acted — it routes
+    # through `_excluded_by(..., allow_exclusion=False)` into the SUPPRESSED
+    # bucket (plugins/06_el/screen.py:921-932). So absence verdicts must show
+    # up as EXCLUSION_SUPPRESSED records and never as removals. (There is no
+    # "absence_removed" key in the report — the counter the engine keeps is
+    # `absence_suppressed`, presence-by-key, and its absence means zero.)
+    absence_verdicts = int(report.get("absence_suppressed", 0) or 0)
+    supp = int(counts.get("EXCLUSION_SUPPRESSED", 0) or 0)
+    if absence_verdicts and supp == 0:
+        stops.append(
+            f"ANOMALY[absence-acted-at-{stage}]: {absence_verdicts} absence-justified "
+            f"verdict(s) recorded but no record landed in EXCLUSION_SUPPRESSED — "
+            f"they were acted on or lost rather than review-routed")
+    return stops
+
+
 def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
                  parse: Any, harmonized_text: str, budget: int,
-                 out_dir: Path) -> None:
+                 out_dir: Path) -> Dict[str, Any]:
+    """Run one arm live, writing 15e-shaped artifacts per stage. Artifacts are
+    written BEFORE any anomaly is raised, so a stop never loses evidence."""
+    import time
     live = arm.get("live") or spec["live_defaults"]
-    live_preflight(mods, spec, arm, parse, harmonized_text)
+    facts = live_preflight(mods, spec, arm, parse, harmonized_text)
     lc = mods.llm_client
     counter = {"n": 0}
     real_builder = lc._openai_client_for
     lc._openai_client_for = (  # type: ignore[assignment]
         lambda *a, **k: _BudgetEnforcedClient(real_builder(*a, **k), counter, budget))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    key = arm["key"]
+    arm_t0 = time.time()
+    stages_done: List[Dict[str, Any]] = []
+    stops: List[str] = []
     try:
         if arm["kind"] == "derived_rows":
-            surv = parse.rows  # the bundle population IS the stage input
-            stage_plan = [(arm["stage"],
-                           mods.el_screen if arm["stage"] == "EL" else mods.il_screen)]
+            rows_in = parse.rows      # the bundle population IS the stage input
+            stage_plan = [arm["stage"]]
         else:
-            surv_chain = run_chain(mods, parse, harmonized_text)
-            surv = surv_chain.pop("survivor_rows_ih")
-            stage_plan = [("EL", mods.el_screen), ("IL", mods.il_screen)]
-        results = {}
-        for stage, screen in stage_plan:
+            chain = run_chain(mods, parse, harmonized_text)
+            rows_in = chain.pop("survivor_rows_ih")
+            stage_plan = ["EL", "IL"]
+        header = list(parse.header)
+        for stage in stage_plan:
+            screen = mods.el_screen if stage == "EL" else mods.il_screen
             crits = screen._parse_criteria_harmonized_csv(
                 harmonized_text, stage_filter=stage)
-            stage_parse = screen.ParseReport(header=parse.header, rows=surv, skipped=[])
+            n_llm = len([c for c in crits.criteria if c.enabled and c.operator == "llm"])
+            stage_parse = screen.ParseReport(header=header, rows=rows_in, skipped=[])
+            log_lines: List[str] = []
+
+            def _log(s: str, _st=stage) -> None:
+                line = f"[{_st}] {s}"
+                log_lines.append(line + "\n")
+                print(line, flush=True)
+
+            before = counter["n"]
+            t0 = time.time()
             run_fn = screen.run_el_screen if stage == "EL" else screen.run_il_screen
-            (full_rows, _s, counts, impacts, _e, _c, cancelled, report) = run_fn(
+            (full_rows, survivors, counts, impacts, _evals, _cache_out,
+             cancelled, report) = run_fn(
                 stage_parse, crits,
                 model=live["model"][stage], trunc_chars=int(spec["trunc_chars"]),
                 batch_size=int(live["batch_size"][stage]),
                 temperature=float(live.get("temperature", 0.0)),
                 use_cache=False, cache_in={},          # cache OFF per F-101
                 cancel_event=threading.Event(),
-                log_cb=lambda s: print(f"[{stage}] {s}"))
-            assert not cancelled
-            results[stage] = {"counts": counts, "impacts": impacts,
-                              "report": report, "rows": len(full_rows)}
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{arm['key']}_live_results.json").write_text(
-            json.dumps({"arm": arm["key"], "calls_made": counter["n"],
-                        "declared_budget": budget, "results": {
-                            s: {k: v for k, v in r.items() if k != "rows"}
-                            for s, r in results.items()}},
-                       indent=2, default=str), encoding="utf-8")
-        print(f"live arm {arm['key']}: calls_made={counter['n']} "
-              f"(declared {budget})")
+                log_cb=_log)
+            dt = time.time() - t0
+            spent_stage = counter["n"] - before
+
+            # ---- artifacts first, always (15e shapes) ----
+            pfx = stage.lower()
+            fieldnames = header + [
+                f"{pfx}_outcome", f"{pfx}_failed_ids", f"{pfx}_missing_ids",
+                f"{pfx}_met_ids", f"{pfx}_uncertain_ids",
+                f"{pfx}_evidence_json", f"{pfx}_reason_summary",
+            ]
+            from plugins._common.exporters import _write_csv_bytes
+            (out_dir / f"{key}_{stage}_FULL.csv").write_bytes(
+                _write_csv_bytes(fieldnames, full_rows))
+            (out_dir / f"{key}_{stage}_report.json").write_text(
+                json.dumps(report, indent=2, sort_keys=True, default=str),
+                encoding="utf-8", newline="\n")
+            (out_dir / f"{key}_{stage}_log.txt").write_text(
+                "".join(log_lines), encoding="utf-8", newline="\n")
+            summary = {
+                "arm": f"{key}_{stage}",
+                "arm_key": key,
+                "stage": stage,
+                "batch_size": int(live["batch_size"][stage]),
+                "cancelled": cancelled,
+                "wall_seconds": round(dt, 1),
+                "counts": counts,
+                "records": report.get("records"),
+                "answered": report.get("answered"),
+                "no_answer": report.get("no_answer"),
+                "calls_made": report.get("calls_made"),
+                "calls_counted_by_enforcer": spent_stage,
+                "reasks_made": report.get("reasks_made"),
+                "no_answer_after_reask": report.get("no_answer_after_reask"),
+                "exclusion_policy": report.get("exclusion_policy"),
+                "request_shape": report.get("request_shape"),
+                "provenance": report.get("provenance"),
+                "absence_suppressed_key_present": "absence_suppressed" in report,
+                "llm_criteria": n_llm,
+                "records_in": len(rows_in),
+                "full_rows": len(full_rows),
+                "survivors": len(survivors),
+            }
+            (out_dir / f"{key}_{stage}_summary.json").write_text(
+                json.dumps(summary, indent=2, default=str),
+                encoding="utf-8", newline="\n")
+            stages_done.append(summary)
+
+            if cancelled:
+                stops.append(f"ANOMALY[cancelled-at-{stage}]: engine reported cancelled")
+            stops.extend(_check_anomalies(stage, counts, report, budget,
+                                          counter["n"]))
+            # The product's own chain: this stage's survivors feed the next.
+            rows_in = survivors
+        arm_manifest = {
+            "arm": key,
+            "declared_budget": budget,
+            "calls_made_total": counter["n"],
+            "wall_seconds_total": round(time.time() - arm_t0, 1),
+            "preflight": facts,
+            "stages": stages_done,
+            "anomaly_stops": stops,
+            "generated_by": "tools/run_criteria_experiment.py --live",
+        }
+        (out_dir / f"{key}_live_manifest.json").write_text(
+            json.dumps(arm_manifest, indent=2, default=str),
+            encoding="utf-8", newline="\n")
+        print(f"live arm {key}: calls_made={counter['n']} (declared {budget}) "
+              f"wall={arm_manifest['wall_seconds_total']}s")
+        if stops:
+            for s in stops:
+                print(s, flush=True)
+            raise AnomalyStop("; ".join(stops))
+        return arm_manifest
     finally:
         lc._openai_client_for = real_builder  # type: ignore[assignment]
 
@@ -965,7 +1116,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             harmonized_text = mods.h_exporters._criteria_csv_text(rows)
         else:
             harmonized_text = src_text
-        run_arm_live(mods, spec, arm, parse, harmonized_text, args.budget, args.out)
+        try:
+            run_arm_live(mods, spec, arm, parse, harmonized_text, args.budget,
+                         args.out)
+        except AnomalyStop as e:
+            print(f"WAVE16B-ANOMALY-STOP: {e}", flush=True)
+            return 3
+        except Exception as e:  # guard refusals, drift, transport
+            print(f"WAVE16B-RUN-ERROR: {type(e).__name__}: {e}", flush=True)
+            raise
         return 0
 
     # ---- dry mode: structurally no-network, plus the explicit guard ----
