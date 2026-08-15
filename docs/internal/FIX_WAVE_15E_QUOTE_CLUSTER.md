@@ -533,3 +533,194 @@ the two-move-together constraint, quoted in all three cells it lives in.)*
 
 **STOP — awaiting adjudication.** No implementation accompanies this document. The
 implementation prompt follows the numbers.
+
+---
+
+# Part 2 — the implementation, under the adjudication
+
+*Adjudicated APPROVED on the design as committed (`291a60f`), with three binding
+decisions: (A) the decision-golden move, first in the project's history, landing
+the offline-computed deltas EXACTLY or STOP; (B) the migration mode, not a live
+re-capture; (C) the full 414-call acceptance experiment at the WAIT FOR
+MAINTAINER stop. Everything below is the record of that implementation; the live
+experiment has NOT run and is gated at §P2.7.*
+
+## P2.1 — The commits
+
+| commit | what |
+|---|---|
+| `291a60f` | Part 1, the design (adjudicated) |
+| `bc9f43a` | **fix(F-195)**: prompt clause conditional + empty-list sentence; schema `quote`/`span` nullable via `anyOf` (required kept); `PROMPT_VERSION` → `EL_v3_nullquote`/`IL_v3_nullquote`; the tool's third migration mode (`--migration template`, frozen `V2_SYSTEM_STRING`); cache goldens re-keyed; six pin sites updated |
+| `62aa6e9` | **fix(F-21, F-195)**: `plugins/_common/verdict_gate.py` (the table as data, `SUBSTANCE_MIN_CHARS = 20` with calibration); both engines route through `verdict_action`; `suppressed_by` + branching reason text; `absence_suppressed` counter into `policy` → run report → manifest history; `EXCLUSION_SUPPRESSED` contract gains the second decliner; `tests/test_verdict_gate.py`; flag-only fixtures + the allow=True split; **decision goldens regenerated, deltas verified exact before writing** |
+| `f9415d3` | **fix(15e)**: both engines' flag-only log lines + the provider dialog's measurement label stop promising unqualified exclusion |
+| `cfcb1d9` | **docs(15e)**: usage/FAQ/README/installation/llm-evaluation in the user's language; CHANGELOG item 19 + Changed bullet; the goldens paragraph follows the moved goldens (692 removed, 99.9%) |
+| `a2ee3d5` | **docs(F-21, F-195, F-207)**: closures, F-191 wave note, F-207 filed-and-closed, F-206 independence note, totals regenerated (204/97/107, Criticals ZERO) |
+
+Suite: **2124 → 2127** (`bc9f43a`, proven green standalone in a detached
+worktree) → **2199 passed, 7 skipped** at every commit from `62aa6e9` on. All
+skips the standing 7.
+
+## P2.2 — The golden move (binding clause A), executed and proven
+
+`git diff main...HEAD -- tests/golden/` is **exactly the four files**:
+
+```
+tests/golden/el_cache_v3.1.0.json   | Bin 76992 -> 76992 bytes
+tests/golden/el_filtered_v3.1.0.csv | Bin 243118 -> 243116 bytes
+tests/golden/il_cache_v3.1.0.json   | Bin 30504 -> 30504 bytes
+tests/golden/il_filtered_v3.1.0.csv | Bin 208425 -> 209132 bytes
+```
+
+**Golden tree object: `043de53a` → `ce0c2837`** — the new value is every future
+gate's expected. `git ls-files -s tests/golden`, before → after (six blobs
+byte-identical, four moved):
+
+| file | main | HEAD |
+|---|---|---|
+| README.md | `8be406f4` | unchanged |
+| criteria_harmonized_v3.1.0.csv | `0328bfd9` | unchanged |
+| eh_filtered_v3.1.0.csv | `a325c349` | unchanged |
+| **el_cache_v3.1.0.json** | `61235cb4` | **`7f747c4e`** |
+| **el_filtered_v3.1.0.csv** | `75dd2727` | **`c2aff3fb`** |
+| el_input_v3.1.0.csv | `b0198c63` | unchanged |
+| ih_filtered_v3.1.0.csv | `2cb4cb83` | unchanged |
+| **il_cache_v3.1.0.json** | `666e56d9` | **`f3025657`** |
+| **il_filtered_v3.1.0.csv** | `96b3028b` | **`2f537e30`** |
+| il_input_v3.1.0.csv | `85e7edb4` | unchanged |
+
+The regeneration script asserted the adjudicated deltas BEFORE writing a byte,
+with STOP semantics on any deviation, and none occurred **[measured]**:
+
+- **EL**: A328, A345 `PASS_FLAGGED → PASS_CLEAN` (both EC-2 `UNCERTAIN → MET`);
+  distribution 77/7/1 → 79/5/1; A499's 102-char exclusion stands; `il_input`
+  therefore unmoved. 2 outcome flips, 0 evidence-only.
+- **IL**: A452, A636, A642, A757 `OUT → EXCLUSION_SUPPRESSED` (IC-1
+  `FAILED → SUPPRESSED`; survivors 80 → 84); A247, A345, A545, A615, A622
+  evidence-only (IC-1 `UNCERTAIN → MET`). 4 outcome flips, 5 evidence-only.
+
+## P2.3 — The migration mode (binding clause B), and its self-validation
+
+`tools/rekey_cache_goldens.py --migration template`: old key = five-member
+formula with `V2_PROMPT_VERSIONS` and the prompt rendered with the frozen
+`V2_SYSTEM_STRING` (the live user-message builder, system content swapped —
+sound because 15e moved ONLY the system clause); new key = the live pair.
+`verify_stage` gains `v2_keys_present`, in `ok` and in
+`test_golden_rekey.py::test_no_v2_key_survives`, on every suite run.
+
+**The watched red, which is also the frozen string's proof [measured]:**
+`--verify` before migration failed at `0/170` and `0/84` on the CURRENT-key
+check while the v2 derivation hit **170/170 and 84/84** committed keys — one
+wrong byte in the frozen string and that line reads 0. Migration: 1:1, 0
+collisions, 0 orphans, values byte-identical as multisets
+(`VALUE_MULTISET_SHA256` survives its third migration), `_invocation`
+preserved, file sizes unchanged. Post-verify: all six checks OK, v2 keys 0.
+One standing limitation, named: the frozen string has no continuous guard —
+like `_old_cache_key`, it was self-validated at migration time and is inert
+after; a later template wave adds its own frozen copy the same way.
+
+## P2.4 — Test-first, flipped in the open, parent-red
+
+- **The flip, watched red with counts [measured]:** against the new gate,
+  before the test updates: **16 failed** — twelve on the `exclude`+`meet` arms
+  (the 7-char `"Title N"` fixture quotes under the substance floor), all four
+  arms of `test_permitting_exclusion_restores_the_old_behaviour_exactly`, and
+  the two golden byte-identities. Fixture titles lengthened past the floor in
+  `test_flag_only._setup` and `tests/_engine_probe.py` (so every suppression
+  test still tests suppression, not a substance refusal — F-161's shape
+  avoided); the allow=True test split into
+  `test_permitting_exclusion_lets_a_presence_removal_act` (still OUT) and
+  `test_permitting_exclusion_cannot_act_an_absence_removal` (the rule-(c)
+  invariant, never OUT, counter asserted).
+- **Parent-checkout red [measured]:** `test_verdict_gate.py` + the module
+  copied into a detached worktree at `bc9f43a` (old engines): **8 failed,
+  64 passed** — the failures exactly the behaviour-changing cells (both
+  `include-not_meet-allow=True` matrix cells, both rule-(b) recording tests,
+  all three decliner-text tests, the counter). The new tests bite precisely
+  where the wave changed behaviour, and the fixtures demonstrably reach the
+  engine code.
+- **`test_verdict_gate.py`**: the GATE_TABLE pinned literally + totality;
+  keeps/presence/absence boundaries (conf at/below threshold; substance
+  19/20/21; normalisation; the 15-char modal fabrication); whitelist under
+  every rule; unknown-ctype defensive row; the **24-cell engine matrix**
+  (stage × type × decision × provider-mode, per the binding note); rule-(b)
+  recording (MET with `quote_valid: False` on the record); the three
+  decliner-text branches (F-145's text byte-exact where it is true) plus the
+  mixed-record composition; the counter presence-by-key.
+
+## P2.5 — The mutation battery: 11/11 KILLED, zero survivors [measured]
+
+| mutation | result |
+|---|---|
+| M1 rule (c) deleted from the table (`include,not_meet → KEEPS`) | KILLED |
+| M2 strict gate deleted (`exclude,meet → KEEPS`) | KILLED |
+| M3a/M3b substance floor 20 → 19 / 20 → 21 | KILLED / KILLED |
+| M4 substance boundary `>=` → `>` | KILLED |
+| M5 confidence boundary `>=` → `>` | KILLED |
+| M6 rule (c) reverted to `ACTION_EXCLUDE` (the IL hazard) | KILLED |
+| M7 decision whitelist widened to `uncertain` | KILLED |
+| M8 engine bypasses forced-off policy on the absence route | KILLED |
+| M9 decliner text demoted to the flag-only sentence | KILLED |
+| M10 value-multiset digest off by one hex char | KILLED |
+
+Every mutation reverted from git after its run; tree verified clean.
+
+## P2.6 — Design corrections found during implementation (cumulative 25 → 27)
+
+26. The design's §4.5 break matrix **under-counted the allow=True break**: it
+    named only the two absence arms; the two presence arms break too, because
+    the fixture quotes (`"Title N"`, 7 chars) sit under the substance floor
+    the same wave introduces. Found by the implementation sweep, confirmed by
+    the watched red (all four arms failed).
+27. The same matrix **missed two version-pin sites**: `test_imports.py` and
+    `test_provenance.py` each pin `PROMPT_VERSION` strings (four assertions),
+    caught by the first full-suite run after the bump.
+
+*(Also repaired in passing, F-131's family: the counting-section's row-range
+sentence had gone stale a second time and now reads F-01..F-207/204 rows.)*
+
+## P2.7 — WAIT FOR MAINTAINER: the acceptance experiment (binding clause C)
+
+**Nothing live has run.** The predictions stand registered at `291a60f` §6 —
+before any implementation existed — and are restated here unchanged, per the
+binding note, so the experiment tests the design rather than describing it:
+
+| measure | frozen comparator | prediction | falsifier |
+|---|---|---|---|
+| invalid non-null quotes on answered `not_meet` | runE 49/241; runF 100/294; runG 54/278; runH 62/281; runI 44/276 | collapses toward zero | not materially below the band |
+| fabricated meets (batch 5) | runG 15, runH 12 | must not rise | above the 15/12 band |
+| CLEAN/FLAG/SUPP (batch 5) | 86/48/13, 86/52/9 | ~128-132 / ~6 / ~9-13 (direction, not exact counts) | quote-driven flags persisting |
+| repeat churn | 24/147 | ≤ ~13/147, quote_valid component zero | not materially below 24 |
+| batch-1 arm invalid quotes | runF 100/294 | near zero; F-195's [inferred] → [measured] either way | — |
+
+**HO-15e-1 — the run.** The archived 147-record post-IH bundle
+(`_archive_bundles/`, located by the digests in
+`wave14d_invariance_runs.meta.txt`, e.g. `bundle_runG_sha256=0bd1604a…`),
+re-screened at EL: `qwen2.5:7b`, `http://localhost:11434/v1`, temperature 0,
+`trunc_chars` 1500, cache off, flag-only default. **Adjudicated arms: batch-5
+(60 calls) + batch-5 repeat (60) + batch-1 (294) = 414 calls**, declared
+before and counted after; downgrade to 120 only on the maintainer's say-so on
+the day. *Falsifiers:* any row of the table above. *Also record:* the
+`absence_suppressed` key in the exported manifest's history entry whenever a
+suppression occurs (the counter's manifest half, suite-proved at report level,
+live-confirmed here), and the new reason text as rendered in the row-detail
+modal.
+
+**HO-15e-2 — the frozen baselines stay frozen.** After the run,
+`python -m pytest tests/test_wave14d_invariance_freeze.py
+tests/test_wave14c_batch_freeze.py -q` green, untouched.
+
+**HO-15e-3 — the View strings.** Views are not instantiable under the
+headless suite (conftest MagicMocks tkinter), so three strings need eyes at
+the acceptance run: the absence-branch reason line in the EL/IL row-detail
+modal; the amended flag-only log line in the run log; the provider dialog's
+extended measurement label at `wraplength=520` (four added lines must wrap,
+not clip). *Expected:* each renders complete, no truncation, no layout break.
+
+## P2.8 — What this wave leaves, restated for the wrap-up
+
+F-201 untouched (rule (a) still passes well-quoted fabrications; the floor
+cut the frozen set 35 → 14 and buys nothing against better fabrications);
+F-197's decision-noise half (the predicted residual 13/147); F-22, F-100,
+F-28; F-191 annotated, its closure its own pass; F-132 open; the
+`_summarize_el_reason` name standing (F-207's deliberate leave, F-14's
+family). The causal half of F-195 is the batch-1 arm's to settle.
