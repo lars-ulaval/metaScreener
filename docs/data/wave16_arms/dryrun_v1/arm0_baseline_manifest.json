@@ -1,0 +1,488 @@
+{
+  "arm": "arm0_baseline",
+  "kind": "free_text",
+  "source": "samples/ic_ec_12.txt",
+  "source_sha256": "46696c2949f8849c6fe6718a993e6c276bc075034553e7a47f1ba755c0eaf547",
+  "harmonized_sha256": "7764f41846c22303a011dd464653ca8104dc31d38ab266b21b75bb61a5978ac3",
+  "corpus": "samples/20260122_1654_aggregate.csv",
+  "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IL",
+      "id": "IC-1",
+      "type": "include",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper considers immersive virtual reality OR a virtual simulation using a head-mounted display (HMD)."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-3",
+      "type": "include",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "English"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-4",
+      "type": "include",
+      "operator": "gte",
+      "target": "year",
+      "what": [
+        "2018"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-5",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "training",
+        "vocational",
+        "workplace"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-1",
+      "type": "exclude",
+      "operator": "in_list",
+      "target": "lang",
+      "what": [
+        "French",
+        "Spanish"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-2",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper\u2019s primary focus is spatial navigation in a virtual maze (no social interaction or collaboration)."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-3",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper\u2019s primary focus is the rubber hand illusion paradigm."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-4",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "venue",
+      "what": [
+        "ICRA",
+        "IROS"
+      ],
+      "threshold": "",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "IC-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-4": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-5": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-4": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "EC-1",
+          "operator": "in_list",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-4",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "IC-3",
+          "operator": "equals",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-4",
+          "operator": "gte",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-5",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "EC-2",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-3",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "IC-1",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "IC-1",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic VR/HMD criterion; falls through all six inference branches"
+    },
+    {
+      "id": "IC-3",
+      "intended_stage": "IH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 1 (language), single operand English"
+    },
+    {
+      "id": "IC-4",
+      "intended_stage": "IH",
+      "intended_operator": "gte",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "gte"
+      ],
+      "match": true,
+      "rationale": "branch 2 (year), bare year + publication word"
+    },
+    {
+      "id": "IC-5",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "branch 6 (keyword-in-text), post-F-65 routing; F-204 union at IH"
+    },
+    {
+      "id": "EC-1",
+      "intended_stage": "EH",
+      "intended_operator": "in_list",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "in_list"
+      ],
+      "match": true,
+      "rationale": "branch 1 union French+Spanish (F-167 repaired)"
+    },
+    {
+      "id": "EC-2",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic maze-navigation criterion; fall-through"
+    },
+    {
+      "id": "EC-3",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic rubber-hand criterion; fall-through"
+    },
+    {
+      "id": "EC-4",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "branch 4 (venue), quoted operands ICRA/IROS"
+    }
+  ],
+  "funnel": {
+    "input": 776,
+    "eh": {
+      "out": 16,
+      "survivors": 760,
+      "pass_flagged": 115,
+      "impacts": {
+        "EC-1": {
+          "failed": 16,
+          "missing": 0,
+          "met": 760,
+          "unknown": 0
+        },
+        "EC-4": {
+          "failed": 0,
+          "missing": 126,
+          "met": 650,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 738,
+      "survivors": 22,
+      "pass_flagged": 0,
+      "impacts": {
+        "IC-3": {
+          "failed": 8,
+          "missing": 0,
+          "met": 752,
+          "unknown": 0
+        },
+        "IC-4": {
+          "failed": 611,
+          "missing": 1,
+          "met": 148,
+          "unknown": 0
+        },
+        "IC-5": {
+          "failed": 690,
+          "missing": 0,
+          "met": 70,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 22,
+    "records_at_il": 22,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-2",
+        "EC-3"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 2206,
+              "reserve": 400,
+              "n_batches": 5,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 2186,
+              "reserve": 400,
+              "n_batches": 5,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 681,
+              "reserve": 80,
+              "n_batches": 22,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 662,
+              "reserve": 80,
+              "n_batches": 22,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "IC-1"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "IC-1": {
+              "ok": true,
+              "worst_estimate": 2205,
+              "reserve": 400,
+              "n_batches": 5,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "IC-1": {
+              "ok": true,
+              "worst_estimate": 680,
+              "reserve": 80,
+              "n_batches": 22,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 10,
+      "IL": 5,
+      "total": 15,
+      "wall_clock_s_est": 132.0
+    },
+    "batch1": {
+      "EL": 44,
+      "IL": 22,
+      "total": 66,
+      "wall_clock_s_est": 229.0
+    }
+  },
+  "pin_check": {
+    "want": {
+      "input": 776,
+      "eh_out": 16,
+      "eh_surv": 760,
+      "ih_out": 738,
+      "ih_surv": 22
+    },
+    "got": {
+      "input": 776,
+      "eh_out": 16,
+      "eh_surv": 760,
+      "ih_out": 738,
+      "ih_surv": 22
+    },
+    "ok": true
+  }
+}

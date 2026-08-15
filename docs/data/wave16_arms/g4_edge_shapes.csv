@@ -1,0 +1,9 @@
+stage,id,type,scope,label,operator,target,what,threshold,enabled,source_text
+EH,E0,exclude,metadata,Exclude records whose venue mentions workshop,contains,venue,workshop,,1,E0 - venue workshop exclusion (plain control row)
+IH,E1,exclude,metadata,Exclude German-language records at the inclusion stage,equals,lang,de,,1,E1 - exclude@IH polarity mismatch (F-206)
+EL,E2,include,metadata,The study reports measurable learning outcomes.,llm,keywords,The study reports measurable learning outcomes.,0.60,1,E2 - include@EL polarity mismatch (F-206)
+IH,E3,include,metadata,Any of the three text fields contains simulation,contains,"title,abstract,keywords",simulation,,1,E3 - multi-target union (F-204)
+IH,E4,include,metadata,Language is exactly one of the listed forms,in_list,lang,en;eng;english,,1,E4 - in_list exactness + LANG_MAP normalisation
+IH,E5,include,metadata,Publication year between 2018 and 2022,between,year,2018;2022,,1,E5 - between arity and boundary inclusivity
+EL,E6,exclude,metadata,The paper's primary focus is robot teleoperation.,llm,keywords,The paper's primary focus is robot teleoperation.,0,1,E6 - threshold at the 0.0 bound
+IL,E7,include,metadata,The paper involves a head-mounted display.,llm,keywords,The paper involves a head-mounted display.,1,1,E7 - threshold at the 1.0 bound

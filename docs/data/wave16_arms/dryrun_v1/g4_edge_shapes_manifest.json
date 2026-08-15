@@ -1,0 +1,528 @@
+{
+  "arm": "g4_edge_shapes",
+  "kind": "harmonized_csv",
+  "source": "docs/data/wave16_arms/g4_edge_shapes.csv",
+  "source_sha256": "d466aab88ccddc30d5838477d23f8ac901350b1e86b2a2cf57417f6ad5e61d2c",
+  "harmonized_sha256": "d466aab88ccddc30d5838477d23f8ac901350b1e86b2a2cf57417f6ad5e61d2c",
+  "corpus": "samples/20260122_1654_aggregate.csv",
+  "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "EH",
+      "id": "E0",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "venue",
+      "what": [
+        "workshop"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "E1",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "de"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "E2",
+      "type": "include",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The study reports measurable learning outcomes."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "E3",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "simulation"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "E4",
+      "type": "include",
+      "operator": "in_list",
+      "target": "lang",
+      "what": [
+        "en",
+        "eng",
+        "english"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "E5",
+      "type": "include",
+      "operator": "between",
+      "target": "year",
+      "what": [
+        "2018",
+        "2022"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "E6",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper's primary focus is robot teleoperation."
+      ],
+      "threshold": "0",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "E7",
+      "type": "include",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper involves a head-mounted display."
+      ],
+      "threshold": "1",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "E0": {
+      "errors": [],
+      "warnings": []
+    },
+    "E1": {
+      "errors": [],
+      "warnings": []
+    },
+    "E2": {
+      "errors": [],
+      "warnings": []
+    },
+    "E3": {
+      "errors": [],
+      "warnings": []
+    },
+    "E4": {
+      "errors": [],
+      "warnings": []
+    },
+    "E5": {
+      "errors": [],
+      "warnings": []
+    },
+    "E6": {
+      "errors": [],
+      "warnings": []
+    },
+    "E7": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "E0",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "E1",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "E3",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "E4",
+          "operator": "in_list",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "E5",
+          "operator": "between",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "E2",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "E6",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "E7",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "E0",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "plain control row; exercises layers 1-4 clean"
+    },
+    {
+      "id": "E1",
+      "intended_stage": "IH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "F-206 exercise: exclude@IH passes _validate_row clean (layer 1 gap), evaluator removes by ctype at the inclusion stage; expected cut = de records among survivors"
+    },
+    {
+      "id": "E2",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "F-206 exercise: include@EL passes clean; gate arms keyed on ctype; live expectation: absence-removal never auto-acts"
+    },
+    {
+      "id": "E3",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "F-204 multi-target union across title,abstract,keywords; layer-1 target canonicalisation"
+    },
+    {
+      "id": "E4",
+      "intended_stage": "IH",
+      "intended_operator": "in_list",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "in_list"
+      ],
+      "match": true,
+      "rationale": "in_list exactness: en/eng/english all normalise to en; matches only exact lang codes"
+    },
+    {
+      "id": "E5",
+      "intended_stage": "IH",
+      "intended_operator": "between",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "between"
+      ],
+      "match": true,
+      "rationale": "between arity-2 passes layer 1; boundary inclusivity measured in the dry run"
+    },
+    {
+      "id": "E6",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "threshold at the 0.0 bound: layer 1 accepts; EL loader float-parses to 0.0"
+    },
+    {
+      "id": "E7",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "threshold at the 1.0 bound: layer 1 accepts; only confidence 1.0 could meet"
+    }
+  ],
+  "funnel": {
+    "input": 776,
+    "eh": {
+      "out": 4,
+      "survivors": 772,
+      "pass_flagged": 126,
+      "impacts": {
+        "E0": {
+          "failed": 4,
+          "missing": 126,
+          "met": 646,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 756,
+      "survivors": 16,
+      "pass_flagged": 0,
+      "impacts": {
+        "E1": {
+          "failed": 1,
+          "missing": 0,
+          "met": 771,
+          "unknown": 0
+        },
+        "E3": {
+          "failed": 697,
+          "missing": 0,
+          "met": 75,
+          "unknown": 0
+        },
+        "E4": {
+          "failed": 24,
+          "missing": 0,
+          "met": 748,
+          "unknown": 0
+        },
+        "E5": {
+          "failed": 625,
+          "missing": 1,
+          "met": 146,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 16,
+    "records_at_il": 16,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "E2",
+        "E6"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "E2": {
+              "ok": true,
+              "worst_estimate": 2151,
+              "reserve": 400,
+              "n_batches": 4,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "E6": {
+              "ok": true,
+              "worst_estimate": 2152,
+              "reserve": 400,
+              "n_batches": 4,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "E2": {
+              "ok": true,
+              "worst_estimate": 651,
+              "reserve": 80,
+              "n_batches": 16,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "E6": {
+              "ok": true,
+              "worst_estimate": 652,
+              "reserve": 80,
+              "n_batches": 16,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "E7"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "E7": {
+              "ok": true,
+              "worst_estimate": 2149,
+              "reserve": 400,
+              "n_batches": 4,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "E7": {
+              "ok": true,
+              "worst_estimate": 649,
+              "reserve": 80,
+              "n_batches": 16,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 8,
+      "IL": 4,
+      "total": 12,
+      "wall_clock_s_est": 105.6
+    },
+    "batch1": {
+      "EL": 32,
+      "IL": 16,
+      "total": 48,
+      "wall_clock_s_est": 166.5
+    }
+  },
+  "raw_probe": {
+    "source": "docs/data/wave16_arms/g4_raw_probe.csv",
+    "source_sha256": "1fd2ea9c62dc342e9c77500aa99166bd6a51dbfed2f17416019a42bf540df36e",
+    "loaders": {
+      "EH": {
+        "loaded": [
+          {
+            "id": "R1",
+            "operator": "contains",
+            "enabled": true
+          },
+          {
+            "id": "R2",
+            "operator": "equals",
+            "enabled": true
+          },
+          {
+            "id": "R3",
+            "operator": "llm",
+            "enabled": true
+          }
+        ],
+        "warnings": []
+      },
+      "IH": {
+        "loaded": [
+          {
+            "id": "R1",
+            "operator": "contains",
+            "enabled": true
+          },
+          {
+            "id": "R2",
+            "operator": "equals",
+            "enabled": true
+          },
+          {
+            "id": "R3",
+            "operator": "llm",
+            "enabled": true
+          }
+        ],
+        "warnings": []
+      },
+      "EL": {
+        "loaded": [],
+        "warnings": [
+          "No EL criteria found (stage=EL)."
+        ]
+      },
+      "IL": {
+        "loaded": [],
+        "warnings": [
+          "No IL criteria found (stage=IL)."
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,776 @@
+# SPDX-FileCopyrightText: 2026 Alejandro Reyes-Consuelo
+# SPDX-License-Identifier: MIT
+"""Multi-arm criteria-diversity experiment driver (wave 16a).
+
+Runs experiment ARMS — (criteria source, per-stage config) pairs — against the
+776-record aggregate the reference chain uses, through the product's own
+translation, loading, deterministic screening, prompt rendering and
+context-budget machinery. Two modes:
+
+DRY (default): ZERO network capability. The dry path never constructs an LLM
+    client and never calls ``run_el_screen``/``run_il_screen`` — the only
+    functions in the pipeline that can open a connection. On top of that
+    structural property, ``_install_dry_guard`` replaces
+    ``llm_client._openai_client_for`` with a raiser before any arm runs, so
+    even a future regression that reached client construction would fail
+    loudly instead of connecting. Per arm it reports: the harmonized table,
+    validator/linter findings, stage landings vs recorded intent, the EH→IH
+    deterministic funnel, records reaching EL/IL, the context-budget verdict
+    per criterion per batch size, and exact live-call arithmetic.
+
+LIVE (``--live``): built for wave 16b, NOT exercised at 16a. Follows the 15e
+    preflight-assert pattern (docs/internal/harnesses/acceptance_harness_15e.py)
+    — endpoint, exclusion policy, window, corpus/criteria digests, and models
+    EXPLICIT per stage from the spec (never store-resolved for model/batch) —
+    plus the 15d hard call-budget enforcer wrapping the client
+    (docs/internal/harnesses/acceptance15d_live.py). Refuses before the first
+    call on any mismatch.
+
+Baseline correctness check: the ``arm0_baseline`` dry run must reproduce the
+pinned chain exactly — 776 -> EH OUT 16 -> 760 -> IH OUT 738 -> 22, with
+IC-5 met=70/failed=690 (tests/test_stage_routing.py::TestTheChainAsRouted).
+A mismatch is a harness bug and aborts the whole run.
+
+Usage:
+    python tools/run_criteria_experiment.py                      # dry, all arms
+    python tools/run_criteria_experiment.py --arm g4_edge_shapes # dry, one arm
+    python tools/run_criteria_experiment.py --out DIR            # dry, custom out
+    python tools/run_criteria_experiment.py --live --arm KEY --budget N \
+        --yes-live   # wave 16b only; every preflight assert must pass
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import importlib
+import io
+import json
+import math
+import sys
+import threading
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+DEFAULT_SPEC = PROJECT_ROOT / "docs" / "data" / "wave16_arms" / "experiment_spec.json"
+DEFAULT_OUT = PROJECT_ROOT / "docs" / "data" / "wave16_arms" / "dryrun_v1"
+
+STAGES = ("EH", "IH", "EL", "IL")
+
+# Wall-clock rates measured at wave 15e (docs/data/wave15e_acceptance_runs/
+# wave15e_acceptance_runs.meta.txt:37-39), qwen2.5:7b at localhost, same-machine
+# assumption for any estimate derived from them: runJ 528s/60 calls (batch 5,
+# the slower of the J/K pair, used as the conservative rate), runL 1020s/294
+# (batch 1).
+SECONDS_PER_CALL_BATCH5 = 528.0 / 60.0
+SECONDS_PER_CALL_BATCH1 = 1020.0 / 294.0
+
+
+# ---------------------------------------------------------------------------
+# Headless scaffolding (tools/capture_el_il_goldens.py pattern)
+# ---------------------------------------------------------------------------
+
+def _setup_headless_imports() -> None:
+    """Mock tkinter + metascreener.plugin_api so plugin modules import on a
+    headless run. Must run before any plugins.* import."""
+    import types
+    tk_modules = [
+        "tkinter", "tkinter.ttk", "tkinter.filedialog",
+        "tkinter.messagebox", "tkinter.scrolledtext",
+        "tkinter.font", "_tkinter",
+    ]
+    for name in tk_modules:
+        if name not in sys.modules:
+            sys.modules[name] = MagicMock()
+
+    if "metascreener" not in sys.modules:
+        sys.modules["metascreener"] = types.ModuleType("metascreener")
+    if "metascreener.plugin_api" not in sys.modules:
+        api = types.ModuleType("metascreener.plugin_api")
+
+        class _FakePluginMeta:
+            def __init__(self, **kw):
+                for k, v in kw.items():
+                    setattr(self, k, v)
+
+        class _FakeBasePlugin:
+            def __init__(self, app=None, meta=None):
+                self.app = app
+                self.meta = meta
+
+        api.PluginMeta = _FakePluginMeta  # type: ignore
+        api.BasePlugin = _FakeBasePlugin  # type: ignore
+        sys.modules["metascreener.plugin_api"] = api
+
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+
+
+class _Mods:
+    """Lazily-imported product modules, one namespace to thread around."""
+
+    def __init__(self) -> None:
+        _setup_headless_imports()
+        self.common_parser = importlib.import_module("plugins._common.parser")
+        self.runner = importlib.import_module("plugins._common.runner")
+        self.llm_client = importlib.import_module("plugins._common.llm_client")
+        self.run_estimate = importlib.import_module("plugins._common.run_estimate")
+        self.h_parser = importlib.import_module("plugins.03_harmoniser.parser")
+        self.h_inference = importlib.import_module("plugins.03_harmoniser.inference")
+        self.h_exporters = importlib.import_module("plugins.03_harmoniser.exporters")
+        self.h_linter = importlib.import_module("plugins.03_harmoniser.linter")
+        self.el_screen = importlib.import_module("plugins.06_el.screen")
+        self.il_screen = importlib.import_module("plugins.07_il.screen")
+        self.el_prompt = importlib.import_module("plugins.06_el.prompt")
+        self.il_prompt = importlib.import_module("plugins.07_il.prompt")
+
+
+def _install_dry_guard(mods: _Mods) -> None:
+    """Belt-and-braces on top of the structural guarantee: in dry mode the
+    pipeline never calls client construction; if it ever did, raise."""
+
+    def _refuse(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError(
+            "dry mode: LLM client construction is forbidden; no network call "
+            "can be made in this mode")
+
+    mods.llm_client._openai_client_for = _refuse  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
+
+def _sha256_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8-sig")
+
+
+def calls_for(records: int, criteria: int, batch_size: int) -> int:
+    """The engine's exact live-call arithmetic (run_estimate.py:100-125):
+    per-criterion ceiling division summed, never mixing criteria."""
+    if records <= 0 or criteria <= 0:
+        return 0
+    size = max(1, int(batch_size))
+    return (-(-records // size)) * criteria
+
+
+def wall_clock_seconds(calls: int, batch_size: int) -> float:
+    rate = SECONDS_PER_CALL_BATCH5 if batch_size >= 2 else SECONDS_PER_CALL_BATCH1
+    return calls * rate
+
+
+# ---------------------------------------------------------------------------
+# Spec
+# ---------------------------------------------------------------------------
+
+REQUIRED_ARM_FIELDS = ("key", "kind", "source")
+ARM_KINDS = ("free_text", "harmonized_csv")
+
+
+def load_spec(path: Path) -> Dict[str, Any]:
+    spec = json.loads(path.read_text(encoding="utf-8"))
+    if spec.get("spec_version") != 1:
+        raise ValueError(f"unsupported spec_version: {spec.get('spec_version')!r}")
+    for field in ("corpus", "corpus_sha256", "window", "trunc_chars", "arms"):
+        if field not in spec:
+            raise ValueError(f"spec missing required field: {field}")
+    keys = set()
+    for arm in spec["arms"]:
+        for field in REQUIRED_ARM_FIELDS:
+            if field not in arm:
+                raise ValueError(f"arm missing required field {field}: {arm}")
+        if arm["kind"] not in ARM_KINDS:
+            raise ValueError(f"arm {arm['key']}: unknown kind {arm['kind']!r}")
+        if arm["key"] in keys:
+            raise ValueError(f"duplicate arm key: {arm['key']}")
+        keys.add(arm["key"])
+    return spec
+
+
+# ---------------------------------------------------------------------------
+# Criteria production per arm
+# ---------------------------------------------------------------------------
+
+def translate_free_text(mods: _Mods, text: str, a_columns: List[str],
+                        text_stats: Dict[str, float]) -> List[Dict[str, Any]]:
+    """The GUI's free-text harmonise path, no LLM, no widgets — the same call
+    sequence tests/test_harmoniser_regression.py::_build_rows reproduces."""
+    h_parser, h_inf = mods.h_parser, mods.h_inference
+    default_text_target = h_parser._get_best_text_targets(a_columns, text_stats)
+    default_text_target, _ = h_parser._canonicalize_targets(default_text_target, a_columns)
+    rows: List[Dict[str, Any]] = []
+    for crit_id, crit_type, label, source_line in h_parser._parse_free_text_criteria(text):
+        inferred = h_inf._infer_criterion_details(
+            crit_id=crit_id, crit_type=crit_type, label=label,
+            a_columns=list(a_columns), default_text_target=default_text_target,
+        )
+        stage = inferred["stage"]
+        rows.append({
+            "stage": stage, "id": crit_id, "type": crit_type, "scope": "metadata",
+            "label": label, "operator": inferred["operator"],
+            "target": inferred["target"], "what": inferred["what"],
+            "threshold": f"{h_inf.DEFAULT_THRESHOLD:.2f}" if stage in {"EL", "IL"} else "",
+            "enabled": True, "source_text": source_line,
+        })
+    return rows
+
+
+def rows_from_harmonized_csv(mods: _Mods, csv_text: str) -> List[Dict[str, Any]]:
+    """Hand-authored harmonized CSV -> normalized row dicts, via the same
+    structured-row normalizer the harmoniser's table import uses
+    (plugins/03_harmoniser/parser.py::_normalize_structured_row)."""
+    reader = csv.DictReader(io.StringIO(csv_text))
+    return [mods.h_parser._normalize_structured_row(dict(r)) for r in reader]
+
+
+def validator_pass(mods: _Mods, rows: List[Dict[str, Any]],
+                   a_columns: List[str]) -> Dict[str, Dict[str, List[str]]]:
+    """_validate_row per row (on copies — it mutates), keyed by criterion id."""
+    out: Dict[str, Dict[str, List[str]]] = {}
+    for row in rows:
+        errs, warns = mods.h_inference._validate_row(dict(row), a_columns)
+        out[str(row.get("id", "?"))] = {"errors": errs, "warnings": warns}
+    return out
+
+
+def linter_pass(mods: _Mods, rows: List[Dict[str, Any]], a_columns: List[str],
+                corpus_rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    report = mods.h_linter.lint_criteria(rows, a_columns, corpus_rows)
+    return [{
+        "criterion_id": f.criterion_id, "check": f.check,
+        "severity": f.severity, "message": f.message,
+    } for f in report]
+
+
+# ---------------------------------------------------------------------------
+# Stage landings + chain
+# ---------------------------------------------------------------------------
+
+def stage_landings(mods: _Mods, csv_text: str) -> Dict[str, Any]:
+    """Load the harmonized CSV per stage exactly as the product does:
+    _load_criteria_from_text for EH/IH; _parse_criteria_harmonized_csv for
+    EL/IL. Returns per-stage (id, operator, enabled) plus loader warnings."""
+    out: Dict[str, Any] = {"stages": {}, "loader_warnings": {}}
+    for stage in ("EH", "IH"):
+        rep = mods.common_parser._load_criteria_from_text(csv_text, stage)
+        out["stages"][stage] = [
+            {"id": c.cid, "operator": c.operator, "type": c.ctype, "enabled": c.enabled}
+            for c in rep.criteria]
+        out["loader_warnings"][stage] = list(rep.warnings)
+    for stage, screen in (("EL", mods.el_screen), ("IL", mods.il_screen)):
+        rep = screen._parse_criteria_harmonized_csv(csv_text, stage_filter=stage)
+        out["stages"][stage] = [
+            {"id": c.id, "operator": c.operator, "type": c.ctype, "enabled": c.enabled}
+            for c in rep.criteria]
+        out["loader_warnings"][stage] = list(rep.warnings)
+    return out
+
+
+def landings_vs_intent(landings: Dict[str, Any],
+                       intents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    landed_by_id: Dict[str, List[Tuple[str, str]]] = {}
+    for stage in STAGES:
+        for c in landings["stages"].get(stage, []):
+            landed_by_id.setdefault(c["id"], []).append((stage, c["operator"]))
+    diff = []
+    for intent in intents:
+        cid = intent["id"]
+        landed = landed_by_id.get(cid, [])
+        landed_stages = sorted({s for s, _ in landed})
+        landed_ops = sorted({op for _, op in landed})
+        match = (landed_stages == [intent["intended_stage"]]
+                 and landed_ops == [intent["intended_operator"]])
+        diff.append({
+            "id": cid,
+            "intended_stage": intent["intended_stage"],
+            "intended_operator": intent["intended_operator"],
+            "landed_stages": landed_stages,
+            "landed_operators": landed_ops,
+            "match": match,
+            "rationale": intent.get("rationale", ""),
+        })
+    intended_ids = {i["id"] for i in intents}
+    for cid, landed in landed_by_id.items():
+        if cid not in intended_ids:
+            diff.append({
+                "id": cid, "intended_stage": None, "intended_operator": None,
+                "landed_stages": sorted({s for s, _ in landed}),
+                "landed_operators": sorted({op for _, op in landed}),
+                "match": False, "rationale": "UNDECLARED: no recorded intent",
+            })
+    return diff
+
+
+def run_chain(mods: _Mods, parse: Any, csv_text: str) -> Dict[str, Any]:
+    """EH then IH via the shared deterministic engine, with the survivor
+    re-wrap from TestTheChainAsRouted (tests/test_stage_routing.py:230-243)."""
+    cp, runner = mods.common_parser, mods.runner
+    ev = threading.Event()
+    _f, surv_eh, c_eh, imp_eh, _r, cancelled = runner.run_screen(
+        parse, cp._load_criteria_from_text(csv_text, "EH"), ev, stage="EH")
+    assert not cancelled
+    pr = cp.ParseReport(header=parse.header, rows=surv_eh, skipped=[])
+    _f, surv_ih, c_ih, imp_ih, _r, cancelled = runner.run_screen(
+        pr, cp._load_criteria_from_text(csv_text, "IH"), ev, stage="IH")
+    assert not cancelled
+    return {
+        "input": len(parse.rows),
+        "eh": {"out": c_eh["OUT"], "survivors": len(surv_eh),
+               "pass_flagged": c_eh.get("PASS_FLAGGED", 0), "impacts": imp_eh},
+        "ih": {"out": c_ih["OUT"], "survivors": len(surv_ih),
+               "pass_flagged": c_ih.get("PASS_FLAGGED", 0), "impacts": imp_ih},
+        "records_at_el": len(surv_ih),
+        # Flag-only policy: LLM verdicts may flag but not exclude
+        # (llm_exclusion_allowed False for EL and IL under the maintainer's
+        # store), and deterministic operators at EL are not evaluated — so EL
+        # removes nothing and IL sees the same records.
+        "records_at_il": len(surv_ih),
+        "il_input_assumption": "flag_only: EL removes no records; IL input = EL input",
+        "survivor_rows_ih": surv_ih,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Prompt render + context budget + arithmetic
+# ---------------------------------------------------------------------------
+
+def _items_from_rows(header: List[str], rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Exact item construction from plugins/06_el/screen.py:581-592."""
+    header_map = {h.lower(): h for h in (header or [])}
+
+    def getv(row: Dict[str, str], key: str) -> str:
+        k = header_map.get(key.lower(), key)
+        v = row.get(k, "")
+        return "" if v is None else str(v)
+
+    return [{
+        "a_id": getv(r, "local_id").strip(),
+        "title": getv(r, "title"),
+        "abstract": getv(r, "abstract"),
+        "keywords": getv(r, "keywords"),
+    } for r in rows]
+
+
+def _crit_pack(c: Any) -> Dict[str, Any]:
+    """Guard-pack shape from plugins/06_el/screen.py:711-720."""
+    return {
+        "id": c.id, "type": c.ctype, "operator": c.operator,
+        "target": ",".join(c.targets), "what": c.what_list,
+        "how": "llm", "label": c.label or c.source_text,
+        "threshold": c.threshold,
+    }
+
+
+def budget_pass(mods: _Mods, stage: str, csv_text: str, header: List[str],
+                rows: List[Dict[str, str]], batch_sizes: List[int],
+                window: int, trunc_chars: int) -> Dict[str, Any]:
+    """check_context_budget per llm criterion per batch size, with the stage's
+    real prompt builder — the engine's own pre-run guard, run standalone."""
+    screen = mods.el_screen if stage == "EL" else mods.il_screen
+    prompt = mods.el_prompt if stage == "EL" else mods.il_prompt
+    rep = screen._parse_criteria_harmonized_csv(csv_text, stage_filter=stage)
+    llm_crits = [c for c in rep.criteria if c.enabled and c.operator == "llm"]
+    items = _items_from_rows(header, rows)
+    out: Dict[str, Any] = {"llm_criteria": [c.id for c in llm_crits], "batches": {}}
+    for b in batch_sizes:
+        per_crit = {}
+        for c in llm_crits:
+            r = mods.llm_client.check_context_budget(
+                criteria=[_crit_pack(c)], items=items, batch_size=b,
+                trunc_chars=trunc_chars,
+                build_messages=prompt._build_llm_messages_for_criterion,
+                window=window)
+            per_crit[c.id] = {
+                "ok": r.ok, "worst_estimate": r.worst_estimate,
+                "reserve": r.reserve, "n_batches": r.n_batches,
+                "max_safe_batch": r.max_safe_batch,
+                "message": r.message,
+            }
+        all_ok = all(v["ok"] for v in per_crit.values()) if per_crit else True
+        out["batches"][str(b)] = {"ok": all_ok, "per_criterion": per_crit}
+    return out
+
+
+def arithmetic(mods: _Mods, records_el: int, records_il: int,
+               n_el: int, n_il: int, batch_sizes: List[int]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {"reasks_expected": 0}
+    for b in batch_sizes:
+        el_calls = calls_for(records_el, n_el, b)
+        il_calls = calls_for(records_il, n_il, b)
+        # Cross-check the local formula against the product's own RunPlan.
+        assert el_calls == mods.run_estimate.RunPlan(
+            records=records_el, criteria=n_el, batch_size=b).requests
+        assert il_calls == mods.run_estimate.RunPlan(
+            records=records_il, criteria=n_il, batch_size=b).requests
+        total = el_calls + il_calls
+        out[f"batch{b}"] = {
+            "EL": el_calls, "IL": il_calls, "total": total,
+            "wall_clock_s_est": round(wall_clock_seconds(total, b), 1),
+        }
+    return out
+
+
+# ---------------------------------------------------------------------------
+# The raw bundle-read probe (F-205/F-208 semantics, deliberate edges)
+# ---------------------------------------------------------------------------
+
+def raw_probe(mods: _Mods, csv_text: str) -> Dict[str, Any]:
+    """Feed a raw CSV through all four bundle-read loaders and record what
+    each one does — no validator, exactly the bundle-read semantics."""
+    out: Dict[str, Any] = {}
+    for stage in ("EH", "IH"):
+        rep = mods.common_parser._load_criteria_from_text(csv_text, stage)
+        out[stage] = {
+            "loaded": [{"id": c.cid, "operator": c.operator, "enabled": c.enabled}
+                       for c in rep.criteria],
+            "warnings": list(rep.warnings),
+        }
+    for stage, screen in (("EL", mods.el_screen), ("IL", mods.il_screen)):
+        rep = screen._parse_criteria_harmonized_csv(csv_text, stage_filter=stage)
+        out[stage] = {
+            "loaded": [{"id": c.id, "operator": c.operator, "enabled": c.enabled}
+                       for c in rep.criteria],
+            "warnings": list(rep.warnings),
+        }
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Dry run per arm
+# ---------------------------------------------------------------------------
+
+def run_arm_dry(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
+                parse: Any, a_columns: List[str],
+                text_stats: Dict[str, float]) -> Dict[str, Any]:
+    src = PROJECT_ROOT / arm["source"]
+    src_text = _read_text(src)
+    window = int(spec["window"])
+    trunc = int(spec["trunc_chars"])
+    batches = [int(b) for b in spec.get("batch_sizes_reported", [5, 1])]
+
+    if arm["kind"] == "free_text":
+        rows = translate_free_text(mods, src_text, a_columns, text_stats)
+        harmonized_text = mods.h_exporters._criteria_csv_text(rows)
+    else:
+        rows = rows_from_harmonized_csv(mods, src_text)
+        harmonized_text = src_text
+
+    validator = validator_pass(mods, rows, a_columns)
+    linter = linter_pass(mods, rows, a_columns, parse.rows)
+    landings = stage_landings(mods, harmonized_text)
+    # Intents with intended_stage None describe raw-probe rows; their
+    # expectations are checked by the raw_probe section, not the main table.
+    main_intents = [i for i in arm.get("intents", [])
+                    if i.get("intended_stage") is not None]
+    diff = landings_vs_intent(landings, main_intents)
+    chain = run_chain(mods, parse, harmonized_text)
+
+    surv = chain.pop("survivor_rows_ih")
+    budget = {
+        "EL": budget_pass(mods, "EL", harmonized_text, parse.header, surv,
+                          batches, window, trunc),
+        "IL": budget_pass(mods, "IL", harmonized_text, parse.header, surv,
+                          batches, window, trunc),
+    }
+    n_el = len(budget["EL"]["llm_criteria"])
+    n_il = len(budget["IL"]["llm_criteria"])
+    calls = arithmetic(mods, chain["records_at_el"], chain["records_at_il"],
+                       n_el, n_il, batches)
+
+    manifest: Dict[str, Any] = {
+        "arm": arm["key"],
+        "kind": arm["kind"],
+        "source": arm["source"],
+        "source_sha256": _sha256_bytes(src.read_bytes()),
+        "harmonized_sha256": _sha256_bytes(harmonized_text.encode("utf-8")),
+        "corpus": spec["corpus"],
+        "corpus_sha256": spec["corpus_sha256"],
+        "window": window,
+        "trunc_chars": trunc,
+        "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+        "harmonized_rows": [{
+            "stage": r.get("stage"), "id": r.get("id"), "type": r.get("type"),
+            "operator": r.get("operator"), "target": r.get("target"),
+            "what": r.get("what"), "threshold": r.get("threshold"),
+            "enabled": r.get("enabled"),
+        } for r in rows],
+        "validator": validator,
+        "linter": linter,
+        "landings": landings,
+        "landings_vs_intent": diff,
+        "funnel": chain,
+        "budget_guard": budget,
+        "call_arithmetic": calls,
+    }
+
+    if arm.get("raw_probe"):
+        probe_path = PROJECT_ROOT / arm["raw_probe"]
+        manifest["raw_probe"] = {
+            "source": arm["raw_probe"],
+            "source_sha256": _sha256_bytes(probe_path.read_bytes()),
+            "loaders": raw_probe(mods, _read_text(probe_path)),
+        }
+
+    pin = arm.get("pin")
+    if pin:
+        got = {
+            "input": chain["input"], "eh_out": chain["eh"]["out"],
+            "eh_surv": chain["eh"]["survivors"], "ih_out": chain["ih"]["out"],
+            "ih_surv": chain["ih"]["survivors"],
+        }
+        want = pin["chain"]
+        impacts_ok = all(
+            chain["ih"]["impacts"].get(cid, {}).get(k) == v
+            for cid, kv in pin.get("ih_impacts", {}).items()
+            for k, v in kv.items())
+        manifest["pin_check"] = {"want": want, "got": got,
+                                "ok": got == want and impacts_ok}
+        if not manifest["pin_check"]["ok"]:
+            raise SystemExit(
+                f"BASELINE PIN FAILED for {arm['key']}: want {want}, got {got}, "
+                f"impacts_ok={impacts_ok}. The harness is wrong — STOPPING; do "
+                f"not touch the pinned test.")
+    return manifest
+
+
+def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[Dict[str, Any]]:
+    rows = []
+    for m in manifests:
+        b5 = m["call_arithmetic"].get("batch5", {})
+        b1 = m["call_arithmetic"].get("batch1", {})
+        guard5 = m["budget_guard"]
+        worst5 = 0
+        for stage in ("EL", "IL"):
+            for v in guard5[stage]["batches"].get("5", {}).get("per_criterion", {}).values():
+                worst5 = max(worst5, v["worst_estimate"] + v["reserve"])
+        rows.append({
+            "arm": m["arm"],
+            "kind": m["kind"],
+            "criteria": len(m["harmonized_rows"]),
+            "validator_errors": sum(len(v["errors"]) for v in m["validator"].values()),
+            "linter_findings": len(m["linter"]),
+            "landings_match": sum(1 for d in m["landings_vs_intent"] if d["match"]),
+            "landings_total": len(m["landings_vs_intent"]),
+            "eh_out": m["funnel"]["eh"]["out"],
+            "ih_out": m["funnel"]["ih"]["out"],
+            "records_at_el": m["funnel"]["records_at_el"],
+            "el_llm_criteria": len(m["budget_guard"]["EL"]["llm_criteria"]),
+            "il_llm_criteria": len(m["budget_guard"]["IL"]["llm_criteria"]),
+            "guard_ok_batch5": all(
+                guard5[s]["batches"].get("5", {}).get("ok", True) for s in ("EL", "IL")),
+            "guard_worst_est_plus_reserve_batch5": worst5,
+            "calls_batch5": b5.get("total", 0),
+            "calls_batch1": b1.get("total", 0),
+            "wall_clock_min_batch5": round(b5.get("wall_clock_s_est", 0.0) / 60.0, 1),
+        })
+    total5 = sum(r["calls_batch5"] for r in rows)
+    total1 = sum(r["calls_batch1"] for r in rows)
+    rows.append({
+        "arm": "TOTAL", "kind": "", "criteria": "", "validator_errors": "",
+        "linter_findings": "", "landings_match": "", "landings_total": "",
+        "eh_out": "", "ih_out": "", "records_at_el": "",
+        "el_llm_criteria": "", "il_llm_criteria": "",
+        "guard_ok_batch5": "",
+        "guard_worst_est_plus_reserve_batch5": "",
+        "calls_batch5": total5, "calls_batch1": total1,
+        "wall_clock_min_batch5": round(
+            sum(float(r["wall_clock_min_batch5"] or 0) for r in rows[:-1]
+                if isinstance(r["wall_clock_min_batch5"], float)), 1)
+        if rows else 0,
+    })
+    if ceiling is not None and total5 > ceiling:
+        print(f"WARNING: batch-5 cross-arm total {total5} EXCEEDS the "
+              f"{ceiling}-call ceiling — do not tighten unilaterally; "
+              f"propose a reduction to the maintainer.")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Live mode (wave 16b) — built at 16a, NOT exercised. The preflight refuses
+# before the first call on any mismatch; the budget enforcer is a hard stop.
+# ---------------------------------------------------------------------------
+
+def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
+                   parse: Any, harmonized_text: str) -> Dict[str, Any]:
+    """15e pattern: assert everything, spend nothing. Models and batch sizes
+    come EXPLICITLY from the arm's live config — never store-resolved."""
+    lc = mods.llm_client
+    live = arm.get("live") or spec.get("live_defaults")
+    if not live:
+        raise SystemExit("live: no live config for this arm and no live_defaults")
+    for stage in ("EL", "IL"):
+        if not live.get("model", {}).get(stage):
+            raise SystemExit(f"live: model for {stage} must be explicit in the spec")
+        if not live.get("batch_size", {}).get(stage):
+            raise SystemExit(f"live: batch_size for {stage} must be explicit in the spec")
+    facts: Dict[str, Any] = {}
+    for stage in ("EL", "IL"):
+        endpoint = lc.resolve_openai_base_url(stage)
+        window = lc.resolve_context_window(stage)
+        allow = lc.llm_exclusion_allowed(stage)
+        keyok = lc._has_openai_key(stage)
+        facts[stage] = {"endpoint": endpoint, "window": window,
+                        "allow_exclusion": allow, "key_gate_passes": keyok}
+        expected_endpoint = spec.get("expected_endpoint", "http://localhost:11434/v1")
+        assert endpoint == expected_endpoint, (
+            f"resolved {stage} endpoint {endpoint!r} != expected "
+            f"{expected_endpoint!r} — REFUSING; no call will be made")
+        assert allow is False, (
+            f"{stage} exclusion not flag-only — REFUSING")
+        assert keyok, f"{stage} key gate refuses; engine would skip every call"
+        assert window == int(spec["window"]), (
+            f"{stage} window {window} != spec window {spec['window']} — REFUSING")
+    corpus_bytes = (PROJECT_ROOT / spec["corpus"]).read_bytes()
+    assert _sha256_bytes(corpus_bytes) == spec["corpus_sha256"], (
+        "corpus digest mismatch — REFUSING")
+    facts["criteria_sha256"] = _sha256_bytes(harmonized_text.encode("utf-8"))
+    facts["prompt_versions"] = {"EL": mods.el_prompt.PROMPT_VERSION,
+                                "IL": mods.il_prompt.PROMPT_VERSION}
+    print(json.dumps(facts, indent=2))
+    print("LIVE PREFLIGHT OK — zero calls made so far.")
+    return facts
+
+
+class _BudgetEnforcedClient:
+    """15d pattern: hard call budget around the real client."""
+
+    def __init__(self, real: Any, counter: Dict[str, int], budget: int) -> None:
+        outer = real
+
+        class _Completions:
+            def create(self, **kw: Any) -> Any:
+                counter["n"] += 1
+                assert counter["n"] <= budget, (
+                    f"live budget exceeded: call {counter['n']} > declared {budget}")
+                return outer.chat.completions.create(**kw)
+
+        self.chat = type("Chat", (), {"completions": _Completions()})()
+
+
+def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
+                 parse: Any, harmonized_text: str, budget: int,
+                 out_dir: Path) -> None:
+    live = arm.get("live") or spec["live_defaults"]
+    live_preflight(mods, spec, arm, parse, harmonized_text)
+    lc = mods.llm_client
+    counter = {"n": 0}
+    real_builder = lc._openai_client_for
+    lc._openai_client_for = (  # type: ignore[assignment]
+        lambda *a, **k: _BudgetEnforcedClient(real_builder(*a, **k), counter, budget))
+    try:
+        surv_chain = run_chain(mods, parse, harmonized_text)
+        surv = surv_chain.pop("survivor_rows_ih")
+        results = {}
+        for stage, screen in (("EL", mods.el_screen), ("IL", mods.il_screen)):
+            crits = screen._parse_criteria_harmonized_csv(
+                harmonized_text, stage_filter=stage)
+            stage_parse = screen.ParseReport(header=parse.header, rows=surv, skipped=[])
+            run_fn = screen.run_el_screen if stage == "EL" else screen.run_il_screen
+            (full_rows, _s, counts, impacts, _e, _c, cancelled, report) = run_fn(
+                stage_parse, crits,
+                model=live["model"][stage], trunc_chars=int(spec["trunc_chars"]),
+                batch_size=int(live["batch_size"][stage]),
+                temperature=float(live.get("temperature", 0.0)),
+                use_cache=False, cache_in={},          # cache OFF per F-101
+                cancel_event=threading.Event(),
+                log_cb=lambda s: print(f"[{stage}] {s}"))
+            assert not cancelled
+            results[stage] = {"counts": counts, "impacts": impacts,
+                              "report": report, "rows": len(full_rows)}
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / f"{arm['key']}_live_results.json").write_text(
+            json.dumps({"arm": arm["key"], "calls_made": counter["n"],
+                        "declared_budget": budget, "results": {
+                            s: {k: v for k, v in r.items() if k != "rows"}
+                            for s, r in results.items()}},
+                       indent=2, default=str), encoding="utf-8")
+        print(f"live arm {arm['key']}: calls_made={counter['n']} "
+              f"(declared {budget})")
+    finally:
+        lc._openai_client_for = real_builder  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
+    ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--arm", help="run a single arm by key")
+    ap.add_argument("--live", action="store_true",
+                    help="wave 16b live mode; requires --arm, --budget, --yes-live")
+    ap.add_argument("--budget", type=int,
+                    help="declared hard call budget for the live arm")
+    ap.add_argument("--yes-live", action="store_true",
+                    help="explicit confirmation that live calls are intended")
+    args = ap.parse_args(argv)
+
+    spec = load_spec(args.spec)
+    mods = _Mods()
+
+    corpus_path = PROJECT_ROOT / spec["corpus"]
+    corpus_bytes = corpus_path.read_bytes()
+    got_digest = _sha256_bytes(corpus_bytes)
+    if got_digest != spec["corpus_sha256"]:
+        raise SystemExit(f"corpus digest mismatch: {got_digest} != "
+                         f"{spec['corpus_sha256']} — refusing to run")
+    corpus_text = corpus_bytes.decode("utf-8-sig")
+    parse = mods.common_parser._parse_csv_tolerant_text(corpus_text)
+    a_columns, text_stats = mods.h_parser._load_a_header_and_stats(str(corpus_path))
+
+    arms = spec["arms"]
+    if args.arm:
+        arms = [a for a in arms if a["key"] == args.arm]
+        if not arms:
+            raise SystemExit(f"no arm with key {args.arm!r}")
+
+    if args.live:
+        if not (args.arm and args.budget and args.yes_live):
+            raise SystemExit("--live requires --arm, --budget and --yes-live")
+        arm = arms[0]
+        src_text = _read_text(PROJECT_ROOT / arm["source"])
+        if arm["kind"] == "free_text":
+            rows = translate_free_text(mods, src_text, a_columns, text_stats)
+            harmonized_text = mods.h_exporters._criteria_csv_text(rows)
+        else:
+            harmonized_text = src_text
+        run_arm_live(mods, spec, arm, parse, harmonized_text, args.budget, args.out)
+        return 0
+
+    # ---- dry mode: structurally no-network, plus the explicit guard ----
+    _install_dry_guard(mods)
+    out_dir = args.out
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifests = []
+    for arm in arms:
+        print(f"[dry] arm {arm['key']} ...")
+        m = run_arm_dry(mods, spec, arm, parse, a_columns, text_stats)
+        manifests.append(m)
+        (out_dir / f"{arm['key']}_manifest.json").write_text(
+            json.dumps(m, indent=2, default=str), encoding="utf-8", newline="\n")
+    rows = summarize(manifests, spec.get("call_ceiling_total"))
+    summary_path = out_dir / "cross_arm_summary.csv"
+    with open(summary_path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+    print(f"[dry] wrote {len(manifests)} manifests + {summary_path}")
+    for r in rows:
+        print("  ", {k: r[k] for k in ("arm", "calls_batch5", "calls_batch1",
+                                       "records_at_el", "guard_ok_batch5")})
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

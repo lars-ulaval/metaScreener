@@ -1,0 +1,5 @@
+id,type,scope,label,operator,target,what,threshold,enabled,source_text
+R1,include,metadata,Raw probe: contains virtual in title,contains,title,virtual,,1,R1 raw (stage-less table)
+R2,exclude,metadata,Raw probe: blank operator row,,lang,de,,1,R2 raw blank-operator (F-205 operator half)
+R3,exclude,metadata,Raw probe: llm row in a stage-less table,llm,keywords,The record mentions mazes.,0.60,1,R3 raw llm
+R4,include,metadata,Raw probe: blank enabled cell,contains,title,reality,,,R4 raw blank-enabled (F-208)

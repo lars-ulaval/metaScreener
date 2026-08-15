@@ -1,0 +1,449 @@
+{
+  "arm": "g5_adversarial",
+  "kind": "harmonized_csv",
+  "source": "docs/data/wave16_arms/g5_adversarial.csv",
+  "source_sha256": "9e2352b3f232d9765f70cfeefff95f2f55e749973b1e451da882698417d46bc3",
+  "harmonized_sha256": "9e2352b3f232d9765f70cfeefff95f2f55e749973b1e451da882698417d46bc3",
+  "corpus": "samples/20260122_1654_aggregate.csv",
+  "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "EH",
+      "id": "A6",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "doc_type",
+      "what": [
+        "chapter"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "A7",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "head-mounted",
+        "HMD"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "A1",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "abstract,keywords",
+      "what": [
+        "The abstract does not mention any virtual reality or immersive technology."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "A2",
+      "type": "include",
+      "operator": "llm",
+      "target": "abstract,keywords",
+      "what": [
+        "The paper does not rely on desktop-only non-immersive VR."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "A3",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper's primary contribution is a purely decorative use of immersive display hardware in which no measurable vocational skill is trained, assessed or transferred \u2014 a determination that must hold across every one of the following scenario families the reviewers enumerated during protocol registration, namely the aviation cockpit familiarisation scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the surgical suite orientation scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the industrial assembly-line induction scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the warehouse picking and packing drills scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the chemical-plant hazard walkthroughs scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the electrical lockout-tagout rehearsal scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the firefighting breathing-apparatus drills scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the crane and rigging signal practice scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the mining evacuation wayfinding scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the offshore platform mustering scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the railway trackside safety briefings scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the port container-handling choreography scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the food-processing hygiene routines scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the pharmaceutical cleanroom gowning scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the automotive paint-booth technique scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the welding torch-angle coaching scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the construction scaffold inspection scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the forestry chainsaw handling scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the agricultural machinery hitching scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the laboratory pipetting ergonomics scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the hospital patient-transfer practice scenario family with its graded difficulty tiers and its instructor-scripted fault injections, the eldercare lifting technique scenario family with its graded difficulty tiers and its instructor-scripted fault injections \u2014 and the exclusion applies only when the paper trains none of them."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "A4",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper\u2019s \u201cprimary\u201d focus \u2014 na\u00efve contr\u00f4le-group comparisons versus so-called \"Stra\u00dfe-paradigm\" baselines, \u00e9lan-driven d\u00e9cor and \u2713-marked d\u00e9cor v\u00e9ritable \u2014 is aesthetic rather than a substantive immersive-training contribution."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "A5",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "Maze."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "A6": {
+      "errors": [],
+      "warnings": []
+    },
+    "A7": {
+      "errors": [],
+      "warnings": []
+    },
+    "A1": {
+      "errors": [],
+      "warnings": []
+    },
+    "A2": {
+      "errors": [],
+      "warnings": []
+    },
+    "A3": {
+      "errors": [],
+      "warnings": []
+    },
+    "A4": {
+      "errors": [],
+      "warnings": []
+    },
+    "A5": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "A6",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "A7",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "A1",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "A3",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "A4",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "A5",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "A2",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "A6",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "doc_type normalisation: what 'chapter' and corpus 'chapter' both normalise to book_chapter; expected cut 49"
+    },
+    {
+      "id": "A7",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "deterministic keep gate bounding the EL/IL population to head-mounted/HMD mentions (~35 expected)"
+    },
+    {
+      "id": "A1",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "absence-phrased exclusion probing rule-c routing: absence-justified removals must route to review, zero auto-acts"
+    },
+    {
+      "id": "A2",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "absence-phrased inclusion; not_meet is the retaining answer"
+    },
+    {
+      "id": "A3",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "long-prose criterion near but UNDER the batch-5 window bound; label=what duplication mimics the harmonised shape; headroom measured with the real renderer"
+    },
+    {
+      "id": "A4",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "unicode + CSV-quoting hazards: typographic quotes, escaped double quotes, accents, symbols through csv->json->prompt"
+    },
+    {
+      "id": "A5",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "deliberately thin what ('Maze.') to probe the quote substance-floor interaction at the gate"
+    }
+  ],
+  "funnel": {
+    "input": 776,
+    "eh": {
+      "out": 42,
+      "survivors": 734,
+      "pass_flagged": 0,
+      "impacts": {
+        "A6": {
+          "failed": 42,
+          "missing": 0,
+          "met": 734,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 704,
+      "survivors": 30,
+      "pass_flagged": 0,
+      "impacts": {
+        "A7": {
+          "failed": 704,
+          "missing": 0,
+          "met": 30,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 30,
+    "records_at_il": 30,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "A1",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "A1": {
+              "ok": true,
+              "worst_estimate": 2139,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "A3": {
+              "ok": true,
+              "worst_estimate": 3565,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "A4": {
+              "ok": true,
+              "worst_estimate": 2207,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "A5": {
+              "ok": true,
+              "worst_estimate": 2106,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "A1": {
+              "ok": true,
+              "worst_estimate": 680,
+              "reserve": 80,
+              "n_batches": 30,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "A3": {
+              "ok": true,
+              "worst_estimate": 2106,
+              "reserve": 80,
+              "n_batches": 30,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "A4": {
+              "ok": true,
+              "worst_estimate": 748,
+              "reserve": 80,
+              "n_batches": 30,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "A5": {
+              "ok": true,
+              "worst_estimate": 647,
+              "reserve": 80,
+              "n_batches": 30,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "A2"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "A2": {
+              "ok": true,
+              "worst_estimate": 2131,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "A2": {
+              "ok": true,
+              "worst_estimate": 672,
+              "reserve": 80,
+              "n_batches": 30,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 24,
+      "IL": 6,
+      "total": 30,
+      "wall_clock_s_est": 264.0
+    },
+    "batch1": {
+      "EL": 120,
+      "IL": 30,
+      "total": 150,
+      "wall_clock_s_est": 520.4
+    }
+  }
+}

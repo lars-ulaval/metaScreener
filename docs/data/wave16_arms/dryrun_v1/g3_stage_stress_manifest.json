@@ -1,0 +1,463 @@
+{
+  "arm": "g3_stage_stress",
+  "kind": "free_text",
+  "source": "docs/data/wave16_arms/g3_stage_stress.txt",
+  "source_sha256": "ae1e2426f1fbe4243140ed616bc21c8a07ca2c4d1468fd88bf25a61ca8ee8cd7",
+  "harmonized_sha256": "9b4d7bedaaffeff0b2b51e3122d5f3ded96c9e0e1825c943e073ed6dcdb29639",
+  "corpus": "samples/20260122_1654_aggregate.csv",
+  "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "EH",
+      "id": "EC-31",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "German"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-32",
+      "type": "include",
+      "operator": "gte",
+      "target": "year",
+      "what": [
+        "2019"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "IC-33",
+      "type": "include",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The study population consists of adult professionals rather than children."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-34",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper is primarily a literature review or meta-analysis rather than an empirical study."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-35",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "Papers whose abstract mentions purely hardware benchmarking pipelines."
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-36",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "Papers where immersion is incidental and the keywords fail to reflect substantive immersive content."
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-37",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "Portuguese"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-38",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "doi",
+      "what": [
+        ""
+      ],
+      "threshold": "",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "EC-31": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-32": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-33": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-34": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-35": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-36": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-37": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-38": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [
+    {
+      "criterion_id": "EC-38",
+      "check": "dropped-operand",
+      "severity": "MISTRANSLATED",
+      "message": "EC-38 offers 1 alternatives but the rule carries only 0: nothing. The rest of the sentence will not be applied to any record."
+    }
+  ],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "EC-31",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-35",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-36",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-37",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-38",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "IC-32",
+          "operator": "gte",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "EC-34",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "IC-33",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "EC-31",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 1 single language. PREDICTED INERT: LANG_MAP lacks 'german', corpus stores 'de' \u2014 expected cut 0, the one de record survives"
+    },
+    {
+      "id": "IC-32",
+      "intended_stage": "IH",
+      "intended_operator": "gte",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "gte"
+      ],
+      "match": true,
+      "rationale": "branch 2, real cut: keeps year>=2019"
+    },
+    {
+      "id": "IC-33",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic population criterion; must fall through (no trigger words)"
+    },
+    {
+      "id": "EC-34",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic doc-type-like criterion authored WITHOUT branch-3 guard words; must fall through to EL"
+    },
+    {
+      "id": "EC-35",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "TRIGGER-WORD TRAP (F-65 class, deliberate): semantic criterion pulled to EH by abstract+mentions; 'mentions' defeats the mention-extraction regex so the operand is the whole label \u2014 predicted inert"
+    },
+    {
+      "id": "EC-36",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "TRIGGER-WORD TRAP (F-65 class, deliberate): 'keywords' pulls it to EH; no extraction pattern matches - whole-label operand, predicted inert"
+    },
+    {
+      "id": "EC-37",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "NEGATION-BLINDNESS PROBE: intent excludes non-Portuguese papers; translator predicted to render exclude-Portuguese (inverted), and LANG_MAP lacks 'portuguese' so even that is inert - expected cut 0"
+    },
+    {
+      "id": "EC-38",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 5 (DOI), 'no DOI' phrasing -> equals doi ''; corpus has zero blank DOIs - expected cut 0"
+    }
+  ],
+  "funnel": {
+    "input": 776,
+    "eh": {
+      "out": 0,
+      "survivors": 776,
+      "pass_flagged": 776,
+      "impacts": {
+        "EC-31": {
+          "failed": 0,
+          "missing": 0,
+          "met": 776,
+          "unknown": 0
+        },
+        "EC-35": {
+          "failed": 0,
+          "missing": 0,
+          "met": 776,
+          "unknown": 0
+        },
+        "EC-36": {
+          "failed": 0,
+          "missing": 0,
+          "met": 776,
+          "unknown": 0
+        },
+        "EC-37": {
+          "failed": 0,
+          "missing": 0,
+          "met": 776,
+          "unknown": 0
+        },
+        "EC-38": {
+          "failed": 0,
+          "missing": 0,
+          "met": 0,
+          "unknown": 776
+        }
+      }
+    },
+    "ih": {
+      "out": 669,
+      "survivors": 107,
+      "pass_flagged": 1,
+      "impacts": {
+        "IC-32": {
+          "failed": 669,
+          "missing": 1,
+          "met": 106,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 107,
+    "records_at_il": 107,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-34"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-34": {
+              "ok": true,
+              "worst_estimate": 2316,
+              "reserve": 400,
+              "n_batches": 22,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-34": {
+              "ok": true,
+              "worst_estimate": 686,
+              "reserve": 80,
+              "n_batches": 107,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "IC-33"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "IC-33": {
+              "ok": true,
+              "worst_estimate": 2308,
+              "reserve": 400,
+              "n_batches": 22,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "IC-33": {
+              "ok": true,
+              "worst_estimate": 679,
+              "reserve": 80,
+              "n_batches": 107,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 22,
+      "IL": 22,
+      "total": 44,
+      "wall_clock_s_est": 387.2
+    },
+    "batch1": {
+      "EL": 107,
+      "IL": 107,
+      "total": 214,
+      "wall_clock_s_est": 742.4
+    }
+  }
+}

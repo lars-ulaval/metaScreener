@@ -1,0 +1,8 @@
+arm,kind,criteria,validator_errors,linter_findings,landings_match,landings_total,eh_out,ih_out,records_at_el,el_llm_criteria,il_llm_criteria,guard_ok_batch5,guard_worst_est_plus_reserve_batch5,calls_batch5,calls_batch1,wall_clock_min_batch5
+arm0_baseline,free_text,8,0,0,8,8,16,738,22,2,1,True,2606,15,66,2.2
+g1_paraphrase,free_text,8,0,1,8,8,16,738,22,2,1,True,2616,15,66,2.2
+g2_polarity,free_text,6,0,0,6,6,669,0,107,2,2,True,2716,88,428,12.9
+g3_stage_stress,free_text,8,0,1,8,8,0,669,107,1,1,True,2716,44,214,6.5
+g4_edge_shapes,harmonized_csv,8,0,0,8,8,4,756,16,2,1,True,2552,12,48,1.8
+g5_adversarial,harmonized_csv,7,0,0,7,7,42,704,30,4,1,True,3965,30,150,4.4
+TOTAL,,,,,,,,,,,,,,204,972,25.6

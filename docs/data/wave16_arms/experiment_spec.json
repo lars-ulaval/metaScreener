@@ -1,0 +1,485 @@
+{
+  "spec_version": 1,
+  "authored": "2026-08-15 (wave 16a); intents recorded BEFORE the first dry run",
+  "corpus": "samples/20260122_1654_aggregate.csv",
+  "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "batch_sizes_reported": [
+    5,
+    1
+  ],
+  "call_ceiling_total": 750,
+  "expected_endpoint": "http://localhost:11434/v1",
+  "live_defaults": {
+    "temperature": 0.0,
+    "use_cache": false,
+    "model": {
+      "EL": "qwen2.5:7b",
+      "IL": "qwen2.5:7b"
+    },
+    "batch_size": {
+      "EL": 5,
+      "IL": 5
+    }
+  },
+  "arms": [
+    {
+      "key": "arm0_baseline",
+      "kind": "free_text",
+      "source": "samples/ic_ec_12.txt",
+      "pin": {
+        "chain": {
+          "input": 776,
+          "eh_out": 16,
+          "eh_surv": 760,
+          "ih_out": 738,
+          "ih_surv": 22
+        },
+        "ih_impacts": {
+          "IC-5": {
+            "met": 70,
+            "failed": 690
+          }
+        }
+      },
+      "intents": [
+        {
+          "id": "IC-1",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "semantic VR/HMD criterion; falls through all six inference branches"
+        },
+        {
+          "id": "IC-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "rationale": "branch 1 (language), single operand English"
+        },
+        {
+          "id": "IC-4",
+          "intended_stage": "IH",
+          "intended_operator": "gte",
+          "rationale": "branch 2 (year), bare year + publication word"
+        },
+        {
+          "id": "IC-5",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "rationale": "branch 6 (keyword-in-text), post-F-65 routing; F-204 union at IH"
+        },
+        {
+          "id": "EC-1",
+          "intended_stage": "EH",
+          "intended_operator": "in_list",
+          "rationale": "branch 1 union French+Spanish (F-167 repaired)"
+        },
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "semantic maze-navigation criterion; fall-through"
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "semantic rubber-hand criterion; fall-through"
+        },
+        {
+          "id": "EC-4",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "rationale": "branch 4 (venue), quoted operands ICRA/IROS"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "46696c2949f8849c6fe6718a993e6c276bc075034553e7a47f1ba755c0eaf547"
+    },
+    {
+      "key": "g1_paraphrase",
+      "kind": "free_text",
+      "source": "docs/data/wave16_arms/g1_paraphrase.txt",
+      "intents": [
+        {
+          "id": "IC-1",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "paraphrase of baseline IC-1, byte-distinct, same intent; must still fall through"
+        },
+        {
+          "id": "IC-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "rationale": "paraphrase keeps the 'written in English' pattern"
+        },
+        {
+          "id": "IC-4",
+          "intended_stage": "IH",
+          "intended_operator": "gte",
+          "rationale": "paraphrase keeps bare-year+publication-word; operand 2018 unchanged"
+        },
+        {
+          "id": "IC-5",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "rationale": "paraphrase keeps 'mention' + identical operands training/vocational/workplace"
+        },
+        {
+          "id": "EC-1",
+          "intended_stage": "EH",
+          "intended_operator": "in_list",
+          "rationale": "paraphrase keeps both language names; union must survive rewording"
+        },
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "paraphrase; no trigger words introduced"
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "paraphrase; no trigger words introduced"
+        },
+        {
+          "id": "EC-4",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "rationale": "paraphrase keeps quoted ICRA/IROS; venue word before branch-6 triggers"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "6adfeafdf6058d85f325333b430b6d4988d1a9e9c90d3e08d975e9ae1d385191"
+    },
+    {
+      "key": "g2_polarity",
+      "kind": "free_text",
+      "source": "docs/data/wave16_arms/g2_polarity.txt",
+      "mirror_pairs": [
+        [
+          "EC-2",
+          "IC-21"
+        ],
+        [
+          "EC-3",
+          "IC-22"
+        ],
+        [
+          "IC-1",
+          "EC-23"
+        ],
+        [
+          "IC-4",
+          "EC-24"
+        ],
+        [
+          "IC-4",
+          "IC-26"
+        ],
+        [
+          "IC-1",
+          "EC-28"
+        ]
+      ],
+      "intents": [
+        {
+          "id": "IC-21",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "include-mirror of EC-2 (exclude maze focus); coherence pair vs baseline EC-2"
+        },
+        {
+          "id": "IC-22",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "include-mirror of EC-3 (rubber hand); negated phrasing inside an llm sentence"
+        },
+        {
+          "id": "EC-23",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "exclude-mirror of IC-1; absence-phrased exclusion"
+        },
+        {
+          "id": "EC-24",
+          "intended_stage": "EH",
+          "intended_operator": "lte",
+          "rationale": "exclude-mirror of IC-4. BOUNDARY HAZARD recorded: intent is year<2018 but 'before 2018' is predicted to render lte 2018, also excluding 2018"
+        },
+        {
+          "id": "IC-26",
+          "intended_stage": "IH",
+          "intended_operator": "gte",
+          "rationale": "include-mirror of IC-4 via 'after 2017'. BOUNDARY HAZARD recorded: predicted gte 2017, keeping 2017 records the original excludes"
+        },
+        {
+          "id": "EC-28",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "second exclude-mirror of IC-1, no-VR-of-any-kind phrasing"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "d0a1aa9727669e38ab65c9cbfc06fdedcfe7b7498e972de3922ede4d7480f5c1"
+    },
+    {
+      "key": "g3_stage_stress",
+      "kind": "free_text",
+      "source": "docs/data/wave16_arms/g3_stage_stress.txt",
+      "intents": [
+        {
+          "id": "EC-31",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "rationale": "branch 1 single language. PREDICTED INERT: LANG_MAP lacks 'german', corpus stores 'de' — expected cut 0, the one de record survives"
+        },
+        {
+          "id": "IC-32",
+          "intended_stage": "IH",
+          "intended_operator": "gte",
+          "rationale": "branch 2, real cut: keeps year>=2019"
+        },
+        {
+          "id": "IC-33",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "semantic population criterion; must fall through (no trigger words)"
+        },
+        {
+          "id": "EC-34",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "semantic doc-type-like criterion authored WITHOUT branch-3 guard words; must fall through to EL"
+        },
+        {
+          "id": "EC-35",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "rationale": "TRIGGER-WORD TRAP (F-65 class, deliberate): semantic criterion pulled to EH by abstract+mentions; 'mentions' defeats the mention-extraction regex so the operand is the whole label — predicted inert"
+        },
+        {
+          "id": "EC-36",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "rationale": "TRIGGER-WORD TRAP (F-65 class, deliberate): 'keywords' pulls it to EH; no extraction pattern matches - whole-label operand, predicted inert"
+        },
+        {
+          "id": "EC-37",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "rationale": "NEGATION-BLINDNESS PROBE: intent excludes non-Portuguese papers; translator predicted to render exclude-Portuguese (inverted), and LANG_MAP lacks 'portuguese' so even that is inert - expected cut 0"
+        },
+        {
+          "id": "EC-38",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "rationale": "branch 5 (DOI), 'no DOI' phrasing -> equals doi ''; corpus has zero blank DOIs - expected cut 0"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "ae1e2426f1fbe4243140ed616bc21c8a07ca2c4d1468fd88bf25a61ca8ee8cd7"
+    },
+    {
+      "key": "g4_edge_shapes",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave16_arms/g4_edge_shapes.csv",
+      "raw_probe": "docs/data/wave16_arms/g4_raw_probe.csv",
+      "intents": [
+        {
+          "id": "E0",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "rationale": "plain control row; exercises layers 1-4 clean"
+        },
+        {
+          "id": "E1",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "rationale": "F-206 exercise: exclude@IH passes _validate_row clean (layer 1 gap), evaluator removes by ctype at the inclusion stage; expected cut = de records among survivors"
+        },
+        {
+          "id": "E2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "F-206 exercise: include@EL passes clean; gate arms keyed on ctype; live expectation: absence-removal never auto-acts"
+        },
+        {
+          "id": "E3",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "rationale": "F-204 multi-target union across title,abstract,keywords; layer-1 target canonicalisation"
+        },
+        {
+          "id": "E4",
+          "intended_stage": "IH",
+          "intended_operator": "in_list",
+          "rationale": "in_list exactness: en/eng/english all normalise to en; matches only exact lang codes"
+        },
+        {
+          "id": "E5",
+          "intended_stage": "IH",
+          "intended_operator": "between",
+          "rationale": "between arity-2 passes layer 1; boundary inclusivity measured in the dry run"
+        },
+        {
+          "id": "E6",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "threshold at the 0.0 bound: layer 1 accepts; EL loader float-parses to 0.0"
+        },
+        {
+          "id": "E7",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "threshold at the 1.0 bound: layer 1 accepts; only confidence 1.0 could meet"
+        },
+        {
+          "id": "R1",
+          "intended_stage": null,
+          "intended_operator": "contains",
+          "rationale": "raw probe (stage-less): expected assume-all at EH+IH, drop-all at EL/IL (F-205 both ways)"
+        },
+        {
+          "id": "R2",
+          "intended_stage": null,
+          "intended_operator": "equals",
+          "rationale": "raw probe: blank operator -> equals at EH/IH, llm at EL/IL (F-205 operator half; EL side unobservable because drop-all wins)"
+        },
+        {
+          "id": "R3",
+          "intended_stage": null,
+          "intended_operator": "llm",
+          "rationale": "raw probe: llm row in stage-less table; loads at EH/IH where it can never execute"
+        },
+        {
+          "id": "R4",
+          "intended_stage": null,
+          "intended_operator": "contains",
+          "rationale": "raw probe: blank enabled cell -> silently dropped at EH/IH, enabled at EL/IL (F-208)"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "d466aab88ccddc30d5838477d23f8ac901350b1e86b2a2cf57417f6ad5e61d2c",
+      "raw_probe_sha256": "1fd2ea9c62dc342e9c77500aa99166bd6a51dbfed2f17416019a42bf540df36e"
+    },
+    {
+      "key": "g5_adversarial",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave16_arms/g5_adversarial.csv",
+      "intents": [
+        {
+          "id": "A6",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "rationale": "doc_type normalisation: what 'chapter' and corpus 'chapter' both normalise to book_chapter; expected cut 49"
+        },
+        {
+          "id": "A7",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "rationale": "deterministic keep gate bounding the EL/IL population to head-mounted/HMD mentions (~35 expected)"
+        },
+        {
+          "id": "A1",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "absence-phrased exclusion probing rule-c routing: absence-justified removals must route to review, zero auto-acts"
+        },
+        {
+          "id": "A2",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "rationale": "absence-phrased inclusion; not_meet is the retaining answer"
+        },
+        {
+          "id": "A3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "long-prose criterion near but UNDER the batch-5 window bound; label=what duplication mimics the harmonised shape; headroom measured with the real renderer"
+        },
+        {
+          "id": "A4",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "unicode + CSV-quoting hazards: typographic quotes, escaped double quotes, accents, symbols through csv->json->prompt"
+        },
+        {
+          "id": "A5",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "rationale": "deliberately thin what ('Maze.') to probe the quote substance-floor interaction at the gate"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "source_sha256": "9e2352b3f232d9765f70cfeefff95f2f55e749973b1e451da882698417d46bc3"
+    }
+  ]
+}

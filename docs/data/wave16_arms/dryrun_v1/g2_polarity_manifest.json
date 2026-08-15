@@ -1,0 +1,396 @@
+{
+  "arm": "g2_polarity",
+  "kind": "free_text",
+  "source": "docs/data/wave16_arms/g2_polarity.txt",
+  "source_sha256": "d0a1aa9727669e38ab65c9cbfc06fdedcfe7b7498e972de3922ede4d7480f5c1",
+  "harmonized_sha256": "4fdd6e870a37a6eefd9a6c8ee4bc3e8df33fb7d1f4aa6df19edb78c8c3ebe7ea",
+  "corpus": "samples/20260122_1654_aggregate.csv",
+  "corpus_sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IL",
+      "id": "IC-21",
+      "type": "include",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper's primary focus is something other than spatial navigation in a virtual maze."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "IC-22",
+      "type": "include",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper's main topic is not the rubber hand illusion paradigm."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-23",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The paper does not involve immersive virtual reality or any head-mounted display simulation."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-24",
+      "type": "exclude",
+      "operator": "lte",
+      "target": "year",
+      "what": [
+        "2018"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-26",
+      "type": "include",
+      "operator": "gte",
+      "target": "year",
+      "what": [
+        "2017"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-28",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "keywords",
+      "what": [
+        "The study uses no virtual reality technology of any kind."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "IC-21": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-22": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-23": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-24": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-26": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-28": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "EC-24",
+          "operator": "lte",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "IC-26",
+          "operator": "gte",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "EC-23",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-28",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "IC-21",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-22",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "IC-21",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "include-mirror of EC-2 (exclude maze focus); coherence pair vs baseline EC-2"
+    },
+    {
+      "id": "IC-22",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "include-mirror of EC-3 (rubber hand); negated phrasing inside an llm sentence"
+    },
+    {
+      "id": "EC-23",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "exclude-mirror of IC-1; absence-phrased exclusion"
+    },
+    {
+      "id": "EC-24",
+      "intended_stage": "EH",
+      "intended_operator": "lte",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "lte"
+      ],
+      "match": true,
+      "rationale": "exclude-mirror of IC-4. BOUNDARY HAZARD recorded: intent is year<2018 but 'before 2018' is predicted to render lte 2018, also excluding 2018"
+    },
+    {
+      "id": "IC-26",
+      "intended_stage": "IH",
+      "intended_operator": "gte",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "gte"
+      ],
+      "match": true,
+      "rationale": "include-mirror of IC-4 via 'after 2017'. BOUNDARY HAZARD recorded: predicted gte 2017, keeping 2017 records the original excludes"
+    },
+    {
+      "id": "EC-28",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "second exclude-mirror of IC-1, no-VR-of-any-kind phrasing"
+    }
+  ],
+  "funnel": {
+    "input": 776,
+    "eh": {
+      "out": 669,
+      "survivors": 107,
+      "pass_flagged": 1,
+      "impacts": {
+        "EC-24": {
+          "failed": 669,
+          "missing": 1,
+          "met": 106,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 0,
+      "survivors": 107,
+      "pass_flagged": 1,
+      "impacts": {
+        "IC-26": {
+          "failed": 0,
+          "missing": 1,
+          "met": 106,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 107,
+    "records_at_il": 107,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-23",
+        "EC-28"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-23": {
+              "ok": true,
+              "worst_estimate": 2316,
+              "reserve": 400,
+              "n_batches": 22,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "EC-28": {
+              "ok": true,
+              "worst_estimate": 2301,
+              "reserve": 400,
+              "n_batches": 22,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-23": {
+              "ok": true,
+              "worst_estimate": 687,
+              "reserve": 80,
+              "n_batches": 107,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "EC-28": {
+              "ok": true,
+              "worst_estimate": 671,
+              "reserve": 80,
+              "n_batches": 107,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "IC-21",
+        "IC-22"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "IC-21": {
+              "ok": true,
+              "worst_estimate": 2314,
+              "reserve": 400,
+              "n_batches": 22,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "IC-22": {
+              "ok": true,
+              "worst_estimate": 2304,
+              "reserve": 400,
+              "n_batches": 22,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "IC-21": {
+              "ok": true,
+              "worst_estimate": 684,
+              "reserve": 80,
+              "n_batches": 107,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "IC-22": {
+              "ok": true,
+              "worst_estimate": 674,
+              "reserve": 80,
+              "n_batches": 107,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 44,
+      "IL": 44,
+      "total": 88,
+      "wall_clock_s_est": 774.4
+    },
+    "batch1": {
+      "EL": 214,
+      "IL": 214,
+      "total": 428,
+      "wall_clock_s_est": 1484.9
+    }
+  }
+}

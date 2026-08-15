@@ -1,0 +1,8 @@
+EC-31 – The paper is written in German.
+IC-32 – The publication year is 2019 or later.
+IC-33 – The study population consists of adult professionals rather than children.
+EC-34 – The paper is primarily a literature review or meta-analysis rather than an empirical study.
+EC-35 – Papers whose abstract mentions purely hardware benchmarking pipelines.
+EC-36 – Papers where immersion is incidental and the keywords fail to reflect substantive immersive content.
+EC-37 – The paper is not written in Portuguese.
+EC-38 – The record has no DOI.

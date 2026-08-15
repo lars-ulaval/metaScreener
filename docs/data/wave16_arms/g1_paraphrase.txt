@@ -1,0 +1,9 @@
+IC-1 – The study investigates immersive virtual reality delivered through a head-mounted display, or an equivalent immersive simulation.
+IC-3 – The article is written in English.
+IC-4 – The publication year is 2018 or later, inclusive.
+IC-5 – Either the title, the abstract, or the keywords mention training OR vocational OR workplace.
+
+EC-1 – The publication is written in French or in Spanish.
+EC-2 – The paper is chiefly about navigating virtual mazes for spatial wayfinding, with no social or collaborative component.
+EC-3 – The paper's main subject is the rubber hand illusion.
+EC-4 – The venue of publication contains “ICRA” OR “IROS”.

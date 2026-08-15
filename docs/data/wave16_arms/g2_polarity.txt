@@ -1,0 +1,6 @@
+IC-21 – The paper's primary focus is something other than spatial navigation in a virtual maze.
+IC-22 – The paper's main topic is not the rubber hand illusion paradigm.
+EC-23 – The paper does not involve immersive virtual reality or any head-mounted display simulation.
+EC-24 – The work was published before 2018.
+IC-26 – The work appeared after 2017.
+EC-28 – The study uses no virtual reality technology of any kind.
