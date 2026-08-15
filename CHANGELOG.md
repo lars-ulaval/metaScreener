@@ -679,9 +679,10 @@ evaluates anything.
   beside the box now gives you these numbers and leaves the choice with you.
 - **A run that would silently overflow the model's context window now
   refuses to start.** Measured on a local server: when a request exceeds the
-  window, the server does not trim the excess — it keeps only the last half
-  of the request and drops the rest, including the instructions and the
-  criterion, then answers confidently about what remains. There is nothing
+  window, the server does not trim the excess — it keeps only the tokens
+  that fill half the window (the last ~2,048 at the 4,096 default, however
+  long the request was) and drops the rest, including the instructions and
+  the criterion, then answers confidently about what remains. There is nothing
   to warn about there, only something to prevent — so before the first call
   of an EL or IL run, every request the run would send is now sized against
   the configured window (a new `context_window` setting, default 4096, the

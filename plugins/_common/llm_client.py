@@ -904,8 +904,10 @@ def check_context_budget(*, criteria, items, batch_size, trunc_chars,
         f"prompt tokens plus a {reserve}-token reply reserve — "
         f"{worst_tot} in total against the {window}-token window.\n\n"
         f"An overflowing request is not trimmed to fit: the server keeps "
-        f"only the last half of it and drops the rest, instructions and "
-        f"criterion included, then answers about the remainder.\n\n"
+        f"roughly the last {window // 2} tokens — half the window, however "
+        f"long the request was — and drops everything before them, "
+        f"instructions and criterion included, then answers about the "
+        f"remainder.\n\n"
         + (f"At this window, the largest batch size that fits every request "
            f"for this corpus is {max_safe}."
            if max_safe else

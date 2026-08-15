@@ -125,8 +125,9 @@ corpus — the same numbers the CHANGELOG's live check produced):
 > prompt tokens plus a 800-token reply reserve — 4723 in total against the
 > 4096-token window.
 >
-> An overflowing request is not trimmed to fit: the server keeps only the
-> last half of it and drops the rest, instructions and criterion included,
+> An overflowing request is not trimmed to fit: the server keeps roughly
+> the last 2048 tokens — half the window, however long the request was —
+> and drops everything before them, instructions and criterion included,
 > then answers about the remainder.
 >
 > At this window, the largest batch size that fits every request for this

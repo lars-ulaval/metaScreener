@@ -170,6 +170,12 @@ class TestTheBudgetCheck:
         assert "4096" in msg
         assert str(rep.max_safe_batch) in msg
         assert "recommend" not in msg.lower()
+        # The measured loss: the server keeps the last ~half-WINDOW of
+        # tokens, not half the request — the message must state the real
+        # quantity (2048 here), because "half of it" understates the loss
+        # for any request well over the window.
+        assert "2048" in msg
+        assert "half of it" not in msg
 
     def test_the_derived_max_batch_actually_fits(self):
         rep = self._report(n_items=10, batch=10, chars=3000)
