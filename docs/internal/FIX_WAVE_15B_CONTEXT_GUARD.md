@@ -84,11 +84,31 @@ the one hole the constant cannot close itself.
 
 ## Out of scope, named
 
-The harmoniser's one-shot call (a wave-15d consumer of the same helpers);
-raising the window server-side (WAIT FOR MAINTAINER: the
-`OLLAMA_CONTEXT_LENGTH=8192` restart and its sentinel confirmation, then the
-`docs/usage.md` procedure with the 32,768 ceiling and the CPU/RAM trade stated
-without a recommendation).
+The harmoniser's one-shot call (a wave-15d consumer of the same helpers).
+
+## The sentinel, confirmed (decision 7's live half)
+
+The wave paused with WAIT FOR MAINTAINER; he restarted Ollama with
+`OLLAMA_CONTEXT_LENGTH=8192` and confirmed on 2026-08-14. One declared
+sentinel call was then spent — the whole live budget of this step:
+
+- **Payload:** the two longest frozen batch-10 renders (EC-2 and EC-3 over
+  the wave-14d reference corpus, real builder, trunc 1500), concatenated
+  into one request — 34,946 chars, ~6,775 real tokens by the committed
+  probe-1 fit. Decisively above the old 4,096 window, comfortably inside
+  8,192. `max_tokens=1`, temperature 0.
+- **Result [measured]:** `usage.prompt_tokens = 7047`. The prompt was
+  processed in full. Under the old window the server would have kept the
+  last ~2,048 tokens and reported ~2,050 — the sentinel's three outcomes
+  were distinguishable by construction, and this is the first.
+- **What it proves:** the `OLLAMA_CONTEXT_LENGTH` vehicle works, and the
+  served window admits at least ~7,050 tokens — consistent with the
+  requested 8,192. **What it does not prove:** the exact ceiling; one call
+  cannot bracket it, and bracketing it was not the question.
+
+`docs/usage.md` (§The context window) records the user-facing procedure,
+the 32,768 architectural ceiling, and the CPU/RAM trade with no
+recommendation, per the adjudication.
 
 ## Handoffs
 
