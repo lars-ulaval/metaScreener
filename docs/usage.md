@@ -436,6 +436,103 @@ extracted and passed around **on its own** now carries third-party
 bibliographic text that older manifests did not. If you share bare
 manifests rather than whole bundles, that is the field to check.
 
+## The context window
+
+Every request an EL or IL run sends has to fit inside the model
+server's **context window** — the number of tokens the server will
+read in one request. What happens when a request does not fit was
+measured on a local server: the server does not trim the excess and
+does not refuse. It keeps only enough of the request's tail to fill
+half the window — the last ~2,048 tokens at the default window,
+however long the request was — and drops everything before that.
+The instructions and the criterion are at the front, so they are
+what gets dropped, and the model then answers about the remainder.
+No error and no flag marks the reply; only the token count in its
+`usage` field betrays what happened, if you compare it with what
+you sent.
+
+So metaScreener sizes every request an EL or IL run would send
+*before* the first one goes out, against the configured window. If
+the largest request does not fit, the run stops before anything is
+sent. When a smaller batch would fit your corpus, the message names
+it, and **lowering the batch size** to that number is the quickest
+remedy; when even a single record's request cannot fit, the message
+says that instead, and lowering the truncation limit is the lever
+that changes it. The other remedy, in either case, is **a larger
+window** — as follows. (Not every model call is covered: Plugin
+01's vendor calls and the criteria harmoniser's one refinement call
+in Plugin 03 are sent without this check.)
+
+**The server comes first.** The window metaScreener checks against
+is a setting, described below — and the setting only tells
+metaScreener what to refuse against. It does not change what the
+server actually serves, so raising the setting without raising the
+server trades a stated refusal for the silent truncation described
+above. Raise the server's window, then record it in the setting.
+
+**The server (Ollama).** There is no per-request way to ask for a
+larger window through the OpenAI-compatible endpoint metaScreener
+uses — the request fields that should carry it are silently ignored
+(measured). The window is a property of the running server, set
+when it starts: set the environment variable, for example
+
+```text
+OLLAMA_CONTEXT_LENGTH=8192
+```
+
+in the environment the Ollama server starts from, and restart it.
+That example is the measured instance, not a recommendation: after
+such a restart, a request of about 7,000 tokens was reported by the
+server as processed in full (`usage.prompt_tokens = 7047`), where
+the default window keeps only the last ~2,048.
+
+**Hosted and other servers.** The check applies to every provider,
+and the default window is the *local* server's measured default — a
+hosted model's real window is generally far larger. For a hosted
+endpoint there is no server of yours to restart: the remedy is the
+setting alone, set to the context length your model's documentation
+states. Other local servers (LM Studio, llama.cpp, vLLM) have their
+own window flags; whatever the server, the rule is the same — the
+setting must never exceed what the server actually serves.
+
+**The setting.** `context_window`, application-level, default
+**4096** — the serving window measured on this project's reference
+Ollama out of the box. Ollama chooses that default from the
+machine's hardware, so a different machine can serve a different
+window; the default here is the measured one, not a promise. There
+is no GUI field for the setting; it lives in the settings file
+(`%APPDATA%\metaScreener\settings.json` on Windows;
+`$XDG_CONFIG_HOME/metaScreener/settings.json` if that variable is
+set, `~/.config/metaScreener/settings.json` otherwise). The file
+already carries the key as `null`, which means "use the default";
+replace the `null` with your number:
+
+```json
+"context_window": 8192
+```
+
+— an example, matching the restart above, not a recommendation.
+The value must be a bare number, not a quoted string (a quoted
+value parses and is silently ignored), and values below 512 are
+treated as absent.
+
+**The ceiling.** A window cannot exceed what the model was built
+for. The first model metaScreener offers to download
+(`qwen2.5:7b-instruct-q4_K_M`) declares an architectural maximum of
+**32,768** tokens in the metadata of the snapshot measured here;
+asking for more than a model's maximum cannot give you more than
+the model has.
+
+**The cost.** A larger window makes the server reserve more memory
+for its attention cache, whether or not a request fills it. On a
+machine where the model plus that cache no longer fit in GPU
+memory, part of the work moves to the CPU and every call slows
+down — how much, and whether it matters, depends on your hardware,
+your corpus and your batch size, which is why metaScreener does not
+raise the window for you and does not recommend a value. The
+default stays the measured server default; the remedies above are
+yours to choose between.
+
 ## Exporting and final outputs
 
 The final bundle from Plugin 07 contains the surviving records (in
