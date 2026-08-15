@@ -260,21 +260,25 @@ whose endpoint points at a billing host always requires an API key,
 whatever the provider is set to.
 
 The model, the resolved endpoint, the temperature, the prompt version,
-the truncation limit and the batch size **are** recorded in the bundle's
-`manifest.json`, once per stage run, in the `provenance` block of the
-run-history entry. Whether that run was permitted to exclude is recorded
-beside it, as `exclusion_policy`. Two limits are worth knowing: the
-record is per run rather than per decision, and a bundle whose stage ran
-more than once carries one entry per run.
+the truncation limit, the batch size and the context window the run was
+budgeted against (the `context_window` setting — see the usage guide's
+"The context window") **are** recorded in the bundle's `manifest.json`,
+once per stage run, in the `provenance` block of the run-history entry.
+Whether that run was permitted to exclude is recorded beside it, as
+`exclusion_policy`. Two limits are worth knowing: the record is per run
+rather than per decision, and a bundle whose stage ran more than once
+carries one entry per run.
 
 **What is *not* recorded, and it matters for a local run.** The block
-does not carry the model's quantisation, and it does not carry the
-server's context window — metaScreener never sets `num_ctx`, so a local
-run inherits whatever the server defaults to (F-154). A local model's
-name in this block therefore does not fully identify what produced the
-result: `llama3.2:latest` is also a **mutable tag**, naming whatever
-weights it pointed at on the day. For a run you intend to cite, record
-the quantisation and the context window yourself alongside the bundle.
+does not carry the model's quantisation, and the recorded window is the
+one metaScreener *checked against*, not necessarily the one the server
+*served* — metaScreener never sets `num_ctx`, so a local run is served
+whatever window the server was started with (F-154). A local model's
+name in this block also does not fully identify what produced the
+result: `llama3.2:latest` is a **mutable tag**, naming whatever weights
+it pointed at on the day. For a run you intend to cite, record the
+quantisation and the server's actual window yourself alongside the
+bundle.
 
 ## Verifying the installation
 

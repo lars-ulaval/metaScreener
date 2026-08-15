@@ -123,8 +123,8 @@ files, the per-stage run history, and creation timestamps. Each
 plugin consumes a bundle and produces a new one with its stage's
 report appended. For the two LLM stages, the history entry also
 records **which engine produced that run**: the model, the resolved
-endpoint, the temperature, the prompt version, the truncation limit
-and the batch size. See
+endpoint, the temperature, the prompt version, the truncation limit,
+the batch size and the context window the run was budgeted against. See
 [Bundle format and audit trail](../README.md#bundle-format-and-audit-trail).
 
 Two limits worth knowing. The record is per *run*, not per decision:
@@ -134,8 +134,8 @@ decided it. And a run can serve decisions from its cache, which
 outlives the run that filled it — but the cache key is itself a digest
 over the model, the resolved endpoint, the temperature, the prompt
 version and the rendered prompt, so a cached decision cannot be served
-into a run that differs in any of them. Batch size is the one recorded
-field the cache key does not cover.
+into a run that differs in any of them. Batch size and the context
+window are the two recorded fields the cache key does not cover.
 
 ### Can I resume from a saved bundle?
 
