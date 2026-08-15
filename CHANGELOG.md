@@ -677,6 +677,24 @@ evaluates anything.
   for your review rather than acting on anything. Batch size 1 was the
   measured-clean setting at five times the requests of batch 5; the tooltip
   beside the box now gives you these numbers and leaves the choice with you.
+- **"Harmonise + LLM" works on real criteria files now, and it can no
+  longer lose your table.** It used to send every criterion to the model
+  in one giant request, which failed on this project's own eight-criterion
+  sample — the model would lose the thread and return a broken or
+  hallucinated reply, and one bad character cost the whole refinement,
+  ending in an "Operation failed" box quoting machinery. Criteria now go
+  in small batches, each locked to a reply schema that cannot contain
+  extra or missing rows, with one retry for anything the model dropped —
+  and whatever still comes back unusable keeps your original wording for
+  that criterion, named in plain language on the completion dialog
+  ("kept your original wording: the model's rewrite is not a single
+  sentence"), never a crash and never a lost row. The refinement can
+  improve your table or leave it as it was; it can no longer make it
+  worse. When something does go wrong, the log now records what actually
+  came back — how long the reply was, why it did not parse, whether the
+  model stopped on its own — instead of a 200-character fragment that
+  once misled its first reader. The exported bundle's manifest records
+  which criteria the model rewrote, which kept your originals and why.
 - **A keyword criterion filters records now, instead of silently doing
   nothing.** A criterion like *"the title, abstract, or keywords mention
   training"* was routed to the LLM stages, which run only `llm` rules —
