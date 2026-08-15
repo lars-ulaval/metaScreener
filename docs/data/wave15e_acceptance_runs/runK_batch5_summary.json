@@ -1,0 +1,31 @@
+{
+  "arm": "runK_batch5",
+  "batch_size": 5,
+  "cancelled": false,
+  "wall_seconds": 484.2,
+  "counts": {
+    "OUT": 0,
+    "PASS_CLEAN": 133,
+    "PASS_FLAGGED": 9,
+    "EXCLUSION_SUPPRESSED": 5,
+    "NOT_SCREENED": 0
+  },
+  "records": 294,
+  "answered": 294,
+  "no_answer": 0,
+  "calls_made": 60,
+  "reasks_made": 0,
+  "no_answer_after_reask": 0,
+  "exclusion_policy": "flag_only",
+  "request_shape": "json_schema",
+  "provenance": {
+    "model": "qwen2.5:7b",
+    "endpoint": "http://localhost:11434/v1",
+    "temperature": 0.0,
+    "prompt_version": "EL_v3_nullquote",
+    "trunc_chars": 1500,
+    "batch_size": 5,
+    "context_window": 4096
+  },
+  "absence_suppressed_key_present": false
+}

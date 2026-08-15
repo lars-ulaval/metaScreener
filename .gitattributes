@@ -42,6 +42,12 @@ docs/data/wave14c_batch_runs/*.json binary
 docs/data/wave14d_invariance_runs/*.csv binary
 docs/data/wave14d_invariance_runs/*.json binary
 
+# The evidence behind wave 15e's acceptance experiment (the F-195
+# settlement, and the annotations on F-201/F-197) — same reason and shape
+# as the directories above. Cache OFF again, so again no *.jsonl rule.
+docs/data/wave15e_acceptance_runs/*.csv binary
+docs/data/wave15e_acceptance_runs/*.json binary
+
 # The *outputs* of the reproduction the rule above protects the inputs of
 # (F-99, cause 2 of the wave-10..12 red CI). These three are the published
 # artefacts that tests/test_study_input_freeze.py, class

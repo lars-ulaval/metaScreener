@@ -1,0 +1,99 @@
+# wave15e_acceptance_runs — the adjudicated 414-call acceptance experiment
+# (wave 15e HO-15e-1, run 2026-08-15). The evidence behind the Part 3 record
+# in docs/internal/FIX_WAVE_15E_QUOTE_CLUSTER.md and the wave-15e settlement
+# notes on register rows F-195, F-201 and F-197. Integrity is held by
+# SHA256SUMS beside this file and asserted on every suite run by
+# tests/test_wave15e_acceptance_freeze.py, which also RE-DERIVES the
+# headline figures from these bytes.
+#
+# THE EXPERIMENT: the frozen 14d corpus re-screened under the wave-15e
+# prompt/schema/gate (EL_v3_nullquote), predictions REGISTERED BEFORE the
+# implementation existed (design commit 291a60f §6) so the runs test the
+# design rather than describe it.
+#
+# INPUTS, verified by digest before any call:
+# bundle zip: _archive_bundles/20260814_071007_post_EL_bundle.zip
+#   sha256 0bd1604aee1e7bf1fae825641a03659b49ee1942491fbb98bab0bf3c34a93c4b
+#   (= bundle_runG_sha256 in wave14d_invariance_runs.meta.txt)
+# data/current.csv (147 records, the 14d EL input):
+#   sha256 f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599
+#   (= ih_input_sha256 in the 14d meta — byte-identical corpus)
+# criteria/criteria_harmonized.csv:
+#   sha256 5dd51aaa… prefix verified (= the 14c/14d runDE criteria table)
+#
+# COMPARABILITY CAVEAT (the F-168 banner, carried forward): this corpus
+# predates the 15c routing/semantics fixes — the current deterministic
+# chain from the same raw inputs is 776 -> 16 -> 760 -> 738 -> 22, not
+# -> 613 -> 147. It is a REGRESSION corpus chosen for byte-identity with
+# the frozen 14d baselines, not a representation of the current pipeline.
+#
+# THE RUNS (identical provenance except batch_size; every field below is
+# recorded in the run?_*_report.json beside this file):
+# model=qwen2.5:7b / endpoint=http://localhost:11434/v1 / temperature=0.0
+# prompt_version=EL_v3_nullquote / request_shape=json_schema
+# trunc_chars=1500 / context_window=4096 / exclusion_policy=flag_only
+# cache OFF (cache_hits=0 | to_call=147 logged per criterion)
+#
+# runJ=runJ_batch5_*  batch_size=5  calls_made=60   wall=528s  CLEAN/FLAG/SUPP=133/9/5
+# runK=runK_batch5_*  batch_size=5  calls_made=60   wall=484s  CLEAN/FLAG/SUPP=133/9/5
+# runL=runL_batch1_*  batch_size=1  calls_made=294  wall=1020s CLEAN/FLAG/SUPP=147/0/0
+# records=294 pairs, answered=294, no_answer=0, reasks_made=0 in all three.
+#
+# CALL ACCOUNTING: 414 declared, 414 spent as declared (60+60+294, zero
+# re-asks). One disclosure: a first attempt at runJ was aborted after ~4
+# minutes to escape a 10-minute harness timeout and re-launched detached —
+# an estimated 12-25 calls were spent and discarded before any artefact
+# was written. Estimated from wall time at ~10-15 s/call; no artefact of
+# the aborted attempt exists.
+#
+# HEADLINE FIGURES, re-derived by the freeze test from these bytes:
+#
+# 1. Invalid non-null quotes on answered not_meet — THE F-195 MECHANISM:
+#    runJ 0/284 · runK 0/284 · runL 0/294
+#    (frozen comparators: runE 49/241 (20%), runF 100/294, runG 54/278,
+#    runH 62/281, runI 44/276). not_meet quotes came back NULL on 283/284,
+#    283/284 and 294/294 pairs; the junk-quote manufacture ended.
+#
+# 2. THE SETTLING EXPERIMENT (F-195's own cell, batch-1 arm): same corpus,
+#    same model, same temperature, same truncation as frozen runF — the
+#    ONLY change is the wave-15e prompt/schema/gate — and the invalid-
+#    quote fraction on not_meet went 100/294 -> 0/294. The row's causal
+#    claim [inferred] is now [measured]: the requirement caused the
+#    fabrication. runL is 294/294 not_meet, all null-quoted, 147/147
+#    PASS_CLEAN — exactly the design's offline recomputation predicted.
+#
+# 3. Fabricated meets (14d's base-rate instrument: A349 is the corpus's
+#    one maze-adjacent record and answered not_meet on both criteria in
+#    ALL runs, here as in 14d): runJ 10/294, runK 10/294, runL 0/294
+#    (frozen 15/12/0 at batches 5/5/1). Did not rise; fell. The zero
+#    intercept at batch 1 holds under v3. NEW under v3: the fabricated
+#    set became STABLE — runJ and runK meet on the SAME 10 (lid, cid)
+#    pairs (frozen G∩H shared 9 of 15/12). Of the 10, 5 passed rule (a)
+#    into SUPPRESSED (valid quotes, 46-355 normalised chars) and 5 landed
+#    UNCERTAIN, all five on quote validity (the substance floor fired
+#    uniquely on none in these runs; A373's 2-char quote fails both).
+#
+# 4. Same-configuration churn runJ<->runK (frozen 24/147; registered
+#    prediction <= ~13/147 with the quote_valid component zero):
+#    MEASURED 2/147 — one CLEAN->FLAGGED, one FLAGGED->CLEAN, BOTH pure
+#    confidence churn (A250 EC-3 0.85->0.4; A430 EC-2 0.55->0.85; same
+#    decisions, same quote states). Pair decision flips 0/294 (frozen
+#    same-config noise floor was 284/294 agreement); quote_valid flips
+#    0/294 (frozen 32/294). The quote-noise instrument did not merely
+#    stop driving outcomes — it went run-invariant.
+#
+# 5. Distributions (registered prediction ~128-132/~6/~9-13, direction):
+#    measured 133/9/5 twice. CLEAN one above the illustrative band,
+#    SUPPRESSED below it; the falsifier ("quote-driven flags persisting")
+#    did not fire — zero of the 9 flags trace to a not_meet quote.
+#
+# 6. absence_suppressed: correctly ABSENT from all three run reports —
+#    this corpus carries exclude-type criteria only, so no absence-
+#    removal is expressible at EL; the counter is presence-by-key. Its
+#    live IL confirmation happens in ordinary use; the suite pins it.
+#
+# The engine log captured the amended flag-only line rendering in full
+# (the wave-15e text naming both decliners) and
+# "endpoint=http://localhost:11434/v1 (OPENAI_BASE_URL not set; using the
+# default)" — asserted equal to the expected local endpoint by the
+# harness before any call, with REFUSING semantics on mismatch.
