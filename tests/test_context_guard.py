@@ -402,3 +402,119 @@ class TestTheWindowSetting:
             raise RuntimeError("no settings")
         monkeypatch.setattr(lc, "_load_settings_or_empty", _boom)
         assert lc.resolve_context_window() == 4096
+
+
+# ---------------------------------------------------------------------------
+# 6. the per-provider default (F-203, wave 15c)
+# ---------------------------------------------------------------------------
+
+class TestThePerProviderDefault:
+    """The default is keyed on the RESOLVED PAIR via `is_paid_vendor`,
+    never the provider label — the drift check aborts only when reality
+    exceeds the estimate, so a hosted-sized window aimed at a truncating
+    local server would be caught by nothing at run time. The label-only
+    error is exactly that mistake."""
+
+    @staticmethod
+    def _resolve(monkeypatch, stored, provider, endpoint):
+        from types import SimpleNamespace
+        monkeypatch.setattr(lc, "_load_settings_or_empty", lambda: stored)
+        monkeypatch.setattr(
+            lc, "_stage_config",
+            lambda _s: SimpleNamespace(provider=provider, endpoint=endpoint))
+        return lc.resolve_context_window("EL")
+
+    VENDOR = "https://api.openai.com/v1"
+    LOCAL = "http://localhost:11434/v1"
+
+    def test_a_hosted_pair_gets_the_hosted_default(self, monkeypatch):
+        assert self._resolve(monkeypatch, {}, "openai", self.VENDOR) \
+            == lc.HOSTED_CONTEXT_WINDOW_DEFAULT
+
+    def test_a_local_provider_keeps_the_measured_default(self, monkeypatch):
+        assert self._resolve(monkeypatch, {}, "local", self.LOCAL) == 4096
+
+    def test_the_pair_decides_custom_at_the_vendor_is_hosted(self, monkeypatch):
+        assert self._resolve(monkeypatch, {}, "custom", self.VENDOR) \
+            == lc.HOSTED_CONTEXT_WINDOW_DEFAULT
+
+    def test_the_pair_decides_openai_label_at_a_local_endpoint_is_not(
+            self, monkeypatch):
+        """The harm direction: a 128k default against a truncating local
+        server is silent front-truncation nothing can catch."""
+        assert self._resolve(monkeypatch, {}, "openai", self.LOCAL) == 4096
+
+    def test_an_unconfigured_install_stays_at_4096(self, monkeypatch):
+        """Provider UNCHOSEN resolves the vendor endpoint as a fallback;
+        nothing-configured must not be handed a hosted window by it."""
+        assert self._resolve(monkeypatch, {}, "", self.VENDOR) == 4096
+
+    def test_a_stored_value_beats_the_hosted_default_too(self, monkeypatch):
+        assert self._resolve(monkeypatch, {"context_window": 8192},
+                             "openai", self.VENDOR) == 8192
+
+    def test_deepseek_stays_conservatively_local(self, monkeypatch):
+        """PAID_VENDOR_HOSTS does not name api.deepseek.com, and widening
+        a MONEY vocabulary to fix a WINDOW default is refused — the
+        conservative direction is a loud refusal naming the setting."""
+        assert self._resolve(monkeypatch, {}, "custom",
+                             "https://api.deepseek.com/v1") == 4096
+
+    def test_a_failing_stage_config_degrades_to_4096(self, monkeypatch):
+        def _boom(_s):
+            raise RuntimeError("no store")
+        monkeypatch.setattr(lc, "_load_settings_or_empty", lambda: {})
+        monkeypatch.setattr(lc, "_stage_config", _boom)
+        assert lc.resolve_context_window("EL") == 4096
+
+    def test_the_constant_and_the_unrefused_flow(self):
+        """128,000 per OpenAI's documented gpt-4o-family window (cited at
+        the constant). The shipped hosted flow F-203 records as refused —
+        batch 50, worst measured prompt 16,473 tokens optimistic, 4,000
+        reply reserve — fits it with an order of magnitude to spare."""
+        assert lc.HOSTED_CONTEXT_WINDOW_DEFAULT == 128_000
+        assert 16_473 + 50 * lc.REPLY_RESERVE_PER_VERDICT \
+            < lc.HOSTED_CONTEXT_WINDOW_DEFAULT
+        assert lc.CONTEXT_WINDOW_DEFAULT == 4096, "the local default is unmoved"
+
+    def test_llm_provenance_requires_the_window_now(self):
+        """The keyword default was the number's second copy: a future
+        caller omitting it would stamp 4096 whatever the provider-aware
+        default resolved. Required now; both engines pass it explicitly."""
+        with pytest.raises(TypeError):
+            lc.llm_provenance(model="m", endpoint="e", temperature=0.0,
+                              prompt_version="v", trunc_chars=1500,
+                              batch_size=5)
+
+
+class TestTheHostedRefusalMessage:
+    """The local message's mechanism paragraph is Ollama-measured; a
+    hosted endpoint's overflow behaviour is not established here, so the
+    hosted branch states the constraint and the setting remedy without
+    asserting an unmeasured mechanism."""
+
+    def _report(self, hosted):
+        items = _items(10, chars=3000)
+        return lc.check_context_budget(
+            criteria=[_crit_pack()], items=items, batch_size=10,
+            trunc_chars=1500, build_messages=_build_messages, window=4096,
+            hosted=hosted)
+
+    def test_the_hosted_branch_drops_the_truncation_mechanism(self):
+        msg = self._report(hosted=True).message
+        assert "keeps roughly the last" not in msg
+        assert "2048" not in msg
+        assert "no server of yours to restart" in msg
+        assert "context_window" in msg
+        assert "recommend" not in msg.lower()
+
+    def test_the_hosted_branch_keeps_the_numbers_and_the_max_safe(self):
+        rep = self._report(hosted=True)
+        assert str(rep.worst_estimate + rep.reserve) in rep.message
+        assert "4096" in rep.message
+        assert str(rep.max_safe_batch) in rep.message
+
+    def test_the_local_branch_is_unchanged(self):
+        msg = self._report(hosted=False).message
+        assert "keeps roughly the last 2048 tokens" in msg
+        assert "no server of yours to restart" not in msg

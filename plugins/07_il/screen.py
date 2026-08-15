@@ -709,11 +709,16 @@ def run_il_screen(
         "threshold": c.threshold,
     } for c in crits if c.operator == "llm"]
     if _guard_packs and items:
+        # F-203 (wave 15c): the refusal message's wording follows the
+        # resolved pair — the same instrument the default window keys
+        # on — so a hosted user is not told about a truncation
+        # mechanism measured only on a local server.
+        from plugins._common.stage_state import is_paid_vendor
         enforce_context_budget(
             criteria=_guard_packs, items=items, batch_size=batch_size,
             trunc_chars=trunc_chars,
             build_messages=_build_llm_messages_for_criterion,
-            window=context_window)
+            window=context_window, hosted=is_paid_vendor(endpoint))
 
     # Run criterion by criterion (legacy-style)
     llm_results: Dict[Tuple[str,str], Dict[str, Any]] = {}

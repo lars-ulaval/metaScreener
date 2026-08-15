@@ -202,13 +202,16 @@ def defaults() -> Dict[str, Any]:
         # wins outright.
         "allow_llm_exclusion": None,
         # Wave 15b (F-154): the token window the context-budget guard
-        # refuses against. ``None`` means the measured default, 4,096
-        # (``llm_client.CONTEXT_WINDOW_DEFAULT``); a stored int >= 512
-        # wins. Application-level like the endpoint, because the window is
-        # a property of the server. Read by
+        # refuses against. ``None`` means the per-provider default since
+        # wave 15c (F-203): 4,096 — the measured local serving default —
+        # unless the stage resolves to a paid vendor endpoint, which gets
+        # ``llm_client.HOSTED_CONTEXT_WINDOW_DEFAULT`` (128,000, cited at
+        # the constant). A stored int >= 512 wins over either.
+        # Application-level like the endpoint, because the window is a
+        # property of the server. Read by
         # ``llm_client.resolve_context_window``; set with
-        # ``update_settings(context_window=8192)`` — the server's own
-        # window must be raised to match (see docs/usage.md).
+        # ``update_settings(context_window=8192)`` — for a LOCAL server
+        # its own window must be raised to match (see docs/usage.md).
         "context_window": None,
         "stages": {},
     }

@@ -760,6 +760,24 @@ application-level ``context_window`` key in the settings store
 typos and ignored.
 """
 
+HOSTED_CONTEXT_WINDOW_DEFAULT = 128_000
+"""The default window when the resolved pair points at a paid vendor
+endpoint (F-203, wave 15c).
+
+Basis is EXTERNAL, and deliberately cited rather than measured here:
+OpenAI's model documentation states a 128,000-token context window for
+the gpt-4o family, including the shipped default ``gpt-4o-mini``
+(platform.openai.com/docs/models, read 2026-08). No in-repo probe
+establishes it — the wave-15c sweep confirmed the repository carries no
+hosted-window measurement — and the drift check covers the estimator
+against any tokenizer at run time either way. Applies only when the
+provider is CHOSEN and ``stage_state.is_paid_vendor`` says the resolved
+endpoint bills (see ``resolve_context_window``); a DeepSeek or other
+non-listed hosted endpoint conservatively keeps the local default and a
+loud refusal naming the setting, because widening the PAID_VENDOR_HOSTS
+money vocabulary to fix a window default would change who is asked for
+a key."""
+
 CHARS_PER_TOKEN = 4.5
 """The estimator's divisor, with its calibration on the record (wave 15b,
 probe 1 — the server's own ``usage.prompt_tokens`` for prompts rendered by
@@ -801,15 +819,43 @@ def _load_settings_or_empty() -> Dict[str, Any]:
     return load_settings()
 
 
+def _hosted_default_applies(stage: str) -> bool:
+    """F-203: whether the hosted default governs ``stage``'s fallback.
+
+    Keyed on the RESOLVED PAIR via ``is_paid_vendor``, never the provider
+    label — the drift check aborts only when reality *exceeds* the
+    estimate, and a truncating local server reports *fewer* tokens, so a
+    hosted-sized default aimed at a local endpoint would be caught by
+    nothing at run time. The provider-chosen guard keeps an unconfigured
+    install (provider ``""``, vendor endpoint as resolution fallback) at
+    the conservative local default; ``llm_readiness`` blocks such a run
+    anyway, but this function must not hand 128k to nothing-configured
+    on its own. Errors resolve to False: the local default is the safe
+    side.
+    """
+    try:
+        cfg = _stage_config(stage)
+    except Exception:
+        return False
+    if not (getattr(cfg, "provider", "") or "").strip():
+        return False
+    from plugins._common.stage_state import is_paid_vendor
+    return bool(is_paid_vendor(getattr(cfg, "endpoint", "")))
+
+
 def resolve_context_window(stage: str = "") -> int:
     """The context window this run budgets against.
 
     Application-level, like the endpoint, because the window is a property
-    of the server. Degrades to :data:`CONTEXT_WINDOW_DEFAULT` on an
-    unreadable store, per the same rule ``_stage_config`` follows.
-    Detection via provider metadata is deliberately NOT attempted here —
-    F-107: a provider-specific call in the run path narrows portability,
-    and the drift check already detects a lying window universally.
+    of the server. A stored ``context_window`` >= 512 wins unconditionally;
+    the DEFAULT is per-provider since wave 15c (F-203): 4,096 — the
+    measured local serving default — unless the stage resolves to a paid
+    vendor endpoint, which gets :data:`HOSTED_CONTEXT_WINDOW_DEFAULT`.
+    Degrades to the local default on an unreadable store, per the same
+    rule ``_stage_config`` follows. Detection via provider metadata is
+    deliberately NOT attempted here — F-107: a provider-specific call in
+    the run path narrows portability, and the drift check already detects
+    a lying window universally.
     """
     try:
         cfg = _load_settings_or_empty()
@@ -817,7 +863,9 @@ def resolve_context_window(stage: str = "") -> int:
         return CONTEXT_WINDOW_DEFAULT
     v = cfg.get("context_window")
     if isinstance(v, bool) or not isinstance(v, int) or v < 512:
-        return CONTEXT_WINDOW_DEFAULT
+        return (HOSTED_CONTEXT_WINDOW_DEFAULT
+                if _hosted_default_applies(stage) else
+                CONTEXT_WINDOW_DEFAULT)
     return int(v)
 
 
@@ -867,7 +915,8 @@ def _worst_call(criteria, items, batch_size, trunc_chars, build_messages):
 
 
 def check_context_budget(*, criteria, items, batch_size, trunc_chars,
-                         build_messages, window) -> ContextBudgetReport:
+                         build_messages, window,
+                         hosted: bool = False) -> ContextBudgetReport:
     """Render every prompt the run would send and budget it against
     ``window``. Whole-corpus and pre-run on purpose: rendering is cheap and
     exact (the wave-15b reconstruction proved byte-fidelity), and the user
@@ -875,6 +924,15 @@ def check_context_budget(*, criteria, items, batch_size, trunc_chars,
 
     The refusal threshold is ``estimate + reserve > window`` — landing
     exactly on the window passes.
+
+    ``hosted`` (F-203, wave 15c) selects the refusal message's wording
+    only, never its arithmetic. The local message describes the measured
+    Ollama overflow (last half-window kept, front dropped); a hosted
+    endpoint's overflow behaviour is not established here, so that
+    branch states the constraint and the setting remedy without
+    asserting an unmeasured mechanism. The engines pass
+    ``is_paid_vendor(endpoint)`` — the resolved pair, the same
+    instrument the default window keys on.
     """
     window = int(window)
     (worst_tot, worst_cid, worst_bi, worst_est), n_batches = _worst_call(
@@ -896,6 +954,31 @@ def check_context_budget(*, criteria, items, batch_size, trunc_chars,
             max_safe = n
             break
 
+    if hosted:
+        mechanism = (
+            f"The {window}-token figure is this application's "
+            f"'context_window' setting, not a measurement of the endpoint: "
+            f"hosted models generally serve far larger windows than the "
+            f"setting assumes. There is no server of yours to restart — if "
+            f"your model's documentation states a larger context length, "
+            f"set 'context_window' to it.\n\n")
+        closing = (f"\n\nThe setting must not exceed the context length "
+                   f"the endpoint actually serves.")
+        no_fit_tail = (f"A lower truncation limit or a larger "
+                       f"'context_window' setting would change that.")
+    else:
+        mechanism = (
+            f"An overflowing request is not trimmed to fit: the server "
+            f"keeps roughly the last {window // 2} tokens — half the "
+            f"window, however long the request was — and drops everything "
+            f"before them, instructions and criterion included, then "
+            f"answers about the remainder.\n\n")
+        closing = (f"\n\nThe window is the application-level "
+                   f"'context_window' setting; the server's own window "
+                   f"must be at least as large.")
+        no_fit_tail = (f"A lower truncation limit or a larger server "
+                       f"window would change that.")
+
     msg = (
         f"This run was not started: the largest request it would send does "
         f"not fit the configured {window}-token context window.\n\n"
@@ -903,19 +986,13 @@ def check_context_budget(*, criteria, items, batch_size, trunc_chars,
         f"batch size {int(batch_size)}, measures an estimated {worst_est} "
         f"prompt tokens plus a {reserve}-token reply reserve — "
         f"{worst_tot} in total against the {window}-token window.\n\n"
-        f"An overflowing request is not trimmed to fit: the server keeps "
-        f"roughly the last {window // 2} tokens — half the window, however "
-        f"long the request was — and drops everything before them, "
-        f"instructions and criterion included, then answers about the "
-        f"remainder.\n\n"
+        + mechanism
         + (f"At this window, the largest batch size that fits every request "
            f"for this corpus is {max_safe}."
            if max_safe else
            f"No batch size fits this corpus at this window — a single "
-           f"record's request already exceeds it. A lower truncation limit "
-           f"or a larger server window would change that.")
-        + f"\n\nThe window is the application-level 'context_window' "
-        f"setting; the server's own window must be at least as large."
+           f"record's request already exceeds it. " + no_fit_tail)
+        + closing
     )
     return ContextBudgetReport(
         ok=False, window=window, batch_size=int(batch_size), reserve=reserve,
@@ -1138,7 +1215,11 @@ def _bump(stats: Optional[Dict[str, int]], key: str) -> None:
 def llm_provenance(*, model: str, endpoint: str, temperature: float,
                    prompt_version: str, trunc_chars: int,
                    batch_size: int,
-                   context_window: int = CONTEXT_WINDOW_DEFAULT) -> Dict[str, Any]:
+                   # Required since wave 15c (F-203): the keyword default
+                   # was the number's second copy, and a caller omitting
+                   # it would stamp 4096 whatever the provider-aware
+                   # default resolved. Both engines pass explicitly.
+                   context_window: int) -> Dict[str, Any]:
     """Which engine produced this run's decisions (F-88).
 
     Shared by both stages so the two cannot drift into recording different
