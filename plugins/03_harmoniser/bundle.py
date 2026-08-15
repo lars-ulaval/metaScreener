@@ -37,7 +37,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from .exporters import (
     BUNDLE_ROOT_NAME,
@@ -59,6 +59,7 @@ def export_screen_a_bundle(
     criteria_kind: str,
     criteria_source_text: str,
     zip_out_path: str,
+    refinement: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Build the Screen-A bundle archive at `zip_out_path`.
@@ -130,6 +131,7 @@ def export_screen_a_bundle(
             criteria_rows=rows,
             criteria_source_text=criteria_source_text,
             wrote_input_errors=wrote_errors,
+            refinement=refinement,
         )
 
         hashes = {

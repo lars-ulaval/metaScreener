@@ -72,6 +72,10 @@ class _UiState:
     text_stats: Dict[str, float] = None  # type: ignore
     criteria_text: str = ""
     rows: List[Dict[str, Any]] = None  # type: ignore
+    #: Wave 15d (F-185): the last LLM refinement's RefineOutcome, or None.
+    #: The ONE source both the completion dialog and the exported
+    #: manifest's refinement block render from — never two derivations.
+    refinement: Any = None
 
     def __post_init__(self):
         if self.a_columns is None:
@@ -671,13 +675,17 @@ class HarmoniserView(ttk.Frame):
 
         def worker():
             try:
-                refined, repairs = _llm_refine(self.state.rows, full_text, self.state.a_columns, model=model, log=self._thread_log)
+                refined, outcome = _llm_refine(self.state.rows, full_text, self.state.a_columns, model=model, log=self._thread_log)
                 self.state.rows = refined
-                # F-65: the repairs are surfaced by `_poll_worker` on the
-                # completion dialog, beside the other validation notes —
-                # a repair made silently would be the defect class this
-                # wave closes, made in-house.
-                self._refine_repairs = list(repairs)
+                # Wave 15d (F-185): the RefineOutcome is the ONE source
+                # both surfaces render from — `_poll_worker` puts its
+                # repairs and kept-reasons on the completion dialog, and
+                # `_export_bundle` records its manifest block. A note
+                # shown but not recorded, or recorded but not shown,
+                # would be two derivations of one fact (F-69's shape).
+                self.state.refinement = outcome
+                self._refine_repairs = list(outcome.repairs)
+                self._refine_kept = outcome.kept
                 self._worker_err = None
             except Exception as e:
                 self._worker_err = str(e)
@@ -722,12 +730,16 @@ class HarmoniserView(ttk.Frame):
             # that made the repairs. Set only by the refine worker.
             repairs = tuple(getattr(self, "_refine_repairs", ()) or ())
             self._refine_repairs = []
-            self._validate(show_ok=True, repair_notes=repairs)
+            kept = getattr(self, "_refine_kept", None)
+            self._refine_kept = None
+            self._validate(show_ok=True, repair_notes=repairs,
+                           kept_notes=kept)
 
         self._refresh_buttons()
 
     def _validate(self, show_ok: bool = True,
-                  repair_notes: "tuple" = ()) -> bool:
+                  repair_notes: "tuple" = (),
+                  kept_notes=None) -> bool:
         # The decision lives in `validate_report.build_validation_report`, which
         # is pure and therefore testable; this method is the part that needs a
         # widget. Extracted unchanged in wave 13c B — see
@@ -740,7 +752,7 @@ class HarmoniserView(ttk.Frame):
 
         report = build_validation_report(
             self.state.rows, self.state.a_columns, show_ok=show_ok,
-            repair_notes=repair_notes,
+            repair_notes=repair_notes, kept_notes=kept_notes,
         )
 
         # Hand the marks down rather than letting `_render_rows` build a SECOND
@@ -835,6 +847,10 @@ class HarmoniserView(ttk.Frame):
                 criteria_kind=self.state.criteria_kind,
                 criteria_source_text=criteria_source_text,
                 zip_out_path=zip_path,
+                # Wave 15d (F-185): the same RefineOutcome the completion
+                # dialog rendered — one source, two surfaces.
+                refinement=(self.state.refinement.manifest_block()
+                            if self.state.refinement else None),
             )
             self._log(f"Bundle exported: {zip_path}")
             messagebox.showinfo("Export done", f"Exported bundle ZIP:\n{zip_path}")

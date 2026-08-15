@@ -32,6 +32,7 @@ does not invoke the LLM path) confirms that the rule-based output is unchanged.
 
 import json
 import os
+from dataclasses import dataclass, field as dc_field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .parser import (
@@ -50,8 +51,16 @@ STAGE = "harmoniser"
 
 
 def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 600,
-                      stage: str = STAGE) -> Dict[str, Any]:
-    """One OpenAI-compatible call, returning the JSON object it replied with.
+                      stage: str = STAGE,
+                      response_format: Optional[Dict[str, Any]] = None,
+                      max_tokens: Optional[int] = None,
+                      ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """One OpenAI-compatible call, returning ``(parsed, meta)``.
+
+    ``parsed`` is the JSON object the model replied with, or ``None`` when
+    the reply did not parse — no longer a raise (wave 15d, F-185/F-186):
+    the caller contains a bad reply per chunk, and ``meta`` carries what
+    the old raise threw away. Transport errors still propagate.
 
     **This function had two call routes and only one of them existed**
     (F-146, wave 12). The second called ``openai.ChatCompletion``, removed
@@ -111,25 +120,52 @@ def _call_openai_json(model: str, system: str, user: str, timeout_s: int = 600,
     )
 
     client = _openai_client_for(stage)
-    resp = client.chat.completions.create(
+    kw: Dict[str, Any] = dict(
         model=model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         temperature=0,
         timeout=timeout_s,
     )
+    # Wave 15d (F-185): the constrained request and the cost bound ride
+    # as parameters so the chunk driver decides per call; a transport
+    # error still propagates — a refused connection is not a refinement
+    # rejection, and its text is the actionable cause (F-146's fix).
+    if response_format is not None:
+        kw["response_format"] = response_format
+    if max_tokens is not None:
+        kw["max_tokens"] = int(max_tokens)
+    resp = client.chat.completions.create(**kw)
     txt = resp.choices[0].message.content or ""
+
+    # Wave 15d (F-186): everything the old raise threw away, carried out
+    # to the caller — finish_reason, all three token counts, the reply
+    # length, the bounded head, and the parse exception's own message.
+    # All were in hand at the old raise site and discarded; the 200-char
+    # head ended mid-token and misled the first person to read it.
+    usage = getattr(resp, "usage", None)
+    meta: Dict[str, Any] = {
+        "finish_reason": getattr(resp.choices[0], "finish_reason", None),
+        "prompt_tokens": getattr(usage, "prompt_tokens", None),
+        "completion_tokens": getattr(usage, "completion_tokens", None),
+        "total_tokens": getattr(usage, "total_tokens", None),
+        "reply_chars": len(txt),
+        "reply_head": txt[:200],
+        "parse_error": "",
+    }
 
     parsed = _parse_llm_json_object(txt)
     if parsed is None:
-        # Quote what arrived, bounded. "The model did not return JSON" is
-        # not actionable on its own; the first 200 characters of what it
-        # did return usually are — a refusal, a prose preamble or an error
-        # page all look quite different at a glance.
-        raise RuntimeError(
-            f"The model did not return a JSON object. First 200 characters "
-            f"of the reply: {txt[:200]!r}"
-        )
-    return parsed
+        # The unparseable-reply RuntimeError that used to live here was
+        # one of the two measured worker aborts (08 §7: the maintainer's
+        # own incident). It is gone by design: the caller contains the
+        # failure per chunk and keeps the deterministic rows, and the
+        # exact JSON error is named rather than guessed at.
+        try:
+            json.loads(txt)
+            meta["parse_error"] = "no JSON object found in the reply"
+        except Exception as e:
+            meta["parse_error"] = f"{type(e).__name__}: {e}"
+    return parsed, meta
 
 
 def _sdk_importable() -> bool:
@@ -174,40 +210,178 @@ def _sdk_importable() -> bool:
             return False
 
 
+HARMONISER_CHUNK_SIZE = 4
+"""Criteria per call (F-185, wave 15d). Argued from the measurement, not
+the schema: four is the largest count with three consecutive
+byte-identical successes in 08 §8a, while six looped for 38 rows and
+eight hallucinated a ninth — so the F-107 unconstrained fallback path
+sits inside the evidence too, and the strict cardinality below is a
+second lock rather than the load-bearing one."""
+
+HARMONISER_REPLY_RESERVE_PER_ROW = 240
+"""Reply-reserve per refined row, deliberately generous (a refined row
+is bigger than an EL verdict; the budget check uses it, and the cost
+bound below is derived from it)."""
+
+HARMONISER_MAX_TOKENS_MARGIN = 200
+"""Slack on the per-call cost bound. ``max_tokens`` is a COST control,
+not the correctness fix (08 §8b: the n=8 reply was already complete);
+it exists to cap the n=6-shape runaway that burned 40 seconds."""
+
+
+def _harmoniser_max_tokens(n_rows: int) -> int:
+    return HARMONISER_REPLY_RESERVE_PER_ROW * int(n_rows) \
+        + HARMONISER_MAX_TOKENS_MARGIN
+
+
+def _response_format_for_rows(n: int) -> Dict[str, Any]:
+    """The constrained request for a chunk of exactly ``n`` criteria rows
+    (F-185), 14c's ``_response_format_for`` shape one plugin over.
+
+    The cardinality is the point: ``minItems == maxItems == n`` makes the
+    two measured failure shapes — a hallucinated extra row at n=8, a
+    38-row repetition loop at n=6 — inexpressible on this path. The
+    ``stage`` and ``operator`` enums are the parser's own vocabularies
+    (the 15c hoist), not a new copy (F-109).
+    """
+    row_schema = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "type": {"type": "string", "enum": ["include", "exclude"]},
+            "stage": {"type": "string", "enum": list(STAGES)},
+            "label": {"type": "string"},
+            "operator": {"type": "string", "enum": list(OPERATORS)},
+            "target": {"type": "string"},
+            "what": {"type": "array", "items": {"type": "string"}},
+            "threshold": {"type": "string"},
+            "enabled": {"type": "boolean"},
+        },
+        "required": ["id", "stage", "type", "label", "operator", "target",
+                     "what", "threshold", "enabled"],
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "criteria_rows",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {"type": "array", "items": row_schema,
+                             "minItems": int(n), "maxItems": int(n)},
+                },
+                "required": ["rows"],
+            },
+        },
+    }
+
+
+_GENERIC_REASON = ("the model's rewrite did not pass this software's "
+                   "checks")
+"""The reason for a validator error the map below does not know. The
+totality test drives the real validator over provoking rows and asserts
+no KNOWN error reaches this; the register test asserts even this string
+speaks the user's language."""
+
+#: Validator error → what the completion dialog says (F-173's register:
+#: the user's language, never the validator's). Matched by prefix on the
+#: REAL strings ``_validate_row`` emits; order matters only for
+#: readability. Adjudication note 2 bans the tokens "llm", "row",
+#: "invalid", "requires exactly" and backticked operator names from every
+#: output — tested, not assumed.
+_REASON_MAP = (
+    ("Invalid stage", "the model picked a screening stage this software "
+                      "does not have"),
+    ("Missing id", "the model dropped the criterion's identifier"),
+    ("Invalid type", "the model changed whether this criterion includes "
+                     "or excludes"),
+    ("Invalid operator", "the model picked a comparison this software "
+                         "does not have"),
+    ("operator '", "the model paired the rule with a stage that cannot "
+                   "run it"),
+    ("Missing target", "the model dropped the column the rule reads"),
+    ("Unknown target(s)", "the model pointed it at columns your file "
+                          "does not have"),
+    ("between requires exactly 2", "the model's range needs exactly two "
+                                   "numbers"),
+    ("llm requires exactly 1 sentence", "the model's rewrite is not a "
+                                        "single sentence"),
+    ("threshold must be between 0 and 1", "the model's confidence "
+                                          "threshold is not between 0 "
+                                          "and 1"),
+    ("threshold must be a number", "the model's confidence threshold is "
+                                   "not a number"),
+)
+
+_STRUCTURAL_REASON = ("the model did not return a usable answer for "
+                      "this criterion")
+
+
+def _plain_reason(errs: Sequence[str]) -> str:
+    """One plain sentence for a rejected refinement, from the first
+    mappable validator error."""
+    for err in errs:
+        for prefix, plain in _REASON_MAP:
+            if str(err).startswith(prefix):
+                return plain
+    return _GENERIC_REASON
+
+
+@dataclass
+class RefineOutcome:
+    """What one Harmonise + LLM pass did, per criterion — THE single
+    source (adjudication note 3): the completion dialog's kept/adjusted
+    sections and the exported manifest's ``refinement`` block both render
+    from this object, never from two derivations.
+    """
+
+    model: str
+    refined: List[str] = dc_field(default_factory=list)
+    kept: Dict[str, str] = dc_field(default_factory=dict)
+    repaired: List[str] = dc_field(default_factory=list)
+    repairs: List[str] = dc_field(default_factory=list)
+    diagnostics: List[str] = dc_field(default_factory=list)
+
+    def manifest_block(self) -> Dict[str, Any]:
+        # ``kept`` is deliberately the SAME dict object the dialog
+        # renders, not a copy — one source, two surfaces.
+        return {"model": self.model, "refined": list(self.refined),
+                "kept": self.kept, "repaired": list(self.repaired)}
+
+
 def _llm_refine(
     rows: List[Dict[str, Any]],
     full_criteria_text: str,
     a_columns: Sequence[str],
     model: str,
     log: Optional[callable] = None,
-) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """LLM-assisted refinement (guardrailed).
+) -> Tuple[List[Dict[str, Any]], "RefineOutcome"]:
+    """LLM-assisted refinement, chunked and contained (F-185, wave 15d).
 
-    Returns ``(rows, repairs)``. ``repairs`` names every stage↔operator
-    pairing this function corrected in the model's reply (F-65) — the
-    caller surfaces them on the completion dialog beside the other
-    validation notes, so a repair the refiner makes is never silent.
+    THE INVARIANT: this function can never make the table worse than the
+    deterministic parse it was handed. Criteria go to the model in chunks
+    of :data:`HARMONISER_CHUNK_SIZE`, each call schema-constrained with
+    cardinality = chunk size (F-107 fallback: unconstrained at the same
+    measured-safe size); rows the reply omits, duplicates or mis-labels
+    are re-asked ONCE as their own chunk; whatever is still unusable —
+    and every row the validator rejects — keeps the input row for that
+    criterion, with a plain-language reason in ``outcome.kept``. No
+    failure of any reply aborts the worker and no criterion can lose its
+    row. Transport errors still propagate: a refused connection is not a
+    refinement rejection.
+
+    Returns ``(rows, outcome)`` — rows in input order, each either the
+    validated refinement or the byte-identical input row;
+    :class:`RefineOutcome` is the one object the dialog and the manifest
+    both render from. The 15c auto-route (stage↔operator repairs, named)
+    is preserved per row and its notes ride ``outcome.repairs``.
     """
     def _log(msg: str) -> None:
         if log:
             log(msg)
 
     _log("LLM refine: preparing prompt…")
-
-    compact = []
-    for r in rows:
-        compact.append({
-            "id": r.get("id"),
-            "type": r.get("type"),
-            "stage": r.get("stage"),
-            "label": r.get("label"),
-            "operator": r.get("operator"),
-            "target": r.get("target"),
-            "what": r.get("what"),
-            "threshold": r.get("threshold"),
-            "enabled": r.get("enabled"),
-            "source_text": r.get("source_text"),
-        })
 
     system = (
         "You are a strict criteria harmoniser for PRISMA screening.\n"
@@ -238,89 +412,222 @@ def _llm_refine(
         "\"operator\":...,\"target\":...,\"what\":...,\"threshold\":...,\"enabled\":...}, ... ] }\n"
     )
 
-    user_payload = {
-        "task": "Refine criteria rows based on the full criteria text and allowed A columns.",
-        "allowed_a_columns": list(a_columns),
-        "full_criteria_text": full_criteria_text[:8000],
-        "rows": compact,
-    }
-    user = json.dumps(user_payload, ensure_ascii=False)
+    def _payload(chunk_rows: Sequence[Dict[str, Any]]) -> str:
+        compact = [{
+            "id": r.get("id"), "type": r.get("type"),
+            "stage": r.get("stage"), "label": r.get("label"),
+            "operator": r.get("operator"), "target": r.get("target"),
+            "what": r.get("what"), "threshold": r.get("threshold"),
+            "enabled": r.get("enabled"),
+            "source_text": r.get("source_text"),
+        } for r in chunk_rows]
+        return json.dumps({
+            "task": "Refine criteria rows based on the full criteria text and allowed A columns.",
+            "allowed_a_columns": list(a_columns),
+            "full_criteria_text": full_criteria_text[:8000],
+            "rows": compact,
+        }, ensure_ascii=False)
 
-    _log(f"LLM refine: calling OpenAI model={model} …")
-    d = _call_openai_json(model=model, system=system, user=user)
+    # -- the budget guard, before the first call (15b named this path
+    # its consumer). Over the REAL chunk renders, speaking criteria.
+    from plugins._common.llm_client import (
+        enforce_context_budget,
+        resolve_context_window,
+        resolve_openai_base_url,
+        _response_format_rejected,
+    )
+    from plugins._common.stage_state import is_paid_vendor
 
-    if not isinstance(d, dict) or "rows" not in d or not isinstance(d["rows"], list):
-        raise RuntimeError("LLM response missing 'rows' list")
+    if rows:
+        endpoint = resolve_openai_base_url(STAGE)
+        enforce_context_budget(
+            criteria=[{"id": "criteria"}],
+            items=list(rows),
+            batch_size=HARMONISER_CHUNK_SIZE,
+            trunc_chars=0,
+            build_messages=lambda _pack, batch, _trunc: [
+                {"role": "system", "content": system},
+                {"role": "user", "content": _payload(batch)},
+            ],
+            window=resolve_context_window(STAGE),
+            hosted=is_paid_vendor(endpoint),
+            noun="criterion",
+        )
 
-    got = d["rows"]
-    if len(got) != len(rows):
-        raise RuntimeError(f"LLM changed row count (expected {len(rows)}, got {len(got)})")
+    in_by_id: Dict[str, Dict[str, Any]] = {}
+    order: List[str] = []
+    for r in rows:
+        rid = _safe_str(r.get("id")).strip()
+        in_by_id[rid] = r
+        order.append(rid)
 
-    expected = [(r.get("id"), r.get("type")) for r in rows]
+    outcome = RefineOutcome(model=model)
+    proposals: Dict[str, Dict[str, Any]] = {}
+    structurally_failed: Dict[str, str] = {}
 
+    def _call_chunk(chunk_rows, label):
+        """One constrained call (F-107 fallback inside); returns the
+        proposals it can attribute, and the residue ids it cannot."""
+        n = len(chunk_rows)
+        expected = {_safe_str(r.get("id")).strip() for r in chunk_rows}
+        _log(f"LLM refine: {label} — {n} criteria …")
+        try:
+            parsed, meta = _call_openai_json(
+                model=model, system=system, user=_payload(chunk_rows),
+                response_format=_response_format_for_rows(n),
+                max_tokens=_harmoniser_max_tokens(n))
+        except Exception as e:
+            if not _response_format_rejected(e):
+                raise
+            _log("LLM refine: server rejected the constrained request; "
+                 "retrying unconstrained (F-107)")
+            parsed, meta = _call_openai_json(
+                model=model, system=system, user=_payload(chunk_rows),
+                max_tokens=_harmoniser_max_tokens(n))
+
+        got = parsed.get("rows") if isinstance(parsed, dict) else None
+        if not isinstance(got, list):
+            _record_chunk_failure(label, meta)
+            return {}, set(expected)
+
+        counts: Dict[str, int] = {}
+        for rr in got:
+            if isinstance(rr, dict):
+                rid = _safe_str(rr.get("id")).strip()
+                counts[rid] = counts.get(rid, 0) + 1
+
+        found: Dict[str, Dict[str, Any]] = {}
+        for rr in got:
+            if not isinstance(rr, dict):
+                continue
+            rid = _safe_str(rr.get("id")).strip()
+            if rid not in expected:
+                # Adjudication note 1: a valid-looking row for an id this
+                # chunk never asked about is NEVER absorbed.
+                outcome.diagnostics.append(
+                    f"{label}: discarded a reply row for '{rid}', which "
+                    f"is not in this chunk")
+                continue
+            if counts.get(rid, 0) > 1:
+                continue        # two proposals for one criterion is none
+            found[rid] = rr
+        residue = expected - set(found)
+        return found, residue
+
+    def _record_chunk_failure(label, meta):
+        pe = meta.get("parse_error") or \
+            "reply was JSON but carried no rows list"
+        outcome.diagnostics.append(
+            f"{label}: unusable reply — finish_reason="
+            f"{meta.get('finish_reason')}, prompt_tokens="
+            f"{meta.get('prompt_tokens')}, completion_tokens="
+            f"{meta.get('completion_tokens')}, total_tokens="
+            f"{meta.get('total_tokens')}, reply_chars="
+            f"{meta.get('reply_chars')}, parse_error={pe}")
+
+    # -- pass 1: the chunks
+    residues: List[str] = []
+    chunks = [rows[i:i + HARMONISER_CHUNK_SIZE]
+              for i in range(0, len(rows), HARMONISER_CHUNK_SIZE)]
+    for ci, chunk in enumerate(chunks, start=1):
+        found, residue = _call_chunk(
+            chunk, f"chunk {ci} of {len(chunks)}")
+        proposals.update(found)
+        residues.extend(sorted(residue))
+
+    # -- pass 2: ONE re-ask over the structural residue, chunked
+    if residues:
+        _log(f"LLM refine: re-asking once for {len(residues)} "
+             f"criteria the replies dropped or mangled")
+        reask_rows = [in_by_id[rid] for rid in residues]
+        for i in range(0, len(reask_rows), HARMONISER_CHUNK_SIZE):
+            part = reask_rows[i:i + HARMONISER_CHUNK_SIZE]
+            found, residue = _call_chunk(part, "re-ask")
+            proposals.update(found)
+            for rid in sorted(residue):
+                structurally_failed[rid] = _STRUCTURAL_REASON
+
+    # -- pass 3: per-row acceptance — the 15c pipeline, contained
     out_rows: List[Dict[str, Any]] = []
-    repairs: List[str] = []
-    for i, rr in enumerate(got):
-        if not isinstance(rr, dict):
-            raise RuntimeError("LLM produced a non-object row")
-        exp_id, exp_type = expected[i]
-        if _safe_str(rr.get("id")).strip() != _safe_str(exp_id).strip():
-            raise RuntimeError(f"LLM changed id at index {i}")
-        if _safe_str(rr.get("type")).strip().lower() != _safe_str(exp_type).strip().lower():
-            raise RuntimeError(f"LLM changed type at index {i}")
+    for rid in order:
+        original = in_by_id[rid]
+        rr = proposals.get(rid)
+        if rr is None:
+            out_rows.append(original)
+            outcome.kept[rid] = structurally_failed.get(
+                rid, _STRUCTURAL_REASON)
+            continue
 
         nr = {
             "stage": _safe_str(rr.get("stage")).strip().upper(),
-            "id": _safe_str(rr.get("id")).strip(),
+            "id": rid,
             "type": _safe_str(rr.get("type")).strip().lower(),
             "scope": "metadata",
-            "label": _safe_str(rr.get("label") or rows[i].get("label")).strip(),
+            "label": _safe_str(rr.get("label") or original.get("label")).strip(),
             "operator": _safe_str(rr.get("operator")).strip().lower(),
             "target": _safe_str(rr.get("target")).strip(),
             "what": rr.get("what"),
             "threshold": _safe_str(rr.get("threshold", "")).strip(),
             "enabled": bool(rr.get("enabled", True)),
-            "source_text": rows[i].get("source_text", ""),
+            "source_text": original.get("source_text", ""),
         }
+        if nr["type"] != _safe_str(original.get("type")).strip().lower():
+            out_rows.append(original)
+            outcome.kept[rid] = ("the model changed whether this "
+                                 "criterion includes or excludes")
+            continue
 
         if not isinstance(nr["what"], list):
             nr["what"] = _parse_what_cell(nr["operator"] or "contains", nr["what"])
         nr["what"] = [str(x) for x in nr["what"] if str(x).strip()]
 
-        # F-65 (wave 15c): the prompt above nudges the model toward
-        # stage IL/EL, and a model that obeys the stage half while
-        # keeping a deterministic operator proposes exactly the pairing
-        # `_validate_row` now rejects. Repair by the router's own rule
-        # instead of failing the whole refine — and NAME the repair:
-        # the notes are returned to the caller, which puts them on the
-        # completion dialog beside every other validation note, not
-        # only in the log.
+        # F-65 (wave 15c), preserved verbatim in behaviour: the model is
+        # nudged toward stage IL/EL, and a reply that keeps a
+        # deterministic operator while obeying the nudge is repaired by
+        # the router's rule and NAMED — the repair reaches the
+        # completion dialog, not only the log.
         op0 = nr["operator"]
         stage0 = nr["stage"]
         if stage0 in ("EL", "IL") and op0 in OPERATORS and op0 != "llm":
             nr["stage"] = "IH" if nr["type"] == "include" else "EH"
             nr["threshold"] = ""
-            note = (f"{nr['id']}: the model put deterministic operator "
+            note = (f"{rid}: the model put deterministic operator "
                     f"'{op0}' at {stage0}, which runs llm only; "
                     f"re-staged to {nr['stage']}")
-            repairs.append(note)
+            outcome.repairs.append(note)
+            outcome.repaired.append(rid)
             _log(f"LLM refine repair: {note}")
         elif stage0 in ("EH", "IH") and op0 == "llm":
             nr["stage"] = "IL" if nr["type"] == "include" else "EL"
-            note = (f"{nr['id']}: the model put operator 'llm' at "
+            note = (f"{rid}: the model put operator 'llm' at "
                     f"{stage0}, which never asks a model; re-staged to "
                     f"{nr['stage']}")
-            repairs.append(note)
+            outcome.repairs.append(note)
+            outcome.repaired.append(rid)
             _log(f"LLM refine repair: {note}")
 
         errs, warns = _validate_row(nr, a_columns)
         if errs:
-            raise RuntimeError(f"LLM refined row invalid ({nr.get('id')}): {', '.join(errs)}")
+            # THE INVARIANT, at its point: a rejected refinement keeps
+            # the deterministic row, with the reason in the user's
+            # language — never a raise, never the validator's string on
+            # the dialog. The raw strings go to the log for the record.
+            out_rows.append(original)
+            outcome.kept[rid] = _plain_reason(errs)
+            outcome.repaired = [x for x in outcome.repaired if x != rid]
+            outcome.repairs = [x for x in outcome.repairs
+                               if not x.startswith(f"{rid}:")]
+            _log(f"LLM refine: kept {rid} — validator said: "
+                 f"{'; '.join(errs)}")
+            continue
         for w in warns:
-            _log(f"LLM refined row warning ({nr.get('id')}): {w}")
-
+            _log(f"LLM refined row warning ({rid}): {w}")
         out_rows.append(nr)
+        outcome.refined.append(rid)
 
-    _log("LLM refine: done.")
-    return out_rows, repairs
-
+    for line in outcome.diagnostics:
+        _log("LLM refine: " + line)
+    _log("LLM refine: done — %d refined, %d kept, %d repaired."
+         % (len(outcome.refined), len(outcome.kept),
+            len(outcome.repaired)))
+    return out_rows, outcome

@@ -139,11 +139,16 @@ class TestTheRefinerAutoRoute:
     completion dialog, not only the log."""
 
     def _refined(self, monkeypatch, model_rows, in_rows):
+        # Wave 15d flipped the return contract in the open: _llm_refine
+        # returns (rows, RefineOutcome), the outcome being the one
+        # object the dialog and the manifest both render from; the
+        # repair notes ride outcome.repairs unchanged.
         lr = _refine()
         monkeypatch.setattr(lr, "_call_openai_json",
-                            lambda **_kw: {"rows": model_rows})
-        return lr._llm_refine(in_rows, "text", COLS, model="m",
-                              log=lambda *_a: None)
+                            lambda **_kw: ({"rows": model_rows}, {}))
+        rows, outcome = lr._llm_refine(in_rows, "text", COLS, model="m",
+                                       log=lambda *_a: None)
+        return rows, outcome.repairs
 
     def test_contains_at_il_is_restaged_to_ih_and_named(self, monkeypatch):
         in_rows = [_row()]

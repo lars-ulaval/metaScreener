@@ -221,9 +221,13 @@ class TestTheRemovedInterfaceIsGone:
 class TestTheCallWorks:
 
     def test_a_plain_json_object_is_returned(self, stub_client):
+        # Wave 15d flipped the contract in the open: (parsed, meta), so
+        # the chunk driver can contain a bad reply instead of aborting.
         stub_client(reply=json.dumps({"rows": [{"id": "1"}]}))
-        got = _load_refine()._call_openai_json(model="m", system="s", user="u")
+        got, meta = _load_refine()._call_openai_json(
+            model="m", system="s", user="u")
         assert got == {"rows": [{"id": "1"}]}
+        assert meta["parse_error"] == ""
 
     @pytest.mark.parametrize("wrapper", [
         "```json\n{body}\n```",
@@ -241,8 +245,9 @@ class TestTheCallWorks:
         """
         body = json.dumps({"rows": [{"id": "EC-1"}]})
         stub_client(reply=wrapper.format(body=body))
-        assert _load_refine()._call_openai_json(
-            model="m", system="s", user="u") == {"rows": [{"id": "EC-1"}]}
+        got, _meta = _load_refine()._call_openai_json(
+            model="m", system="s", user="u")
+        assert got == {"rows": [{"id": "EC-1"}]}
 
     def test_the_timeout_reaches_the_call(self, stub_client):
         """``timeout_s`` was consumed only by the dead branch.
@@ -292,15 +297,19 @@ class TestTheErrorIsTheRealOne:
         assert "ChatCompletion" not in text
         assert "openai>=1.0.0" not in text
 
-    def test_an_unparseable_reply_says_so(self, stub_client):
+    def test_an_unparseable_reply_says_so_without_raising(self, stub_client):
+        """FLIPPED at wave 15d: the raise that lived here was one of the
+        two measured worker aborts (08 §7 — the maintainer's own
+        incident). The reply's unusability is now DATA — (None, meta)
+        with the parse error named — and the chunk driver contains it
+        per chunk instead of losing the whole table."""
         stub_client(reply="I am not JSON at all.")
-
-        with pytest.raises(Exception) as ei:
-            _load_refine()._call_openai_json(model="m", system="s", user="u")
-
-        text = str(ei.value)
-        assert "ChatCompletion" not in text
-        assert "JSON" in text or "json" in text
+        got, meta = _load_refine()._call_openai_json(
+            model="m", system="s", user="u")
+        assert got is None
+        assert meta["parse_error"]
+        assert meta["reply_chars"] == len("I am not JSON at all.")
+        assert "ChatCompletion" not in meta["parse_error"]
 
     def test_a_client_construction_failure_survives(self, monkeypatch):
         """The gate is upstream, but a misconfigured store can still fail

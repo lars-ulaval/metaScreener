@@ -916,7 +916,8 @@ def _worst_call(criteria, items, batch_size, trunc_chars, build_messages):
 
 def check_context_budget(*, criteria, items, batch_size, trunc_chars,
                          build_messages, window,
-                         hosted: bool = False) -> ContextBudgetReport:
+                         hosted: bool = False,
+                         noun: str = "record") -> ContextBudgetReport:
     """Render every prompt the run would send and budget it against
     ``window``. Whole-corpus and pre-run on purpose: rendering is cheap and
     exact (the wave-15b reconstruction proved byte-fidelity), and the user
@@ -979,19 +980,35 @@ def check_context_budget(*, criteria, items, batch_size, trunc_chars,
         no_fit_tail = (f"A lower truncation limit or a larger server "
                        f"window would change that.")
 
+    # ``noun`` (wave 15d): the harmoniser budgets CRITERIA per call, not
+    # records per batch, and its refusal must say so. The default keeps
+    # the EL/IL message byte-identical; the criterion-id clause is
+    # dropped on the non-record path because the "criterion" there is a
+    # synthetic pack covering the whole table.
+    if noun == "record":
+        numbers = (
+            f"Criterion {worst_cid}, batch {worst_bi + 1} of {n_batches} "
+            f"at batch size {int(batch_size)}, measures an estimated "
+            f"{worst_est} prompt tokens plus a {reserve}-token reply "
+            f"reserve — {worst_tot} in total against the {window}-token "
+            f"window.\n\n")
+    else:
+        numbers = (
+            f"Call {worst_bi + 1} of {n_batches} at {int(batch_size)} "
+            f"{noun}s per call measures an estimated {worst_est} prompt "
+            f"tokens plus a {reserve}-token reply reserve — {worst_tot} "
+            f"in total against the {window}-token window.\n\n")
+
     msg = (
         f"This run was not started: the largest request it would send does "
         f"not fit the configured {window}-token context window.\n\n"
-        f"Criterion {worst_cid}, batch {worst_bi + 1} of {n_batches} at "
-        f"batch size {int(batch_size)}, measures an estimated {worst_est} "
-        f"prompt tokens plus a {reserve}-token reply reserve — "
-        f"{worst_tot} in total against the {window}-token window.\n\n"
+        + numbers
         + mechanism
         + (f"At this window, the largest batch size that fits every request "
            f"for this corpus is {max_safe}."
            if max_safe else
            f"No batch size fits this corpus at this window — a single "
-           f"record's request already exceeds it. " + no_fit_tail)
+           f"{noun}'s request already exceeds it. " + no_fit_tail)
         + closing
     )
     return ContextBudgetReport(

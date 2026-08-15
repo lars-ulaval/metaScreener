@@ -108,6 +108,7 @@ def build_validation_report(
     show_ok: bool = True,
     lint: Optional[Callable[..., Any]] = None,
     repair_notes: Sequence[str] = (),
+    kept_notes: Optional[Mapping[str, str]] = None,
 ) -> ValidationReport:
     """Decide what Validate should say and how the rows should be tinted.
 
@@ -239,7 +240,8 @@ def build_validation_report(
     dialog: Optional[Dialog] = None
     if show_ok:
         dialog = compose_dialog(n_err, marks, findings, lint_error,
-                                repair_notes=repair_notes)
+                                repair_notes=repair_notes,
+                                kept_notes=kept_notes)
 
     # `ok` is computed from `n_err` alone. Findings do not appear in it, and a
     # linter that failed outright does not appear in it either.
@@ -387,6 +389,7 @@ def compose_dialog(
     findings: Sequence[Finding],
     lint_error: str,
     repair_notes: Sequence[str] = (),
+    kept_notes: Optional[Mapping[str, str]] = None,
 ) -> Dialog:
     """The whole message. Never a prompt; never a question; never a gate.
 
@@ -401,6 +404,20 @@ def compose_dialog(
             n_error_rows,
             "1 row has an error and export is blocked until it is fixed.",
             "%d rows have errors and export is blocked until they are fixed."))
+
+    # F-185 (wave 15d): the never-worse invariant's visible half — every
+    # criterion whose refinement was rejected kept the deterministic row,
+    # and this names each one in the user's language. Rendered from the
+    # SAME RefineOutcome.kept object the manifest records (adjudication
+    # note 3), never a second derivation.
+    if kept_notes:
+        body.append("")
+        body.append(_plural(
+            len(kept_notes),
+            "1 criterion kept your original wording:",
+            "%d criteria kept your original wording:"))
+        for cid in sorted(kept_notes):
+            body.append("  • %s: %s" % (cid, kept_notes[cid]))
 
     # F-65 (wave 15c): what the refiner corrected in the model's reply.
     # First, because the user should learn the table is not verbatim the

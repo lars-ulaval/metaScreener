@@ -210,6 +210,7 @@ def _build_manifest(
     criteria_rows: List[Dict[str, Any]],
     criteria_source_text: str,
     wrote_input_errors: bool,
+    refinement: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     stage_counts = {st: 0 for st in STAGES}
     enabled_counts = {st: 0 for st in STAGES}
@@ -256,6 +257,16 @@ def _build_manifest(
         "warnings": warnings,
         "criteria_source_preview": _norm_space(criteria_source_text)[:220],
     }
+
+    # Wave 15d (F-185): which rows the model rewrote, which kept the
+    # deterministic parse and why, which the 15c auto-route re-staged —
+    # written only when Harmonise + LLM ran in the exporting session,
+    # from the SAME RefineOutcome the completion dialog rendered
+    # (adjudication note 3: one source, two surfaces). Absent entirely
+    # for a table that never met a model, so an old manifest and a
+    # no-LLM manifest stay byte-identical in shape.
+    if refinement:
+        manifest["refinement"] = dict(refinement)
 
     return manifest
 
