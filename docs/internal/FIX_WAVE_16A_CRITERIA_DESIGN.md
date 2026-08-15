@@ -8,6 +8,15 @@ pinned by `tests/test_run_criteria_experiment.py::TestDryModeIsStructurallyOffli
 `--live` exists (built for 16b) and **was never invoked**.
 **This wave ends at the STOP line at the bottom. No 16b work happened.**
 
+**Deltas session (wave 16a-deltas, same day, same branch):** coordinator
+adjudication deltas applied — the §4.1 landings denominator corrected (45, not
+43 — errata note there), the §8 candidates filed as **F-209/F-210** plus the
+adjudication-raised **F-211/F-212/F-213** (register 205 → 210 rows,
+machine-verified), and the **s1 supplement** added: two derived arms over the
+147-record 15e acceptance corpus, bundle identified by manifest content
+(§4.6), dry-validated at 60 calls each — cross-arm total now **324** (§4.5,
+§6). Zero live calls in the deltas session too; `--live` still never invoked.
+
 Map: `docs/internal/RECON_WAVE_16.md` (adopted verbatim this session, commit 1);
 everything load-bearing built on it was re-verified in-session before use.
 
@@ -132,7 +141,16 @@ G2's mirror pairs (spec `mirror_pairs`): (EC-2↔IC-21), (EC-3↔IC-22),
 
 ## 4. Dry-run results (zero calls; evidence: `docs/data/wave16_arms/dryrun_v1/`)
 
-### 4.1 Landings vs intent — 43/43 matched
+### 4.1 Landings vs intent — 45/45 matched
+
+> **Errata (16a-deltas):** this section originally said "43/43", a stale
+> number carried from a pre-fix printout. The committed evidence was always
+> right: `cross_arm_summary.csv` sums **45 matched of 45** = 8+8+6+8+8+7 —
+> the arm table's own criteria counts. Convention: the landings denominator
+> counts in-table criteria only; the 4 raw-probe rows (intents with no
+> intended stage) are verified in the raw-probe section, never in this table.
+> The commit message of `ca27b96` repeats the stale 43/43 and cannot be
+> amended; this note is the correction of record.
 
 Every criterion in every arm landed at exactly its intended stage with its
 intended operator, including the deliberate mislandings: **both G3 traps landed
@@ -240,17 +258,50 @@ calls = Σ per llm-criterion ceil(records/batch), cross-asserted against
 | g3_stage_stress | 107 | 1 | 1 | 44 | 214 | 6.5 min |
 | g4_edge_shapes | 16 | 2 | 1 | 12 | 48 | 1.8 min |
 | g5_adversarial | 30 | 4 | 1 | 30 | 150 | 4.4 min |
-| **TOTAL** | | | | **204** | 972 | **≈ 30 min** |
+| s1a_wording_el (16a-deltas) | 147 | 2 | 0 | 60 | 294 | 8.8 min |
+| s1b_polarity_il (16a-deltas) | 0 (147 at IL) | 0 | 2 | 60 | 294 | 8.8 min |
+| **TOTAL** | | | | **324** | 1560 | **≈ 48 min** |
 
-**204 batch-5 calls against the 750-call ceiling — 27% of it. No tightening
+**324 batch-5 calls against the 750-call ceiling — 43% of it. No tightening
 needed.** Wall clock at the wave-15e measured rates (runJ 528 s / 60 calls =
 8.8 s/call batch-5, the slower of the J/K pair; runL 3.47 s/call batch-1;
 `wave15e_acceptance_runs.meta.txt:37-39`), **same-machine assumption**: the
 15e hardware is unrecorded in artifacts (CPU-only is recorded only for the 14c
 capture machine, `wave14c_batch_runs.meta.txt:108-110`) — the maintainer
 confirmed the environment above but rates transfer only if 16b runs on the
-same machine. A batch-1 replication of everything (972 calls) would NOT fit
-the ceiling; a batch-1 arm for the two anchor arms alone (66+66=132) would.
+same machine. A batch-1 replication of everything (1,560 calls) would NOT fit
+the ceiling; a batch-1 rerun of the two anchor arms alone (66+66=132) or of
+either s1 arm (294) would fit inside the remaining headroom (750 − 324 = 426).
+
+### 4.6 The s1 supplement (16a-deltas) — two derived arms over the 147-record 15e corpus
+
+**Corpus:** the exact 15e acceptance input, identified **by manifest content,
+never filename**: the resolver scans the archive, matches each zip's own
+manifest `sha256` map against the spec's member digests
+(`data/current.csv` = `f8115e4f5587…`, criteria member prefix `5dd51aaa`) —
+which matched **six same-state sibling zips** (re-exports carrying identical
+manifest-declared state in byte-different archives) — then disambiguates
+inside that equivalence class by the whole-zip digest
+(`0bd1604aee1e…`, still content, never the name), verifies member bytes
+against the manifest map, and only then parses. Result: 147 records, the
+byte-identical 14d/15e EL input. **F-168-style banner carried on every
+artifact naming this population:** it predates the 15c routing fixes — the
+current chain from the same raw inputs is 776 → 16 → 760 → 738 → 22, not
+→ 613 → 147; it is a REGRESSION population chosen for byte-identity with the
+frozen runJ/runK/runL baselines, not a representation of the current pipeline.
+
+**Arms (rows byte-identical to their parent's harmonized output, asserted
+line-by-line, digests recorded in the manifests):**
+
+| arm | rows (from) | stage | calls b5 | calls b1 | guard b5 worst |
+|---|---|---|---|---|---|
+| s1a_wording_el | EC-2, EC-3 (g1_paraphrase) | EL | ceil(147/5)×2 = **60** | 294 | 2328+400 ✓ |
+| s1b_polarity_il | IC-21, IC-22 (g2_polarity) | IL | **60** | 294 | 2314+400 ✓ |
+
+Both dry-validated end-to-end: product loaders (2 criteria at the arm's
+stage, zero elsewhere), real prompt render, budget guard green at batch 5 and
+batch 1, arithmetic cross-asserted against `RunPlan` — 120 supplement calls
+total, exactly the adjudication's expectation.
 
 ---
 
@@ -302,21 +353,49 @@ verified to be review-routed with **zero auto-acts** (rule c). The engines'
 counts (CLEAN/FLAGGED/SUPPRESSED + `not_evaluated`) come from the run reports
 as at 15e.
 
+**s1 comparison plans (16a-deltas).**
+- **s1a vs frozen runJ, identity map** on (local_id, EC-2/EC-3) over the same
+  147 records: the ONLY difference is criterion WORDING (same stage, same
+  `EL_v3_nullquote` template, same corpus bytes, same batch 5 / qwen2.5:7b /
+  temp 0 / trunc 1500 / window 4096 / flag-only). Per-pair agreement against
+  runJ's frozen decisions (`docs/data/wave15e_acceptance_runs/`), judged
+  against the runJ↔runK flip floor — this isolates wording-sensitivity at the
+  decision level, the cleanest cell in the whole design.
+- **s1b vs frozen runJ, inversion map** (meet ↔ not_meet) on (local_id,
+  IC-21/IC-22 vs EC-2/EC-3): product-level polarity coherence. **Confound
+  stated:** template (IL vs EL), stage and polarity differ TOGETHER — that
+  composite is the product reality for a mirrored criterion; s1b measures the
+  composite, not polarity in isolation. Interpretation discipline: s1a
+  quantifies the wording component on the same population, so s1b − s1a
+  brackets the template+stage+polarity component without claiming to isolate
+  it.
+- `uncertain` on either side scored as its own category, as above.
+
 ---
 
 ## 6. 16b runplan (NOT executed at 16a)
 
-- **Order:** arm0_baseline (15) → g1_paraphrase (15) → g4_edge_shapes (12) →
-  g5_adversarial (30) → g3_stage_stress (44) → g2_polarity (88). Anchors and
-  cheap arms first; the expensive mirror arm last, after the harness has six
-  clean smaller runs behind it.
+- **Order (16a-deltas final proposal):** arm0_baseline (15) → g1_paraphrase
+  (15) → g4_edge_shapes (12) → g5_adversarial (30) → g3_stage_stress (44) →
+  **s1a_wording_el (60) → s1b_polarity_il (60)** → g2_polarity (88). The
+  cheap-first principle kept: anchors and small arms first; the s1 arms sit
+  before g2 because each is cheaper than g2 and s1a's wording cell is the
+  highest-value single comparison in the design; the expensive mirror arm
+  stays last. Total **324** vs the 750 ceiling (426 headroom).
+- **Batch-1 contingency (16a-deltas):** no batch-1 run is pre-scheduled. Any
+  arm showing decision-level anomalies at batch 5 MAY be rerun at batch 1
+  within the remaining ceiling (426 calls of headroom covers any single arm's
+  batch-1 equivalent except a hypothetical g2 full rerun at 428 — which would
+  therefore need the maintainer to explicitly raise the ceiling), with the
+  budget declared before spending and the maintainer's go required per rerun,
+  like every other call.
 - **Batch 5 primary** on both stages, models **explicit `qwen2.5:7b` for EL
   AND IL** (never store-resolved — §1a), temperature 0.0, trunc 1500,
   window asserted 4096.
 - **Cache OFF in every arm** (`use_cache=False, cache_in={}`) per F-101's own
   register instruction; byte-identical criteria across arms (baseline ids vs
   G1 ids share nothing byte-identical; still, cache off removes the question).
-- **Per-arm declared budgets** = the dry-run counts above (204 total), each
+- **Per-arm declared budgets** = the dry-run counts above (324 total), each
   enforced by the hard budget wrapper; re-asks expected 0 — any re-ask spends
   inside the same declared budget and is reported in the run report.
 - **Preflight per arm** (REFUSING): endpoint == `http://localhost:11434/v1`;
@@ -336,11 +415,12 @@ as at 15e.
 Registered before any live call, in the 15e discipline (predictions first,
 then the run tests the design):
 
-1. **Call counts:** exactly 15/15/12/30/44/88 per arm in the §6 order, 204
-   total; `calls_made` per run report must equal the arm's declared budget
-   with `reasks_made = 0` and `no_answer = 0` (constrained decoding,
+1. **Call counts:** exactly 15/15/12/30/44/60/60/88 per arm in the §6 order,
+   **324** total; `calls_made` per run report must equal the arm's declared
+   budget with `reasks_made = 0` and `no_answer = 0` (constrained decoding,
    `minItems == maxItems`, llm_client.py:1045-1058; 15e precedent: zero
-   re-asks across 414 calls).
+   re-asks across 414 calls). The s1 arms are 60 each — ceil(147/5)×2 — the
+   same call shape as frozen runJ.
 2. **Schema violations: 0** (request_shape json_schema throughout).
 3. **Batch-1 arms, if any are run: fabricated meets 0** (the v3 zero intercept,
    runL 0/294); at batch 5, fabricated meets on this corpus's maze instrument
@@ -376,13 +456,42 @@ then the run tests the design):
     surfaces mislabel only. R4 stays silently absent at EH/IH (F-208).
 11. **Repeat-noise, if any arm is run twice:** ≤ the 15e floor — decision
     flips 0, quote_valid flips 0, outcome churn ≤ 2/147-order, confidence-only.
-12. **Wall clock:** ≈ 30 min total at the 15e batch-5 rate (§4.5,
+12. **Wall clock:** ≈ 48 min total at the 15e batch-5 rate (§4.5,
     same-machine assumption stated there).
+13. **s1a fabricated-meet overlap vs runJ (directional, 16a-deltas):** runJ's
+    fabricated set is ten stable (local_id, criterion) pairs — stable across
+    runJ↔runK under identical wording (`wave15e_acceptance_runs.meta.txt:65-74`).
+    s1a changes ONLY the wording. **Committed direction: s1a's fabricated
+    meets stay in the ~10/294 band at batch 5, with the majority (>5) landing
+    on runJ's ten pairs** — rationale: F-201's fabrication is content-driven
+    (record × batch mechanics carry the pressure, not the criterion prose),
+    so rewording should perturb the set only marginally. A collapse of the
+    overlap toward zero would instead implicate wording as the carrier —
+    either outcome decides the hypothesis; that is the point of the cell.
+14. **s1b decision distribution:** modal outcome (include-mirror, records that
+    are not maze/rubber-hand focused) is `meet` → MET/keep-clean; every
+    confident not_meet routes SUPPRESS_ABSENCE (decliner `absence`), zero
+    auto-acts — the inversion-coherent image of runJ's 284/294 not_meet.
+15. **Flips yardstick for every s1 comparison:** the runJ↔runK floor —
+    0/294 decision flips, 0/294 quote_valid flips, 2/147 confidence-only
+    churn (`wave15e_acceptance_runs.meta.txt:76-83`).
 
 ---
 
-## 8. New findings from the dry run — candidates for the register (NOT filed;
-adjudication belongs to the maintainer/coordinator per the wave discipline)
+## 8. New findings from the dry run — candidates for the register
+
+> **16a-deltas status: FILED after adjudication and in-session
+> re-verification.** Candidate 1 below is now **F-209** (Medium), candidate 2
+> is **F-210** (Low). The adjudication additionally raised, and this session
+> investigated and filed: **F-211** (Medium — "before X"/"after X" both
+> render inclusive, a silent one-year error for the natural strict
+> phrasings), **F-212** (Medium — branch 1's alternation names six languages,
+> LANG_MAP normalises three), **F-213** (Low — no layer consults observed
+> corpus values; `lint_criteria` accepts `corpus_rows` and never reads it).
+> Register: 205 → **210 rows**, machine-verified in each filing commit.
+> Prior-claim search recorded per row: F-183 owns the venue whole-label
+> instance of the silent-inert class but none of the five; nothing else in
+> the register, `07_criteria_parsing.md`, or the 13d wave doc claims them.
 
 1. **`equals` with a deliberately empty operand is structurally unevaluable,
    and branch 5 emits exactly that.** The "no DOI" inference
@@ -407,7 +516,24 @@ adjudication belongs to the maintainer/coordinator per the wave discipline)
 
 ---
 
-## 9. Premises corrected (this session): 2
+## 9a. Premises corrected (16a-deltas session): 1
+
+1. **"identified BY MANIFEST CONTENT never filename"** presumed manifest
+   content suffices to identify THE bundle. Measured: the member-digest match
+   returned **six** same-state sibling zips — re-exports carrying identical
+   manifest-declared state in byte-different archives — so manifest content
+   identifies only an equivalence class. The resolver disambiguates by the
+   whole-zip digest the adjudication itself supplied (still content, never
+   the filename); recorded in §4.6 and enforced in code with a refusing
+   error when the class is ambiguous and no zip digest is pinned.
+
+Everything else in the deltas brief checked out: the inference lines
+178-184/187-193 and both inclusive mappings, the LANG_MAP lines and coverage,
+the zero-findings silence on EC-31/EC-37, all four bundle digests and the 147,
+ceil(147/5)×2 = 60 per supplement arm and 120 total, the new cross-arm total
+324, and the 2229/7 suite baseline (now 2235/7).
+
+## 9. Premises corrected (16a session): 2
 
 1. **"stage overrides" as the store's container** — the real key is `stages`
    (settings.py:216), with only model/endpoint/batch_size overridable
@@ -424,7 +550,7 @@ Everything else checked out: F-208 as the next free ID and 204→205 rows
 (parser.py:401-403/:46/:157-158 vs 06_el/screen.py:346-347, re-verified with a
 two-sided micro-test before filing), both scratchpad harness paths alive, the
 2218/7 suite baseline, the 20-char substance floor, the recon's routing recipe
-(43/43 landings), and the coordinator's self-flagged "~3,200-char" figure
+(45/45 landings — see the §4.1 errata), and the coordinator's self-flagged "~3,200-char" figure
 verified corpus-relative with the real renderer (§4.4).
 
 ---
