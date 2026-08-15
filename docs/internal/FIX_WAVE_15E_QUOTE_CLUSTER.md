@@ -724,3 +724,89 @@ F-197's decision-noise half (the predicted residual 13/147); F-22, F-100,
 F-28; F-191 annotated, its closure its own pass; F-132 open; the
 `_summarize_el_reason` name standing (F-207's deliberate leave, F-14's
 family). The causal half of F-195 is the batch-1 arm's to settle.
+
+---
+
+# Part 3 — the acceptance experiment, run and settled (2026-08-15, live)
+
+*CI recorded green by the maintainer; the wave branch fast-forward-merged;
+Ollama confirmed up. The maintainer's WAIT FOR MAINTAINER confirmation
+authorised the full adjudicated budget.*
+
+**Network disclosure and call accounting.** 414 calls declared before the
+first request; **414 spent exactly as declared** — runJ batch-5 60, runK
+batch-5 repeat 60, runL batch-1 294, zero re-asks in all three (the
+counters are in the frozen run reports). One disclosure: a first attempt at
+runJ was aborted after ~4 minutes to escape a 10-minute harness-timeout
+ceiling and relaunched detached — an estimated **12–25 calls spent and
+discarded**, no artefact written (estimate from wall time at ~10–15 s/call;
+stated in the frozen meta). Preflight ran with zero calls and REFUSING
+semantics: endpoint asserted `http://localhost:11434/v1` from the
+maintainer's real store, flag-only asserted, `EL_v3_nullquote` asserted,
+and all three input digests verified against the 14d meta before anything
+was spent (bundle `0bd1604a…`, corpus `f8115e4f…`, criteria `5dd51aaa…` —
+the byte-identical runG chain).
+
+**The evidence is frozen**: `docs/data/wave15e_acceptance_runs/` (three
+`EL_FULL.csv` + three run reports + three summaries, SHA256SUMS,
+attribute-pinned binary), re-derived on every suite run by
+`tests/test_wave15e_acceptance_freeze.py` — 19 tests, the 14c/14d freeze
+pattern. The two batch-5 run reports came out **byte-identical**
+(`ff2111fa…` twice), pinned as the strongest single fact about the v3
+noise floor.
+
+## P3.1 — Predictions vs measured [measured], the registered table settled
+
+| measure | frozen comparator | registered prediction (`291a60f` §6) | **MEASURED** | verdict |
+|---|---|---|---|---|
+| invalid non-null quotes on answered `not_meet` | runE 49/241 (20%); runF 100/294; runG 54/278; runH 62/281 | collapses toward zero | **runJ 0/284 · runK 0/284 · runL 0/294** (null-quoted 283/284, 283/284, 294/294) | **PASSED, at zero** |
+| fabricated meets, batch 5 | runG 15, runH 12 | must not rise | **10 and 10** — and the SAME ten (lid, cid) pairs in both runs (frozen G∩H shared 9) | **PASSED** (fell; set stabilised) |
+| CLEAN/FLAG/SUPP, batch 5 | 86/48/13 and 86/52/9 | ~128–132 / ~6 / ~9–13, direction | **133/9/5, twice** | **PASSED on direction** — CLEAN one above the illustrative band, SUPP below it; the falsifier (quote-driven flags persisting) did not fire: zero of the 9 flags trace to a `not_meet` quote |
+| repeat churn | 24/147 | ≤ ~13/147, quote_valid component zero | **2/147**, both pure confidence churn (A250 EC-3 0.85→0.4, A430 EC-2 0.55→0.85); decision flips **0/294**; quote_valid flips **0/294** (frozen 32/294) | **PASSED, far under** |
+| batch-1 arm | runF 100/294 invalid; 0 meets | near zero; settles F-195 either way | **0/294 invalid — all 294 null-quoted; 0 meets; 147/147 PASS_CLEAN** (the design's offline recomputation predicted exactly 147 CLEAN) | **PASSED — F-195 settled** |
+
+## P3.2 — What the numbers establish
+
+1. **F-195's causal claim is [measured], no longer [inferred].** The row's
+   own settling experiment — same corpus, model, temperature and
+   truncation as frozen runF, the only change being the v3
+   prompt/schema/gate — moved the invalid-quote fraction on `not_meet`
+   from **100/294 to 0/294**. The requirement caused the fabrication; the
+   register's F-195 row carries the settlement.
+2. **The junk-quote manufacture ended**, in the exact population the wave
+   predicted: every `not_meet` but one came back honestly null; the one
+   offered quote validated.
+3. **The churn collapsed past its own prediction.** The registered floor
+   (~13/147, the frozen decision-noise residue) assumed decision noise
+   would persist; measured, the same-configuration decision agreement went
+   **294/294** (frozen floor 284/294) and quote_valid went run-invariant.
+   The residual 2/147 is pure confidence churn — the one instrument the
+   design said this wave does not touch. **[measured] on one run pair;**
+   an observation, not a new invariance claim — F-197 owns that question
+   and its row gains the number.
+4. **The fabrication dose-response held its zero intercept under v3**
+   (0 meets at batch 1; 10 at batch 5, down from 15/12), the fabricated
+   set stabilised across the repeat, 5 of 10 passed rule (a) into
+   `EXCLUSION_SUPPRESSED` (valid quotes, 46–355 chars), 5 failed on quote
+   validity — **the substance floor fired uniquely on none**, recorded so
+   nobody credits the floor with the catch. F-201 stays the quality
+   lever's row and gains these numbers.
+5. **`absence_suppressed` correctly absent** from all three reports —
+   exclude-type criteria only; nothing absence-justified is expressible at
+   EL on this corpus. The counter's live IL sighting belongs to ordinary
+   use; the suite pins the mechanism.
+6. **HO-15e-2 discharged**: both prior freeze suites green and untouched
+   beside the new one. **HO-15e-3 half-discharged**: the amended flag-only
+   line and the endpoint line were captured rendering in full in the live
+   run log (frozen in the meta); the two GUI surfaces (row-detail modal,
+   provider-dialog label wrap) still need the maintainer's eyes in
+   ordinary use.
+
+## P3.3 — Premise notes for the wrap-up
+
+No premise of the adjudication was corrected by the runs (cumulative stays
+**27**). Two run-mechanics disclosures, made where they happened: the
+aborted first runJ attempt (~12–25 calls, discarded); and the prediction
+table's CLEAN band (128–132) was written as an illustrative recomputation
+band, which the live 133 exceeded by one — recorded as band-vs-measured,
+not silently widened after the fact.
