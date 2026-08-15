@@ -97,7 +97,7 @@ default, and a fortiori under any hosted default.
 **Where the worker aborts today [read]:** `_llm_refine` calls
 `_validate_row` per refined row and raises
 `RuntimeError(f"LLM refined row invalid ({id}): {errs}")` on ANY
-error; `ui.py::_poll_worker` catches worker errors into an
+error; `plugins/03_harmoniser/ui.py::_poll_worker` catches worker errors into an
 **"Operation failed"** modal quoting the raw validator string. That
 is the maintainer's reported live failure — *"llm requires exactly 1
 sentence in what"* — a worker abort over one row of one chunk, jargon
@@ -107,7 +107,7 @@ aborts die with this design.)
 
 **The containment.** The 15c refiner already repairs-and-names
 stage↔operator mismatches (auto-route, `repairs` list, rendered by
-`validate_report.py::compose_dialog`'s adjustments section through
+`plugins/03_harmoniser/validate_report.py::compose_dialog`'s adjustments section through
 `build_validation_report(repair_notes=…)`). This wave generalises
 that surface, and must not regress it — the 15c auto-route runs
 BEFORE validation exactly as now, and
@@ -165,7 +165,7 @@ for labels) must refuse rather than truncate.
 `enforce_context_budget` is called once before the first chunk, over
 the REAL chunk renders (the same builder the calls use), with
 `window=resolve_context_window("harmoniser")` — the stage key
-`settings.py::LLM_STAGES` already carries — and `hosted` from the
+`plugins/_common/settings.py::LLM_STAGES` already carries — and `hosted` from the
 resolved pair as the engines pass it. The refusal message must speak
 harmoniser language: `check_context_budget` gains a `noun` parameter
 (default `"record"`, the harmoniser passes `"criterion"`) so the
@@ -184,7 +184,7 @@ authoring session. No `PROMPT_VERSION` constant is needed where no
 cache key exists.
 
 **Provenance is the gap that stays if nothing is added [measured]:**
-`exporters.py::_build_manifest` records stage counts and warnings —
+`plugins/03_harmoniser/exporters.py::_build_manifest` records stage counts and warnings —
 nothing about refinement. The manifest's criteria section gains a
 `refinement` block, written only when Harmonise + LLM ran in the
 session that exported: `{model, refined: [ids], kept: {id: reason},
@@ -244,3 +244,29 @@ first one.**
   SECOND incident, [reported]: 08's documented incident died at
   `_call_openai_json`'s JSON-parse raise, not the validator. Both
   abort paths exist in the tree [read], and both die under §2.
+
+## Handoffs (Part 2 — what only hands and a live model can see)
+
+**HO-1 — the acceptance run** (the maintainer's exact live failure,
+re-run; this IS the wave's acceptance test, §6): `samples/ic_ec_12.txt`,
+Harmonise + LLM, qwen2.5:7b, default Ollama window.
+*Expected:* no "Operation failed" modal under any reply the model
+produces; the completion dialog opens as "Criteria checked" (or
+"Validation OK" when everything refined clean) with, where applicable,
+the kept-your-original section naming each fallback in plain language
+and the adjustments section naming any re-stagings; eight rows in the
+table afterwards, each visibly improved or unchanged; the log carrying
+`LLM refine: chunk 1 of 2`/`chunk 2 of 2`, any re-ask line, and — on
+any failure — the full record (finish_reason, token counts, reply
+length, parse error). Run twice for stability. ≤ 12 calls, counted.
+*Falsifiers:* any worker abort; a validator string on the dialog; a row
+count other than eight; a hallucinated criterion in the table.
+
+**HO-2 — the manifest block in a real export.** After HO-1, Export
+bundle and open `manifest.json` in the ZIP.
+*Expected:* a `refinement` key with the model name and the same
+refined/kept/repaired ids — and the same kept reasons, verbatim — that
+the completion dialog showed; absent entirely if the export is redone
+after a fresh no-LLM harmonise.
+*Falsifiers:* the block missing after a refine; reasons differing from
+the dialog's; the block present on a table that never met the model.
