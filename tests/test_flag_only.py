@@ -107,6 +107,10 @@ def _answers(decision, confidence=0.9):
     verdicts that PASS the evidence gate. That is the whole point — the
     measurement above is about confident, well-quoted, wrong exclusions,
     not about malformed ones. The malformed case is already fail-safe.
+    (Since wave 15e the strict gate also demands SUBSTANCE_MIN_CHARS of
+    normalised quote, which is why ``_setup``'s titles are a sentence
+    rather than ``Title {i}`` — a 7-char quote would be gate-refused and
+    every suppression test here would silently test the wrong refusal.)
     """
     def _h(items):
         return _FakeResponse([
@@ -133,7 +137,9 @@ def _setup(mod, stage, ctype, rows=4):
     )
     parse = mod.ParseReport(
         header=["local_id", "title", "abstract", "keywords"],
-        rows=[{"local_id": f"A{i:03d}", "title": f"Title {i}",
+        rows=[{"local_id": f"A{i:03d}",
+               "title": f"Title {i} carries enough verbatim substance "
+                        f"for the strict gate",
                "abstract": "a", "keywords": "k"} for i in range(rows)],
         skipped=[])
     report = mod.CriteriaLoadReport(criteria=[crit], warnings=[])
@@ -176,12 +182,20 @@ def _run(monkeypatch, mod, stage, ctype, decision, *, allow, confidence=0.9,
 EXCLUDING = [
     (get_el, "EL", "exclude", "meet"),
     (get_il, "IL", "include", "not_meet"),
-    # The arms each engine labels "not expected", which are nonetheless
-    # live: polarity is carried by the criterion's type cell, not by the
-    # stage, so a mistyped or third-party criteria table reaches them.
+    # The cross arms, which are nonetheless live: polarity is carried by
+    # the criterion's type cell, not by the stage, so a mistyped or
+    # third-party criteria table reaches them.
     (get_el, "EL", "include", "not_meet"),
     (get_il, "IL", "exclude", "meet"),
 ]
+
+#: Wave 15e splits the four arms by JUSTIFICATION, because the two halves
+#: now behave differently when exclusion is permitted: a presence-removal
+#: (``exclude`` + ``meet``) that passes the strict gate can act; an
+#: absence-removal (``include`` + ``not_meet``) can never act — rule (c),
+#: plugins/_common/verdict_gate.py.
+PRESENCE_REMOVING = [a for a in EXCLUDING if a[2] == "exclude"]
+ABSENCE_REMOVING = [a for a in EXCLUDING if a[2] == "include"]
 
 
 # ---------------------------------------------------------------------------
@@ -327,14 +341,22 @@ class TestTheOutcomeIsItsOwnFact:
         assert ev[CID]["decision"] == decision
         assert ev[CID]["quote"], "the quote the model gave is still recorded"
         assert ev[CID]["quote_valid"] is True, (
-            "the gate PASSED this verdict — that is what makes it a "
-            "suppression rather than a rejection"
+            "the quote the model offered validates and is recorded — for "
+            "a presence-removal that is what makes it a suppression rather "
+            "than a rejection; for an absence-removal (rule (c)) the gate "
+            "no longer reads it, but what was offered is still on the "
+            "record"
         )
         assert CID in full[0][f"{sl}_reason_summary"]
 
-    @pytest.mark.parametrize("getter,stage,ctype,decision", EXCLUDING)
-    def test_permitting_exclusion_restores_the_old_behaviour_exactly(
+    @pytest.mark.parametrize("getter,stage,ctype,decision", PRESENCE_REMOVING)
+    def test_permitting_exclusion_lets_a_presence_removal_act(
             self, monkeypatch, getter, stage, ctype, decision):
+        """The pre-15e behaviour, kept for the arms it is still true of:
+        a gate-passing removal justified by PRESENCE acts when exclusion
+        is permitted. (Until wave 15e this test asserted OUT for all four
+        EXCLUDING arms; the absence arms' half is flipped in the open
+        below.)"""
         full, surv, counts, _imp, _ev, _c, _cx, _rep = _run(
             monkeypatch, getter(), stage, ctype, decision, allow=True)
 
@@ -342,6 +364,34 @@ class TestTheOutcomeIsItsOwnFact:
         assert {r[f"{sl}_outcome"] for r in full} == {"OUT"}
         assert counts.get("OUT", 0) == 4
         assert surv == []
+
+    @pytest.mark.parametrize("getter,stage,ctype,decision", ABSENCE_REMOVING)
+    def test_permitting_exclusion_cannot_act_an_absence_removal(
+            self, monkeypatch, getter, stage, ctype, decision):
+        """Wave 15e rule (c), flipped in the open: these two arms asserted
+        OUT until 15e. A removal justified by ABSENCE — ``not_meet`` on an
+        include-typed criterion — is never auto-acted: any provider, any
+        confidence, any quote, any setting. No substring can prove an
+        absence, so no gate can check one; what cannot be proven goes to
+        a person. This is also the invariant that keeps F-191's
+        ``[]``-to-``not_meet`` hazard dead with the quote clause removed:
+        even a confident, well-formed absence-removal cannot reach OUT."""
+        full, surv, counts, _imp, _ev, _c, _cx, rep = _run(
+            monkeypatch, getter(), stage, ctype, decision, allow=True)
+
+        sl = stage.lower()
+        assert {r[f"{sl}_outcome"] for r in full} == {EXCLUSION_SUPPRESSED}
+        assert counts.get("OUT", 0) == 0
+        assert len(surv) == 4, "an absence-removal never removes"
+        assert all(not r[f"{sl}_failed_ids"] for r in full), (
+            "failed_ids drives OUT; rule (c) must never write there"
+        )
+        # The reason summary names the decliner truthfully: exclusion was
+        # PERMITTED here, so "flag-only is in force" would be false.
+        assert "never auto-acted" in full[0][f"{sl}_reason_summary"]
+        assert "Flag-only is in force" not in full[0][f"{sl}_reason_summary"]
+        # Rule (c)'s named counter reaches the run report.
+        assert rep["absence_suppressed"] == 4
 
 
 # ---------------------------------------------------------------------------

@@ -88,7 +88,14 @@ def run_flag_only(plugin_module, stage, ctype, decision, cid="EC-1", rows=4):
         )
         parse = plugin_module.ParseReport(
             header=["local_id", "title", "abstract", "keywords"],
-            rows=[{"local_id": "A%03d" % i, "title": "Title %d" % i,
+            # Wave 15e: the title is the quote the fake model offers, and
+            # the strict gate now demands SUBSTANCE_MIN_CHARS of it — a
+            # 7-char "Title N" would be gate-refused and the EL arm would
+            # stop producing the suppressed record this probe exists to
+            # show (F-161's own defect shape).
+            rows=[{"local_id": "A%03d" % i,
+                   "title": "Title %d carries enough verbatim substance "
+                            "for the strict gate" % i,
                    "abstract": "a", "keywords": "k"} for i in range(rows)],
             skipped=[])
         report = plugin_module.CriteriaLoadReport(criteria=[crit], warnings=[])

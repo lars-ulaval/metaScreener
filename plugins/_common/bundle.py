@@ -98,12 +98,20 @@ as having passed anything.
 
 
 EXCLUSION_SUPPRESSED = "EXCLUSION_SUPPRESSED"
-"""Outcome for a record the model asked to remove while flag-only was on.
+"""Outcome for a record the model asked to remove and policy declined.
 
-Wave 12, F-145. The model produced a confident, well-quoted excluding
-verdict; the evidence gate **passed** it; and the configured provider is
-not permitted to act on it, so the record survives and is routed to human
-review instead.
+Wave 12, F-145; second decliner added at wave 15e. The model produced a
+confident excluding verdict and **policy declined to act on it**, so the
+record survives and is routed to human review instead. Two policies can
+decline, and the reason summary names the one that applied:
+
+* **flag-only** (F-145): the verdict passed the evidence gate, and the
+  configured provider is not permitted to remove records;
+* **the absence rule** (wave 15e, rule (c)): the removal is justified by
+  ABSENCE — a ``not_meet`` on an include-typed criterion — and no
+  substring can prove an absence, so this class is never auto-acted:
+  any provider, any confidence, any quote, any setting. See
+  ``plugins/_common/verdict_gate.py``.
 
 **This is deliberately not ``PASS_FLAGGED`` / ``REVIEW``, and the
 distinction is the point.** Those mean the gate refused the verdict — the

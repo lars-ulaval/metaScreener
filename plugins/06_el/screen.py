@@ -79,6 +79,15 @@ from plugins._common.bundle import (
 )
 from plugins._common.parser import _decode_bytes as _decode_bytes_common
 from plugins._common.stage_state import criterion_row_lists
+from plugins._common.verdict_gate import (
+    ACTION_EXCLUDE,
+    ACTION_MET,
+    ACTION_SUPPRESS_ABSENCE,
+    DECLINED_ABSENCE,
+    DECLINED_ABSENCE_AND_FLAG_ONLY,
+    DECLINED_FLAG_ONLY,
+    verdict_action,
+)
 
 from .prompt import PROMPT_VERSION, _build_llm_messages_for_criterion
 
@@ -822,6 +831,13 @@ def run_el_screen(
             progress_cb(ci / max(1, len(crits)) * 0.7)
 
     # Now compute per-row statuses
+    #: Rule (c)'s named counter (wave 15e): criterion-verdicts declined by
+    #: the absence rule, run-wide. Recorded into `policy` after the loop —
+    #: presence-by-key like `not_evaluated`, so a run with none records
+    #: nothing — and carried by `_run_report` into the manifest's history
+    #: entry, where "provider not trusted" and "verdict class not
+    #: provable" stay tellable apart.
+    absence_suppressed = 0
     for idx, r in enumerate(rows, start=1):
         if cancel_event.is_set():
             cancelled = True
@@ -832,11 +848,17 @@ def run_el_screen(
         missing: List[str] = []
         met: List[str] = []
         uncertain: List[str] = []
-        #: Criteria on which the model returned a gate-passing excluding
-        #: verdict that flag-only did not act on (F-145). Separate from
-        #: `uncertain`, which is what the gate REFUSING produces — the two
-        #: are different facts about the record.
+        #: Criteria on which the model returned an excluding verdict that
+        #: policy declined to act on. Separate from `uncertain`, which is
+        #: what the gate REFUSING produces — the two are different facts
+        #: about the record. Since wave 15e there are two decliners —
+        #: flag-only (F-145) and the absence rule (rule (c): a removal
+        #: justified by absence is never auto-acted) — and `suppressed_by`
+        #: records which one applied per criterion, because the reason
+        #: summary must not say "flag-only" about a removal no setting
+        #: could have permitted.
         suppressed: List[str] = []
+        suppressed_by: Dict[str, str] = {}
         evidence: Dict[str, Any] = {}
 
         for c in crits:
@@ -865,40 +887,46 @@ def run_el_screen(
             except Exception:
                 confidence = 0.0
             valid_quote = bool(ev.get("valid_quote", False))
-            usable = valid_quote and (confidence >= float(c.threshold)) and (decision in {"meet","not_meet"})
+            # Wave 15e (F-195/F-21): the gate is the truth table in
+            # plugins/_common/verdict_gate.py — keyed on DIRECTION OF HARM
+            # and JUSTIFICATION TYPE, read off the criterion's own type
+            # polarity, never the stage's (both of a criterion's arms are
+            # live here whatever the stage; F-206's mismatch lands on its
+            # correct row by construction). The table decides; this loop
+            # only routes. `_excluded_by` still routes an excluding
+            # verdict to `failed` (acted on) or `suppressed` (recorded,
+            # not acted on) — never both, because `failed` is what drives
+            # OUT and two representations of one fact is F-69's shape.
+            action = verdict_action(
+                ctype=c.ctype, decision=decision, confidence=confidence,
+                threshold=float(c.threshold),
+                quote=_safe_str(ev.get("quote", "")),
+                valid_quote=valid_quote)
 
             status = "UNCERTAIN"
-            if usable:
-                # F-145. Both arms below can remove a record, so both are
-                # gated. `_excluded_by` routes an excluding verdict to
-                # `failed` (acted on) or to `suppressed` (recorded, not
-                # acted on) — never to both, because `failed` is what
-                # drives OUT and two representations of one fact is
-                # F-69's shape.
-                #
-                # The `else` arm is labelled "not expected in EL" and is
-                # nonetheless live: polarity is carried by the criterion's
-                # type cell, not by the stage, so a hand-edited or
-                # third-party criteria table reaches it. A gate applied to
-                # only the expected arm would be a gate with a door beside
-                # it.
-                if c.ctype == "exclude":
-                    if decision == "meet":
-                        status = _excluded_by(c.id, failed, suppressed,
-                                              crit_impacts, allow_exclusion)
-                    elif decision == "not_meet":
-                        status = "MET"
-                        met.append(c.id)
-                        crit_impacts[c.id]["met"] += 1
-                else:
-                    # (not expected in EL) treat as include
-                    if decision == "meet":
-                        status = "MET"
-                        met.append(c.id)
-                        crit_impacts[c.id]["met"] += 1
-                    elif decision == "not_meet":
-                        status = _excluded_by(c.id, failed, suppressed,
-                                              crit_impacts, allow_exclusion)
+            if action == ACTION_MET:
+                status = "MET"
+                met.append(c.id)
+                crit_impacts[c.id]["met"] += 1
+            elif action == ACTION_EXCLUDE:
+                # A removal justified by PRESENCE that passed the strict
+                # gate; F-145's policy decides whether it acts.
+                status = _excluded_by(c.id, failed, suppressed,
+                                      crit_impacts, allow_exclusion)
+                if status == "SUPPRESSED":
+                    suppressed_by[c.id] = DECLINED_FLAG_ONLY
+            elif action == ACTION_SUPPRESS_ABSENCE:
+                # A removal justified by ABSENCE: never auto-acted — any
+                # provider, any confidence, any quote, any setting
+                # (rule (c), wave 15e). Routed through `_excluded_by` with
+                # exclusion forced off so the suppression accounting has
+                # one home.
+                status = _excluded_by(c.id, failed, suppressed,
+                                      crit_impacts, allow_exclusion=False)
+                suppressed_by[c.id] = (
+                    DECLINED_ABSENCE if allow_exclusion
+                    else DECLINED_ABSENCE_AND_FLAG_ONLY)
+                absence_suppressed += 1
             else:
                 uncertain.append(c.id)
                 crit_impacts[c.id]["uncertain"] += 1
@@ -937,7 +965,7 @@ def run_el_screen(
         fr["el_uncertain_ids"] = ",".join(uncertain)
         fr["el_evidence_json"] = json.dumps(evidence, ensure_ascii=False)
         fr["el_reason_summary"] = _summarize_el_reason(
-            outcome, failed, missing, uncertain, suppressed)
+            outcome, failed, missing, uncertain, suppressed, suppressed_by)
 
         full_rows.append(fr)
         row_eval_lists.append(criterion_row_lists(
@@ -956,17 +984,24 @@ def run_el_screen(
     if progress_cb:
         progress_cb(1.0)
 
+    if absence_suppressed:
+        policy["absence_suppressed"] = absence_suppressed
+
     return full_rows, survivors, counts, crit_impacts, row_eval_lists, cache_out, cancelled, _run_report(llm_results)
 
 def _excluded_by(cid: str, failed: List[str], suppressed: List[str],
                  crit_impacts: Dict[str, Dict[str, int]],
                  allow_exclusion: bool) -> str:
-    """Route a gate-passing excluding verdict, and return its status.
+    """Route an excluding verdict, and return its status.
 
-    F-145. One place decides, so the two polarity arms above cannot
-    disagree, and the criterion lands in exactly one list — `failed`
-    drives the OUT branch, so a suppressed verdict appearing there too
-    would be two representations of one fact (F-69's shape).
+    F-145. One place decides, so no two callers can disagree, and the
+    criterion lands in exactly one list — `failed` drives the OUT branch,
+    so a suppressed verdict appearing there too would be two
+    representations of one fact (F-69's shape). Two callers since wave
+    15e: a presence-removal that passed the strict gate arrives with the
+    run's real `allow_exclusion`, and an absence-removal (rule (c))
+    arrives with it forced ``False``, because that class is never
+    auto-acted whatever the policy.
 
     The twin of this function is `plugins/07_il/screen.py::_excluded_by`.
     These two modules are the deliberate near-duplicates F-14 tracks and
@@ -990,7 +1025,8 @@ def _excluded_by(cid: str, failed: List[str], suppressed: List[str],
 
 def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str],
                          uncertain: List[str],
-                         suppressed: Optional[List[str]] = None) -> str:
+                         suppressed: Optional[List[str]] = None,
+                         suppressed_by: Optional[Dict[str, str]] = None) -> str:
     if outcome == "OUT":
         return f"OUT: failed {', '.join(failed)}"
     if outcome == "PASS_CLEAN":
@@ -999,10 +1035,35 @@ def _summarize_el_reason(outcome: str, failed: List[str], missing: List[str],
         # Spelled out rather than left to the reader, because this is the
         # line a human reviewer reads when deciding what to do with the
         # record, and "the model wanted this out" is the actionable half.
+        # Since wave 15e it must also name WHICH policy declined —
+        # flag-only (F-145) or the absence rule (rule (c)) — because
+        # "flag-only is in force" is false about a removal no setting
+        # could have permitted.
+        by = suppressed_by or {}
+        sup = list(suppressed or [])
+        absence = [c for c in sup
+                   if str(by.get(c, "")).startswith(DECLINED_ABSENCE)]
+        presence = [c for c in sup if c not in set(absence)]
+        if not absence:
+            return (f"{EXCLUSION_SUPPRESSED}: the model returned an excluding "
+                    f"verdict on {', '.join(sup)} which passed the "
+                    f"evidence gate. Flag-only is in force for this provider, so "
+                    f"the record was NOT excluded and needs human review.")
+        absence_clause = (
+            f"the model answered not_meet on {', '.join(absence)} — a "
+            f"removal justified by absence, which is never auto-acted, "
+            f"whatever the provider")
+        if any(by.get(c) == DECLINED_ABSENCE_AND_FLAG_ONLY for c in absence):
+            absence_clause += (" (flag-only is in force for this provider "
+                               "besides)")
+        if not presence:
+            return (f"{EXCLUSION_SUPPRESSED}: {absence_clause}. The record "
+                    f"was NOT excluded and needs human review.")
         return (f"{EXCLUSION_SUPPRESSED}: the model returned an excluding "
-                f"verdict on {', '.join(suppressed or [])} which passed the "
-                f"evidence gate. Flag-only is in force for this provider, so "
-                f"the record was NOT excluded and needs human review.")
+                f"verdict on {', '.join(presence)} which passed the evidence "
+                f"gate and flag-only is in force for this provider; and "
+                f"{absence_clause}. The record was NOT excluded and needs "
+                f"human review.")
     bits: List[str] = ["PASS_FLAGGED:"]
     if missing:
         bits.append(f"missing {', '.join(missing)}")
