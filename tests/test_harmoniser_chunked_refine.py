@@ -585,3 +585,34 @@ class TestTheFailureRecord:
         assert "kept your original" in body
         assert "finish_reason" not in body
         assert "JSONDecodeError" not in body
+
+
+class TestCrossChunkHallucination:
+    """The battery's one survivor, closed. `if rid not in expected` looks
+    redundant — the assembly loop reads only input ids — but a
+    hallucinated row for ANOTHER CHUNK's criterion is an input id: 08's
+    n=8 failure was exactly a duplicated IC-5 with fields flipped. The
+    per-chunk guard is what keeps a chunk able to speak ONLY for the
+    criteria it was asked about."""
+
+    def test_a_hallucinated_row_for_another_chunks_id_cannot_preempt(
+            self, monkeypatch):
+        in_rows = [_row(i) for i in range(8)]
+        poison = _reply_row(in_rows[5], label="HALLUCINATED.",
+                            what=["HALLUCINATED."])
+        chunk1 = _rows_json([_reply_row(r) for r in in_rows[:4]] + [poison])
+        chunk2 = _rows_json([_reply_row(r)
+                             for r in in_rows[4:] if r["id"] != "IC-5"])
+        # the re-ask for IC-5 also fails to return it
+        reask = _rows_json([])
+        rows, outcome, _c, _l = _run(monkeypatch, in_rows,
+                                     [chunk1, chunk2, reask])
+        _assert_never_worse(in_rows, rows, outcome)
+        five = [r for r in rows if r["id"] == "IC-5"][0]
+        assert five == in_rows[5], (
+            "IC-5 must be the deterministic row, not another chunk's "
+            "hallucination")
+        assert "HALLUCINATED." not in json.dumps(rows)
+        assert "IC-5" in outcome.kept
+        assert any("not in this chunk" in d for d in outcome.diagnostics), (
+            "the discard is recorded, not silent")
