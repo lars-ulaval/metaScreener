@@ -395,9 +395,61 @@ expectation corrected. All 79 artifacts were then verified by `git check-attr`.
 
 ---
 
+## 8. Wave 16d postscript — the freeze was incomplete, and how it was caught
+
+Recorded here rather than in a document of its own, because it is a defect in
+*this wave's packaging* and belongs beside the artefacts it concerns.
+
+**What happened.** Wave 16c merged and tagged green. The next CI run
+(31936503938) failed identically on all 16 jobs:
+`only in SHA256SUMS: ['aborted_attempt1/arm0_baseline_console.log']`. The
+console log was on the author's disk and in the SHA256SUMS, and in no commit.
+
+**Why.** `.gitignore:35`'s `*.log` matched it, and **`git add -A <dir>` skips
+an ignored file without a word** — the commit reported 80 files and looked
+complete. The SHA256SUMS had been generated from the working tree, and this
+wave's freeze test compared it against `Path.rglob` of the same working tree,
+so the two agreed with each other and neither agreed with the repository. Only
+a machine that had never seen that disk could notice, which is exactly what CI
+is. Zero bytes were lost: the file still hashed to its recorded `e589210a…`,
+so it was committed unchanged rather than regenerated.
+
+**What the fix also uncovered.** Refreshing the tree exposed a second,
+independent break: `aborted_attempt1/README.md` was *pinned by a digest* yet
+left to `text: auto` on the wave-16b reasoning that prose is not evidence. The
+first Windows checkout rewrote it to CRLF and its digest stopped matching —
+blob `db4bd189…` against working tree `659b2a7a…`. It passes on Linux and
+fails on Windows, and Windows CI never reached it because the bijection error
+fired first. The same class, one level up: every `SHA256SUMS` in the repository
+resolved to `text: auto`, in all six frozen directories at once, because the
+file has no extension and every glob-shaped rule missed it.
+
+**Scope, measured.** A repo-wide audit found this was the **only**
+listed-but-uncommitted file in any frozen directory, and the only `*.log` under
+`docs/data/` or `tests/golden/`. The older freezes (study_input, wave 12, 14c,
+14d, 15e) are complete and their digests verify. Their `*.meta.txt` files sit
+outside their sums by deliberate convention, not by accident.
+
+**Fixed:** the log committed with its digest unchanged; `!docs/data/**/*.log`
+so an ordinary `git add` cannot repeat it; `docs/data/**/SHA256SUMS binary` and
+the pinned README made binary; and `tests/test_frozen_directories.py`, which
+guards **every** frozen directory — present and future — against
+`git ls-files` and `git show HEAD:` rather than the disk. Verified by cloning
+the branch fresh: all 78 digests verify and 95 freeze tests pass in a tree that
+has never been the author's. Filed as **F-223** (Medium) and **F-224** (Low),
+both closed in-wave.
+
+**The rule worth carrying forward:** a frozen directory is bijective with the
+repository, not with somebody's disk — and if a file's digest is recorded, its
+bytes must be attribute-protected, with no exception for prose or for the sums
+file itself.
+
+---
+
 ## STOP
 
 Wave 16b ends here. 340 network calls spent against 648 declared and the 750
 session ceiling; zero removals; artifacts frozen and committed. The freeze-guard
 test, the cross-arm analysis and any register rows are wave 16c's. No merge, no
-tag.
+tag. *(Wave 16c filed F-214…F-222 and added the freeze guard; wave 16d
+completed the freeze and generalised it — §8 above.)*
