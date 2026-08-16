@@ -150,9 +150,15 @@ class TestTheBytesAreFrozen:
 
     def test_every_evidence_file_is_attribute_pinned(self):
         """Line-ending rewrites would break the digests above and look like
-        tampering. Checked with `git check-attr`, never by eye — and
-        SHA256SUMS is checked explicitly because it has no extension, which
-        is exactly what a glob-shaped rule misses (the wave-16b lesson)."""
+        tampering. Checked with `git check-attr`, never by eye.
+
+        Wave 16d made this stricter, and the reason is worth keeping: wave
+        16b exempted the README and SHA256SUMS here on the grounds that they
+        are prose and mechanism rather than evidence — while listing both in
+        SHA256SUMS. A recorded digest is a promise about bytes, so the
+        exemption was incoherent, and the next Windows checkout rewrote the
+        README and broke its digest. **Everything in a frozen directory is
+        binary-pinned now, without exception.**"""
         root = FROZEN.parent.parent.parent
         paths = [p for p in sorted(FROZEN.rglob("*")) if p.is_file()]
         assert paths
@@ -162,13 +168,8 @@ class TestTheBytesAreFrozen:
                 ["git", "check-attr", "text", "binary", "--", rel],
                 cwd=str(root), capture_output=True, text=True,
                 check=True).stdout
-            if p.name == "SHA256SUMS" or p.suffix == ".md":
-                # Repo-wide convention: the sums file and prose stay text;
-                # the freeze readers parse line-ending-robustly.
-                assert "binary: set" not in out, rel
-            else:
-                assert out.count("text: unset") == 1, out
-                assert "binary: set" in out, out
+            assert out.count("text: unset") == 1, out
+            assert "binary: set" in out, out
 
     def test_the_aborted_attempt_is_preserved_not_deleted(self):
         assert (ABORTED / "README.md").is_file()

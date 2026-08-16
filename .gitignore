@@ -35,6 +35,18 @@ coverage/
 *.log
 logs/
 
+# ...but a log inside a frozen evidence directory is EVIDENCE, not build
+# noise. Wave 16d: `*.log` above silently swallowed
+# `docs/data/wave16_live_runs/aborted_attempt1/arm0_baseline_console.log`
+# at `git add` time — `git add -A <dir>` skips ignored files without a word,
+# so the commit looked complete, the SHA256SUMS (written from the working
+# tree) listed the file, and CI failed on the first fresh clone that had no
+# such file on disk. The negation keeps future run logs committable by an
+# ordinary `git add`, which is the only fix that survives the same mistake
+# being made again.
+!docs/data/**/*.log
+!tests/golden/**/*.log
+
 # Output of docker_test.sh (JORS UNIX-testing evidence, regenerated on demand)
 test_output_linux.txt
 

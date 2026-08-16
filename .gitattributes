@@ -49,17 +49,33 @@ docs/data/wave15e_acceptance_runs/*.csv binary
 docs/data/wave15e_acceptance_runs/*.json binary
 
 # The evidence behind wave 16b's eight-arm criteria-diversity experiment —
-# same reason and shape as the directories above, with two additions. The
-# `**` reaches aborted_attempt1/, whose artefacts are preserved rather than
-# deleted and are pinned by the same SHA256SUMS. The *.txt rule covers the
-# per-stage engine logs and meta.txt, which are pinned too; the .md README
-# under aborted_attempt1/ is prose about the bytes rather than evidence, so
-# it is deliberately left to `* text=auto`. Cache OFF in every arm, so again
-# no *.jsonl rule.
+# same reason and shape as the directories above. The `**` reaches
+# aborted_attempt1/, whose artefacts are preserved rather than deleted and
+# are pinned by the same SHA256SUMS. Cache OFF in every arm, so again no
+# *.jsonl rule.
+#
+# The *.md rule is wave 16d's correction. Wave 16b left the aborted_attempt1
+# README to `* text=auto` on the reasoning that it is "prose about the bytes
+# rather than evidence" — but it was also listed in SHA256SUMS, and a
+# recorded digest is a promise about bytes. On Windows the very next
+# checkout rewrote it to CRLF and its digest stopped matching, a failure
+# invisible on Linux CI and masked on Windows CI by the bijection error that
+# fired first. **The rule this encodes: if a file's digest is recorded, its
+# bytes must be attribute-protected — no exceptions for prose.**
 docs/data/wave16_live_runs/**/*.csv binary
 docs/data/wave16_live_runs/**/*.json binary
 docs/data/wave16_live_runs/**/*.txt binary
 docs/data/wave16_live_runs/**/*.log binary
+docs/data/wave16_live_runs/**/*.md binary
+
+# Every SHA256SUMS is the pinning mechanism for a frozen directory, and it
+# had the same hole for a subtler reason: it has no extension, so every
+# glob-shaped rule above missed it and it resolved to `text: auto` in all
+# six frozen directories at once. The freeze readers parse it
+# line-ending-robustly, so nothing was broken today — but a file that
+# certifies bytes should not itself be rewritable on checkout. One rule for
+# every frozen directory, present and future.
+docs/data/**/SHA256SUMS binary
 
 # The *outputs* of the reproduction the rule above protects the inputs of
 # (F-99, cause 2 of the wave-10..12 red CI). These three are the published

@@ -1,0 +1,62 @@
+{
+  "EL": {
+    "endpoint": "http://localhost:11434/v1",
+    "window": 4096,
+    "allow_exclusion": false,
+    "key_gate_passes": true,
+    "model_explicit": "qwen2.5:7b",
+    "batch_size_explicit": 5
+  },
+  "IL": {
+    "endpoint": "http://localhost:11434/v1",
+    "window": 4096,
+    "allow_exclusion": false,
+    "key_gate_passes": true,
+    "model_explicit": "qwen2.5:7b",
+    "batch_size_explicit": 5
+  },
+  "corpus": {
+    "kind": "aggregate",
+    "sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+    "records": 776
+  },
+  "criteria_sha256": "7764f41846c22303a011dd464653ca8104dc31d38ab266b21b75bb61a5978ac3",
+  "dry_manifest_sha256": "7764f41846c22303a011dd464653ca8104dc31d38ab266b21b75bb61a5978ac3",
+  "prompt_versions": {
+    "EL": "EL_v3_nullquote",
+    "IL": "IL_v3_nullquote"
+  },
+  "cache": {
+    "use_cache": false,
+    "cache_in": "{}"
+  }
+}
+LIVE PREFLIGHT OK — zero calls made so far.
+[EL] [EL] flag-only: an LLM verdict may flag a record for review but may not exclude it. The provider dialog can permit exclusion for removals justified by presence, once the model has been validated on this corpus; a removal justified by absence (not_meet on an include-type criterion) is never auto-acted, whatever the setting (wave 15e).
+
+[EL] [EL] endpoint=http://localhost:11434/v1 (OPENAI_BASE_URL not set; using the default)
+
+[EL] 
+[EL] Criterion 1/2 EC-2 (llm)
+
+[EL] [EL] cache_hits=0 | to_call=22
+
+[EL] 
+[EL] Criterion 2/2 EC-3 (llm)
+
+[EL] [EL] cache_hits=0 | to_call=22
+
+[IL] [IL] flag-only: an LLM verdict may flag a record for review but may not exclude it. The provider dialog can permit exclusion for removals justified by presence, once the model has been validated on this corpus; a removal justified by absence (not_meet on an include-type criterion) is never auto-acted, whatever the setting (wave 15e).
+
+[IL] [IL] endpoint=http://localhost:11434/v1 (OPENAI_BASE_URL not set; using the default)
+
+[IL] 
+[IL] Criterion 1/1 IC-1 (llm)
+
+[IL] [IL] cache_hits=0 | to_call=22
+
+[IL] [IL-LLM] batch 5/5 failed [unknown, by none]: live budget exceeded: call 16 > declared 15
+
+live arm arm0_baseline: calls_made=16 (declared 15) wall=132.0s
+ANOMALY[budget-exceeded-at-IL]: calls_made=16 > declared=15; the enforcer should have made this impossible
+WAVE16B-ANOMALY-STOP: ANOMALY[budget-exceeded-at-IL]: calls_made=16 > declared=15; the enforcer should have made this impossible
