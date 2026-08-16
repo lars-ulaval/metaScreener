@@ -1053,6 +1053,18 @@ def _response_format_for(n: int) -> Dict[str, Any]:
     and the replay: 31/31 previously-omitted pairs filled, with the
     unconstrained controls reproducing the omission exactly).
 
+    **What the cardinality does NOT pin is identity, and that gap is
+    reachable — F-215.** ``a_id`` below is an unconstrained string with no
+    enum, so a reply of exactly ``n`` objects can still name a record twice,
+    or name one this call never sent, and leave a real record with no
+    verdict. ``_absorb`` drops both kinds by a bare ``continue`` and counts
+    neither, so the omission looks identical to a short reply. Wave 16b's
+    IL stage produced the first field instance: a re-ask on a call whose
+    ``request_shape`` was ``json_schema`` with no fallback. The honest
+    statement of the guarantee is therefore *n objects come back*, not
+    *every record gets a verdict*; the re-ask below is what closes the
+    remaining distance, and F-215 proposes the enum that would remove it.
+
     Built per call from the batch actually being sent, because the adaptive
     split rewrites ``cur_batch``: a halved batch carrying the original
     count's schema would ask the server for objects that cannot exist.
@@ -1825,9 +1837,11 @@ def run_m1_llm_for_criterion(
                             log(f"{log_prefix} this server rejects "
                                 f"response_format; continuing this run with "
                                 f"the unconstrained request. Constrained "
-                                f"decoding is what prevents empty and "
-                                f"partial replies (F-191, F-197), so watch "
-                                f"the no-verdict counts.\n")
+                                f"decoding is what keeps a reply from coming "
+                                f"back empty or short (F-191, F-197) — it "
+                                f"never pinned WHICH records are answered "
+                                f"(F-215) — so watch the no-verdict "
+                                f"counts.\n")
                         continue
                     # F-94. This used to be two substring sniffs over
                     # str(e).lower(), and `is_big` required `context` AND

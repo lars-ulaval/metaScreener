@@ -67,7 +67,7 @@ artifacts record *that* one batch of batches 1-4 was short, never *which* batch,
 `response_format = _response_format_for(len(batch))` whenever `use_schema`
 (`llm_client.py:1498-1500`), and that schema pins `minItems == maxItems == n`
 with `strict: True` (`:1045-1058`, F-191). `request_shape` is recorded
-**`json_schema`** in all fifteen live stage-reports; the F-107 fallback would
+**`json_schema`** in all fourteen live stage-reports; the F-107 fallback would
 have written `"unconstrained"` permanently for the run (`:1819-1822`) and never
 did. Aggregate integrity across all reports: `decisions_rejected: 0`,
 `fields_rejected: 0`.
@@ -188,7 +188,7 @@ in `meta.txt` and in the ledger below.
 
 Every arm passed its completeness check: FULL row count equals records at stage,
 report JSON parses, `calls_made` equals base + re-asks, `OUT: 0`. Aggregate over
-all fifteen live stage-reports: `decisions_rejected 0`, `fields_rejected 0`,
+all fourteen live stage-reports: `decisions_rejected 0`, `fields_rejected 0`,
 `batches_failed 0`, `calls_failed 0`, `no_answer 0`, `no_answer_after_reask 0`,
 `request_shape json_schema` with no fallback.
 
@@ -256,6 +256,89 @@ that gap at ~4%.
 
 ---
 
+## 5b. Independent recompute and adjudication (wave 16c, 2026-08-16)
+
+**Who and what.** The coordinator recomputed the wave's headline figures
+independently from the committed artefacts, without reference to the numbers
+above, and the 16c session then re-derived every one of them a third time
+before filing anything. Three passes, one set of numbers:
+
+| quantity | 16b | coordinator | 16c re-derivation |
+|---|---|---|---|
+| SHA256SUMS entries verifying | 78 | 78 | 78 |
+| s1a vs runJ agreement | 283/294 | 283/294 | 283/294 (same 11 flips) |
+| s1a meets / overlap with runJ's ten | 17 / 8 | 17 / 8 | 17 / 8 (same 2 lost, same 9 new) |
+| null-quoted `not_meet` | 1348/1360 | 1348/1360 (99.12%) | 1348/1360, all 12 exceptions `quote_valid` |
+| noise pair | 0/64 (3 axes) | 0/64 (4 axes) | 0/64 on decision, quote_valid, confidence, status |
+| s1b coherence | 33/294 | 33/294 | 33/294; 263 not_meet / 31 meet |
+| removals | 0 | OUT=0, 14 stage rows | OUT=0, 14 stage rows |
+
+**Zero corrections in either direction**, with one arithmetic slip of my own
+found and fixed in this document: §1(b) and §3 said "fifteen live
+stage-reports" where the count is **fourteen** (six two-stage arms, plus s1a
+EL-only and s1b IL-only). The aggregate figures those sentences carry were
+computed over the correct fourteen and are unchanged.
+
+All of it is now re-derived on every suite run by `tests/test_wave16_freeze.py`
+(64 tests), which recomputes each quantity from the bytes rather than asserting
+it. A six-mutation battery confirmed the test is load-bearing: five of the six
+mutations had their SHA256SUMS digest repaired so the hash check still passed,
+and the arithmetic caught them anyway.
+
+### Finding 8 — IL wording sensitivity (filed as F-221, High)
+
+Paraphrasing IC-1 — same requirement, same routing, byte-identical corpus,
+model, batch, temperature, truncation, window, policy and cache setting —
+moved **5 of 22 records** at IL from `PASS_CLEAN` to `EXCLUSION_SUPPRESSED`:
+A317, A330, A332, A558 and A612. **Every one of the five went `meet` →
+`not_meet`; none went the other way.** The review pile grew **11 → 16 (+45%)**.
+The same paraphrase moved **1 of 44** pairs at EL. Against this wave's own
+same-configuration noise floor of **0/64**, none of it is run-to-run variation.
+
+### Finding 9 — the quote-invariant exceptions are systematic (filed as F-222, Low)
+
+The 12 non-null quotes on `not_meet` are not scattered: **5 of 12 fall on one
+record (A078)** and **5 of 12 on one criterion (EC-28)**, the remaining two on
+IC-22 — the same content-clustering signature F-201 measured for fabricated
+meets. All 12 carry `quote_valid: true`, so they are genuine substrings, not
+the manufactured evidence F-195 was about. A078 explains its own share: its
+title is a journal name, its year, venue and abstract are blank and its only
+keyword is *Business*, so a model asked to quote from title, abstract or
+keywords has almost nothing to offer.
+
+### What the IL wording result means for someone using metaScreener
+
+*Written for a non-developer.*
+
+Two researchers write the same inclusion criterion in their own words — say
+"the paper studies immersive VR delivered through a headset" and "the study
+investigates immersive virtual reality delivered through a head-mounted
+display". They mean the same thing, and a human reviewer would screen
+identically with either. metaScreener does not: on the same 22 papers, with
+everything else about the software and the model held fixed, the two wordings
+disagreed about **five of them**.
+
+The disagreement is not random, and it is not the software being flaky — we
+re-ran the identical configuration and it reproduced its own answers exactly,
+64 out of 64. It is the language model reading two sentences differently.
+
+The good news is where the difference lands. All five papers moved *toward*
+human review rather than out of the review altogether, and metaScreener never
+throws away a paper on this kind of judgement: when the model says a paper
+fails an inclusion criterion, that is a claim about something *absent* from the
+text, and no quotation can prove an absence, so the software always routes
+those to a person instead of acting on them. Nobody lost a paper. What changed
+was the size of the pile a human has to read: 45% larger, from one rewording.
+
+The practical advice: **treat the exact wording of your criteria as part of
+your method, not as a presentational detail.** Write it once, record it with
+your results, and if you rewrite it, expect the screening to move — and be
+aware that it will most likely move toward more manual review rather than less.
+If a result matters, running the same corpus under a paraphrase and comparing
+the two is a cheap and honest check, and it is exactly what this wave did.
+
+---
+
 ## 6. Candidate findings OBSERVED (list only — 16c adjudicates)
 
 1. **A repaired re-ask leaves no diagnosable trace.** `reasks_made` increments;
@@ -281,6 +364,11 @@ that gap at ~4%.
 7. **Polarity framing barely moves this model's answer** (s1b: 88.8% incoherent
    against the inversion map, on a population where the same records under the
    exclude framing answered not_meet). Scientific interpretation is 16c's.
+
+**Adjudicated at wave 16c**: all seven, plus the coordinator's two above, filed
+as **F-214 … F-222** (register 210 → 219 rows). F-215 (schema pins cardinality,
+not identity) and F-221 (IL wording sensitivity) were argued up to **High**;
+F-214, F-216, F-217, F-218 and F-220 are Medium; F-219 and F-222 are Low.
 
 ---
 
