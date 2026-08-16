@@ -48,6 +48,19 @@ docs/data/wave14d_invariance_runs/*.json binary
 docs/data/wave15e_acceptance_runs/*.csv binary
 docs/data/wave15e_acceptance_runs/*.json binary
 
+# The evidence behind wave 16b's eight-arm criteria-diversity experiment —
+# same reason and shape as the directories above, with two additions. The
+# `**` reaches aborted_attempt1/, whose artefacts are preserved rather than
+# deleted and are pinned by the same SHA256SUMS. The *.txt rule covers the
+# per-stage engine logs and meta.txt, which are pinned too; the .md README
+# under aborted_attempt1/ is prose about the bytes rather than evidence, so
+# it is deliberately left to `* text=auto`. Cache OFF in every arm, so again
+# no *.jsonl rule.
+docs/data/wave16_live_runs/**/*.csv binary
+docs/data/wave16_live_runs/**/*.json binary
+docs/data/wave16_live_runs/**/*.txt binary
+docs/data/wave16_live_runs/**/*.log binary
+
 # The *outputs* of the reproduction the rule above protects the inputs of
 # (F-99, cause 2 of the wave-10..12 red CI). These three are the published
 # artefacts that tests/test_study_input_freeze.py, class

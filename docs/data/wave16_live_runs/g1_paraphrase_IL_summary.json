@@ -1,0 +1,39 @@
+{
+  "arm": "g1_paraphrase_IL",
+  "arm_key": "g1_paraphrase",
+  "stage": "IL",
+  "base_calls_no_reask": 5,
+  "batch_size": 5,
+  "cancelled": false,
+  "wall_seconds": 43.8,
+  "counts": {
+    "OUT": 0,
+    "PASS_CLEAN": 6,
+    "REVIEW": 0,
+    "EXCLUSION_SUPPRESSED": 16,
+    "NOT_SCREENED": 0
+  },
+  "records": 22,
+  "answered": 22,
+  "no_answer": 0,
+  "calls_made": 5,
+  "calls_counted_by_enforcer": 5,
+  "reasks_made": 0,
+  "no_answer_after_reask": 0,
+  "exclusion_policy": "flag_only",
+  "request_shape": "json_schema",
+  "provenance": {
+    "model": "qwen2.5:7b",
+    "endpoint": "http://localhost:11434/v1",
+    "temperature": 0.0,
+    "prompt_version": "IL_v3_nullquote",
+    "trunc_chars": 1500,
+    "batch_size": 5,
+    "context_window": 4096
+  },
+  "absence_suppressed_key_present": true,
+  "llm_criteria": 1,
+  "records_in": 22,
+  "full_rows": 22,
+  "survivors": 22
+}

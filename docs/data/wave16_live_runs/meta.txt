@@ -1,0 +1,130 @@
+# wave16_live_runs — the wave-16b criteria-diversity live runs
+# (eight arms, run 2026-08-15). Evidence behind the wave-16b record in
+# docs/internal/FIX_WAVE_16B_LIVE_RUNS.md. Integrity is held by SHA256SUMS
+# beside this file.
+#
+# THE EXPERIMENT: six authored criteria groups (baseline + G1 paraphrase,
+# G2 polarity mirrors, G3 stage-stress, G4 edge shapes, G5 adversarial
+# content) plus two s1 supplement arms, each screened through the product's
+# own EL/IL engines. Predictions were REGISTERED BEFORE any call, in the
+# wave-16a design document (docs/internal/FIX_WAVE_16A_CRITERIA_DESIGN.md
+# §7, committed at 2ed4710) so the runs test the design rather than
+# describe it. The dry run that produced every arm's criteria digest is
+# frozen at docs/data/wave16_arms/dryrun_v1/ (commit ca27b96).
+#
+# DATE:      2026-08-15
+# HEAD:      6e5dcfc10f32dd7ed30a7cf9c7bfce960e732f70 (branch base, main)
+# BRANCH:    fix/wave-16b-live-runs
+# ENDPOINT:  http://localhost:11434/v1 (OPENAI_BASE_URL not set; store default)
+# MODEL:     qwen2.5:7b — id 845dbda0ea48, Q4_K_M, 7.6B — passed EXPLICITLY
+#            per stage for EL AND IL, never store-resolved. This matters:
+#            the maintainer's store resolves IL to llama3.2:latest (the IL
+#            stage entry carries no model key and falls back to the
+#            top-level model, plugins/_common/settings.py:411-424), so a
+#            store-resolved IL run would have used a different model than
+#            EL. Verified in the global preflight before the first call.
+# WINDOW:    4096 both stages (no context_window key in the store;
+#            OLLAMA_CONTEXT_LENGTH unset)
+# BATCH:     5 both stages, explicit
+# TRUNC:     1500
+# TEMP:      0.0
+# PROMPTS:   EL_v3_nullquote / IL_v3_nullquote
+# POLICY:    exclusion_policy=flag_only (llm_exclusion_allowed False both
+#            stages: allow_llm_exclusion is null and the provider is local
+#            and keyless)
+# CACHE:     OFF in every arm (use_cache=False, cache_in={}) per F-101's own
+#            register instruction. cache_hits=0 logged per criterion.
+# SHAPE:     request_shape=json_schema on every call of every arm; no F-107
+#            unconstrained fallback fired anywhere.
+#
+# A DECLARED BUDGET IS A FAULT-CEILING, NOT A SPEND PREDICTION.
+# This is the wave's own correction and it is recorded here deliberately.
+# The first attempt at arm0 declared 15 — the exact no-re-ask arithmetic —
+# and the arm needed 16 because the engine issued one re-ask, so the
+# enforcer refused the last batch. Since then every arm is declared at
+# 2 x base (the structural maximum of the clean path: the engine issues AT
+# MOST ONE re-ask per batch, plugins/_common/llm_client.py:1734-1743, a
+# single call and not a loop). The ceiling is what the enforcer refuses to
+# exceed; the PREDICTION remains 324 base calls plus whatever re-asks the
+# models actually ask for. Both are reported below, separately.
+# CAVEAT on "2 x base": it bounds the clean path only. The batch loop has
+# no attempts cap (llm_client.py:1560), and a salvageable error
+# (rate_limit/oversize) can split a batch and step truncation down, each
+# retry costing another call (:1857-1889). None fired in these runs.
+#
+# DECLARED CEILING TOTAL: 648   (arm0 30, g1 30, g4 24, g5 60, g3 88,
+#                                s1a 120, s1b 120, g2 176)
+# PREDICTED SPEND:        324 base + observed re-asks
+# ACTUAL SPEND:           325 in-ledger (324 base + 1 re-ask), 340 including
+#                         the 15 sunk calls of the aborted first attempt.
+#                         Session ceiling 750: respected.
+#
+# THE ARMS (order as run; declared / actual / wall / re-asks; full
+# per-stage numbers in live_cross_arm_summary.csv and ledger.csv):
+#
+# 1 arm0_baseline    30 /  16 /  135.5s / 1  EL+IL   the pinned-chain anchor
+# 2 g1_paraphrase    30 /  15 /  129.6s / 0  EL+IL
+# 3 g4_edge_shapes   24 /  12 /   97.9s / 0  EL+IL
+# 4 g5_adversarial   60 /  30 /  312.3s / 0  EL+IL
+# 5 g3_stage_stress  88 /  44 /  906.1s / 0  EL+IL
+# 6 s1a_wording_el  120 /  60 /  549.5s / 0  EL only   [147-record population]
+# 7 s1b_polarity_il 120 /  60 / 1100.4s / 0  IL only   [147-record population]
+# 8 g2_polarity     176 /  88 / 1340.1s / 0  EL+IL
+#   in-ledger total: 325 calls, 4571.4s = 76.2 min wall.
+#
+# ZERO REMOVALS at EL or IL in every arm (counts OUT=0 everywhere), which
+# is what flag-only plus rule (c) predict. Every absence-justified verdict
+# routed to EXCLUSION_SUPPRESSED — review — and none was auto-acted.
+#
+# F-168-STYLE POPULATION BANNER — applies to BOTH s1 rows above and to
+# every figure derived from them: the 147-record corpus is the frozen 14d
+# EL input carried in the archived bundle whose whole-zip sha256 is
+# 0bd1604aee1e7bf1fae825641a03659b49ee1942491fbb98bab0bf3c34a93c4b
+# (data/current.csv f8115e4f5587…, criteria member 5dd51aaa…, identified by
+# manifest content and disambiguated within a six-sibling same-state class
+# by that zip digest, never by filename). It PREDATES the wave-15c
+# routing/semantics fixes: the current deterministic chain from the same
+# raw inputs is 776 -> 16 -> 760 -> 738 -> 22, NOT -> 613 -> 147. It is a
+# REGRESSION population chosen for byte-identity with the frozen
+# runJ/runK/runL baselines, not a representation of the current pipeline.
+# The six non-s1 arms run the current chain from the 776-record aggregate
+# (sha256 b36c3cbb…be914) and carry no such caveat.
+#
+# OFF-LEDGER DISCLOSURE
+# ---------------------
+# 1. ABORTED FIRST ATTEMPT AT arm0 — 15 calls spent, artifacts preserved
+#    under aborted_attempt1/ with their own README. Declared 15 (the
+#    no-re-ask arithmetic), needed 16, enforcer refused attempt 16 before
+#    it reached the network. EL completed (10 calls, 44/44 answered); IL
+#    answered 20 of 22 — A612 and A622 were batch 5 and were never sent.
+#    These 15 calls are real spend and are counted in the grand total of
+#    340. They are NOT part of any experimental figure: the arm was rerun
+#    in full.
+# 2. ONE FAILED LAUNCH of g5 spent ZERO calls: a shell redirect to a
+#    mistyped log path failed before python started, so the process never
+#    ran. Recorded because the ledger should show why a launch appears
+#    twice in the session history, not because anything was spent.
+# 3. No other attempt, partial run, or discarded call exists. Nothing was
+#    deleted.
+#
+# SAME-MACHINE STATEMENT
+# ----------------------
+# All eight arms ran back-to-back on the maintainer's machine in one
+# session against the same local Ollama server, so the arms are mutually
+# comparable on wall clock. Comparisons against the wave-15e frozen runs
+# (runJ/runK/runL) assume that machine is also the 15e machine: the 15e
+# artefacts record no hardware, and CPU-only (total_vram="0 B", F-154) is
+# recorded only for the wave-14c capture machine
+# (wave14c_batch_runs.meta.txt:108-110). Endpoint, model, window,
+# temperature and truncation are identical by assertion; the hardware is
+# assumed, not asserted, and any wall-clock comparison across waves
+# inherits that assumption. Decision-level comparisons do not.
+#
+# THE FREE NOISE PAIR (aborted attempt 1 vs the arm0 rerun, same
+# configuration, cache off, temperature 0): on the 64 record-criterion
+# pairs both runs answered — 44 at EL, 20 at IL — decision flips 0/64,
+# quote_valid flips 0/64, confidence churn 0/64, record-outcome churn 0.
+# The wave-15e same-configuration floor was 0/294 decision flips, 0/294
+# quote_valid flips and 2/147 record churn (confidence-only), so this pair
+# sits at or inside that floor. Every cross-arm difference in these runs
+# is therefore signal rather than same-config noise.

@@ -1,0 +1,12 @@
+order,arm,declared_ceiling,base_no_reask,actual_spent,reasks,wall_s,no_answer,removals_OUT,stages,status
+1,arm0_baseline,30,15,16,1,135.5,0,0,EL+IL,clean
+2,g1_paraphrase,30,15,15,0,129.6,0,0,EL+IL,clean
+3,g4_edge_shapes,24,12,12,0,97.9,0,0,EL+IL,clean
+4,g5_adversarial,60,30,30,0,312.3,0,0,EL+IL,clean
+5,g3_stage_stress,88,44,44,0,906.1,0,0,EL+IL,clean
+6,s1a_wording_el,120,60,60,0,549.5,0,0,EL,clean
+7,s1b_polarity_il,120,60,60,0,1100.4,0,0,IL,clean
+8,g2_polarity,176,88,88,0,1340.1,0,0,EL+IL,clean
+,TOTAL (in-ledger),648,324,325,1,4571.4,0,0,,clean
+,"SUNK (aborted attempt 1, off-ledger)",15,15,15,1,132.0,0,0,EL+IL,aborted: budget stop
+,GRAND TOTAL (network calls),663,,340,2,4703.4,0,0,,

@@ -908,9 +908,21 @@ class AnomalyStop(RuntimeError):
 
 
 def _check_anomalies(stage: str, counts: Dict[str, int], report: Dict[str, Any],
-                     declared: int, spent: int) -> List[str]:
+                     declared: int, spent: int,
+                     base_calls: Optional[int] = None) -> List[str]:
     """The wave-16b anomaly stops, evaluated on one stage's outcome."""
     stops: List[str] = []
+    # Wave 16b phase 2: the engine issues AT MOST ONE re-ask per batch — the
+    # `if omitted:` block at llm_client.py:1734-1743 is a single call, not a
+    # loop — so re-asks can never exceed the stage's base batch count. More
+    # than that would contradict the structure the ceiling is derived from.
+    if base_calls is not None:
+        reasks = int(report.get("reasks_made", 0) or 0)
+        if reasks > base_calls:
+            stops.append(
+                f"ANOMALY[reask-per-batch-at-{stage}]: reasks_made={reasks} > "
+                f"base batches={base_calls}; contradicts the one-re-ask-per-batch "
+                f"structure the 2x ceiling is derived from")
     out = int(counts.get("OUT", 0) or 0)
     if out > 0:
         stops.append(
@@ -1006,10 +1018,13 @@ def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
                 encoding="utf-8", newline="\n")
             (out_dir / f"{key}_{stage}_log.txt").write_text(
                 "".join(log_lines), encoding="utf-8", newline="\n")
+            base_calls = calls_for(len(rows_in), n_llm,
+                                   int(live["batch_size"][stage]))
             summary = {
                 "arm": f"{key}_{stage}",
                 "arm_key": key,
                 "stage": stage,
+                "base_calls_no_reask": base_calls,
                 "batch_size": int(live["batch_size"][stage]),
                 "cancelled": cancelled,
                 "wall_seconds": round(dt, 1),
@@ -1038,7 +1053,7 @@ def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
             if cancelled:
                 stops.append(f"ANOMALY[cancelled-at-{stage}]: engine reported cancelled")
             stops.extend(_check_anomalies(stage, counts, report, budget,
-                                          counter["n"]))
+                                          counter["n"], base_calls))
             # The product's own chain: this stage's survivors feed the next.
             rows_in = survivors
         arm_manifest = {

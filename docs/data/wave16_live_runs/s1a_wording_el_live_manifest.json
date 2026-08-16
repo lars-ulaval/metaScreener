@@ -1,0 +1,86 @@
+{
+  "arm": "s1a_wording_el",
+  "declared_budget": 120,
+  "calls_made_total": 60,
+  "wall_seconds_total": 549.5,
+  "preflight": {
+    "EL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "IL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "corpus": {
+      "kind": "bundle",
+      "zip_sha256": "0bd1604aee1e7bf1fae825641a03659b49ee1942491fbb98bab0bf3c34a93c4b",
+      "members": {
+        "data/current.csv": "f8115e4f5587b1887f2419b899fde3e8ec1e1605249ed415de94330c26b7b599"
+      },
+      "records": 147,
+      "population_banner": "F-168-style caveat, carried on every artifact that names this population: the 147-record corpus predates the wave-15c routing/semantics fixes - the current deterministic chain from the same raw inputs is 776 -> 16 -> 760 -> 738 -> 22, not -> 613 -> 147. It is a REGRESSION population chosen for byte-identity with the frozen 14d/15e baselines (runJ/runK/runL), not a representation of the current pipeline."
+    },
+    "criteria_sha256": "bf71b7ad8f94aae7b0d81795abc815bed29e3a1f3103e0ee763790f5ee43c65f",
+    "dry_manifest_sha256": "bf71b7ad8f94aae7b0d81795abc815bed29e3a1f3103e0ee763790f5ee43c65f",
+    "prompt_versions": {
+      "EL": "EL_v3_nullquote",
+      "IL": "IL_v3_nullquote"
+    },
+    "cache": {
+      "use_cache": false,
+      "cache_in": "{}"
+    }
+  },
+  "stages": [
+    {
+      "arm": "s1a_wording_el_EL",
+      "arm_key": "s1a_wording_el",
+      "stage": "EL",
+      "base_calls_no_reask": 60,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 549.4,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 126,
+        "PASS_FLAGGED": 12,
+        "EXCLUSION_SUPPRESSED": 9,
+        "NOT_SCREENED": 0
+      },
+      "records": 294,
+      "answered": 294,
+      "no_answer": 0,
+      "calls_made": 60,
+      "calls_counted_by_enforcer": 60,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "EL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": false,
+      "llm_criteria": 2,
+      "records_in": 147,
+      "full_rows": 147,
+      "survivors": 147
+    }
+  ],
+  "anomaly_stops": [],
+  "generated_by": "tools/run_criteria_experiment.py --live"
+}

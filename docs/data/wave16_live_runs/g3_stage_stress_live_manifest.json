@@ -1,0 +1,121 @@
+{
+  "arm": "g3_stage_stress",
+  "declared_budget": 88,
+  "calls_made_total": 44,
+  "wall_seconds_total": 906.1,
+  "preflight": {
+    "EL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "IL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "corpus": {
+      "kind": "aggregate",
+      "sha256": "b36c3cbbe88f47c6e885ee95d0d7f3e2812a73fd38348d74cee2ff392b9be914",
+      "records": 776
+    },
+    "criteria_sha256": "9b4d7bedaaffeff0b2b51e3122d5f3ded96c9e0e1825c943e073ed6dcdb29639",
+    "dry_manifest_sha256": "9b4d7bedaaffeff0b2b51e3122d5f3ded96c9e0e1825c943e073ed6dcdb29639",
+    "prompt_versions": {
+      "EL": "EL_v3_nullquote",
+      "IL": "IL_v3_nullquote"
+    },
+    "cache": {
+      "use_cache": false,
+      "cache_in": "{}"
+    }
+  },
+  "stages": [
+    {
+      "arm": "g3_stage_stress_EL",
+      "arm_key": "g3_stage_stress",
+      "stage": "EL",
+      "base_calls_no_reask": 22,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 199.9,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 102,
+        "PASS_FLAGGED": 2,
+        "EXCLUSION_SUPPRESSED": 3,
+        "NOT_SCREENED": 0
+      },
+      "records": 107,
+      "answered": 107,
+      "no_answer": 0,
+      "calls_made": 22,
+      "calls_counted_by_enforcer": 22,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "EL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": false,
+      "llm_criteria": 1,
+      "records_in": 107,
+      "full_rows": 107,
+      "survivors": 107
+    },
+    {
+      "arm": "g3_stage_stress_IL",
+      "arm_key": "g3_stage_stress",
+      "stage": "IL",
+      "base_calls_no_reask": 22,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 705.9,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 1,
+        "REVIEW": 4,
+        "EXCLUSION_SUPPRESSED": 102,
+        "NOT_SCREENED": 0
+      },
+      "records": 107,
+      "answered": 107,
+      "no_answer": 0,
+      "calls_made": 22,
+      "calls_counted_by_enforcer": 22,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "IL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": true,
+      "llm_criteria": 1,
+      "records_in": 107,
+      "full_rows": 107,
+      "survivors": 107
+    }
+  ],
+  "anomaly_stops": [],
+  "generated_by": "tools/run_criteria_experiment.py --live"
+}
