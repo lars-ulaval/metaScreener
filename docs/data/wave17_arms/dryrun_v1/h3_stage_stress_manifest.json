@@ -392,7 +392,7 @@
           "per_criterion": {
             "EC-38": {
               "ok": true,
-              "worst_estimate": 2116,
+              "worst_estimate": 2875,
               "reserve": 400,
               "n_batches": 24,
               "max_safe_batch": 5,
@@ -405,7 +405,7 @@
           "per_criterion": {
             "EC-38": {
               "ok": true,
-              "worst_estimate": 674,
+              "worst_estimate": 909,
               "reserve": 80,
               "n_batches": 116,
               "max_safe_batch": 1,
@@ -425,7 +425,7 @@
           "per_criterion": {
             "IC-33": {
               "ok": true,
-              "worst_estimate": 2114,
+              "worst_estimate": 2872,
               "reserve": 400,
               "n_batches": 24,
               "max_safe_batch": 5,
@@ -438,7 +438,7 @@
           "per_criterion": {
             "IC-33": {
               "ok": true,
-              "worst_estimate": 673,
+              "worst_estimate": 906,
               "reserve": 80,
               "n_batches": 116,
               "max_safe_batch": 1,

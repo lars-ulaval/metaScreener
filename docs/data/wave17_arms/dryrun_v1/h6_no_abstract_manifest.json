@@ -180,7 +180,7 @@
           "per_criterion": {
             "H6-2": {
               "ok": true,
-              "worst_estimate": 2193,
+              "worst_estimate": 2979,
               "reserve": 400,
               "n_batches": 28,
               "max_safe_batch": 5,
@@ -193,7 +193,7 @@
           "per_criterion": {
             "H6-2": {
               "ok": true,
-              "worst_estimate": 663,
+              "worst_estimate": 893,
               "reserve": 80,
               "n_batches": 139,
               "max_safe_batch": 1,
@@ -213,7 +213,7 @@
           "per_criterion": {
             "H6-3": {
               "ok": true,
-              "worst_estimate": 2200,
+              "worst_estimate": 2988,
               "reserve": 400,
               "n_batches": 28,
               "max_safe_batch": 5,
@@ -226,7 +226,7 @@
           "per_criterion": {
             "H6-3": {
               "ok": true,
-              "worst_estimate": 670,
+              "worst_estimate": 902,
               "reserve": 80,
               "n_batches": 139,
               "max_safe_batch": 1,

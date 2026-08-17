@@ -259,7 +259,7 @@
           "per_criterion": {
             "H5-1": {
               "ok": true,
-              "worst_estimate": 2278,
+              "worst_estimate": 3096,
               "reserve": 400,
               "n_batches": 6,
               "max_safe_batch": 5,
@@ -267,7 +267,7 @@
             },
             "H5-4": {
               "ok": true,
-              "worst_estimate": 2200,
+              "worst_estimate": 2989,
               "reserve": 400,
               "n_batches": 6,
               "max_safe_batch": 5,
@@ -280,7 +280,7 @@
           "per_criterion": {
             "H5-1": {
               "ok": true,
-              "worst_estimate": 734,
+              "worst_estimate": 990,
               "reserve": 80,
               "n_batches": 29,
               "max_safe_batch": 1,
@@ -288,7 +288,7 @@
             },
             "H5-4": {
               "ok": true,
-              "worst_estimate": 656,
+              "worst_estimate": 884,
               "reserve": 80,
               "n_batches": 29,
               "max_safe_batch": 1,
@@ -308,7 +308,7 @@
           "per_criterion": {
             "H5-5": {
               "ok": true,
-              "worst_estimate": 2207,
+              "worst_estimate": 2999,
               "reserve": 400,
               "n_batches": 6,
               "max_safe_batch": 5,
@@ -321,7 +321,7 @@
           "per_criterion": {
             "H5-5": {
               "ok": true,
-              "worst_estimate": 663,
+              "worst_estimate": 893,
               "reserve": 80,
               "n_batches": 29,
               "max_safe_batch": 1,

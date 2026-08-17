@@ -111,14 +111,42 @@ def _items(n, chars=40):
 class TestTheEstimator:
 
     def test_the_formula_is_ceil_chars_over_divisor_plus_framing(self):
-        assert lc.estimate_prompt_tokens(4500) == 1000 + lc.FRAMING_TOKENS
-        assert lc.estimate_prompt_tokens(4501) == 1001 + lc.FRAMING_TOKENS
+        """Written against the divisor rather than against 4.5, so a future
+        recalibration changes one constant and not this test (wave 17d)."""
+        d = lc.CHARS_PER_TOKEN
+        assert lc.estimate_prompt_tokens(int(d * 1000)) == 1000 + lc.FRAMING_TOKENS
+        assert lc.estimate_prompt_tokens(int(d * 1000) + 1) == 1001 + lc.FRAMING_TOKENS
         assert lc.estimate_prompt_tokens(0) == lc.FRAMING_TOKENS
 
     def test_the_constants_are_the_adjudicated_ones(self):
-        assert lc.CHARS_PER_TOKEN == 4.5
+        """RE-ADJUDICATED at wave 17d, 4.5 -> 3.3 (F-236).
+
+        4.5 was measured on wave 15b's VR corpus and applied to the RSA corpus
+        with nothing asking whether the new text tokenises the same way. It does
+        not: `h2_polarity` aborted on its first live call at 3.62 chars/token,
+        885 actual against 741 estimated, and eight of nine arms could not run.
+
+        3.3 is a FLOOR fitted over 30 observations across two corpora — wave 15b
+        VR 4.48-5.23 (n=8), wave 17d RSA h0 4.52-4.74 (n=21), wave 17d RSA h2
+        3.61 (n=1) — and not a mean, because a mean is what failed. It is also
+        the lowest value that causes no FALSE refusal on wave 17's prompts: the
+        largest is 11,551 chars, estimating 3,531 tokens, and 3,531 + the
+        400-token reserve is 3,931 inside a 4,096 window.
+
+        The check this feeds is unchanged and still strict: actual > estimate
+        still raises TokenEstimateDrift."""
+        assert lc.CHARS_PER_TOKEN == 3.3
         assert lc.REPLY_RESERVE_PER_VERDICT == 80
         assert lc.CONTEXT_WINDOW_DEFAULT == 4096
+
+    def test_the_estimate_is_conservative_against_the_rsa_observations(self):
+        """The wave-17d live samples, the other corpus. Same property as the
+        wave-15b probe test below: a refusing guard must never estimate BELOW
+        reality on a payload it has actually seen."""
+        RSA = [(9004, 1902), (9621, 2085), (6570, 1455), (8163, 1771),
+               (4036, 867), (9954, 2137), (6674, 1475), (3199, 885)]
+        for chars, measured in RSA:
+            assert lc.estimate_prompt_tokens(chars) >= measured, (chars, measured)
 
     def test_the_estimate_is_conservative_against_every_probe_point(self):
         """The eight measured (chars, prompt_tokens) points from the wave-15b

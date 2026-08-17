@@ -294,7 +294,7 @@
           "per_criterion": {
             "EC-23": {
               "ok": true,
-              "worst_estimate": 1413,
+              "worst_estimate": 1916,
               "reserve": 400,
               "n_batches": 3,
               "max_safe_batch": 5,
@@ -302,7 +302,7 @@
             },
             "EC-28": {
               "ok": true,
-              "worst_estimate": 1390,
+              "worst_estimate": 1884,
               "reserve": 400,
               "n_batches": 3,
               "max_safe_batch": 5,
@@ -315,7 +315,7 @@
           "per_criterion": {
             "EC-23": {
               "ok": true,
-              "worst_estimate": 625,
+              "worst_estimate": 842,
               "reserve": 80,
               "n_batches": 12,
               "max_safe_batch": 1,
@@ -323,7 +323,7 @@
             },
             "EC-28": {
               "ok": true,
-              "worst_estimate": 602,
+              "worst_estimate": 810,
               "reserve": 80,
               "n_batches": 12,
               "max_safe_batch": 1,
@@ -344,7 +344,7 @@
           "per_criterion": {
             "IC-21": {
               "ok": true,
-              "worst_estimate": 1414,
+              "worst_estimate": 1918,
               "reserve": 400,
               "n_batches": 3,
               "max_safe_batch": 5,
@@ -352,7 +352,7 @@
             },
             "IC-22": {
               "ok": true,
-              "worst_estimate": 1391,
+              "worst_estimate": 1886,
               "reserve": 400,
               "n_batches": 3,
               "max_safe_batch": 5,
@@ -365,7 +365,7 @@
           "per_criterion": {
             "IC-21": {
               "ok": true,
-              "worst_estimate": 627,
+              "worst_estimate": 844,
               "reserve": 80,
               "n_batches": 12,
               "max_safe_batch": 1,
@@ -373,7 +373,7 @@
             },
             "IC-22": {
               "ok": true,
-              "worst_estimate": 603,
+              "worst_estimate": 811,
               "reserve": 80,
               "n_batches": 12,
               "max_safe_batch": 1,

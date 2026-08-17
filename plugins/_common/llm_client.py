@@ -778,7 +778,7 @@ loud refusal naming the setting, because widening the PAID_VENDOR_HOSTS
 money vocabulary to fix a window default would change who is asked for
 a key."""
 
-CHARS_PER_TOKEN = 4.5
+CHARS_PER_TOKEN = 3.3
 """The estimator's divisor, with its calibration on the record (wave 15b,
 probe 1 — the server's own ``usage.prompt_tokens`` for prompts rendered by
 the real builder over the frozen 147-record corpus):
@@ -799,6 +799,44 @@ constant cannot close, a tokenizer denser than the estimate on an untested
 provider, is closed at run time by the drift check in
 ``run_m1_llm_for_criterion``: the first real call's ``usage.prompt_tokens``
 is compared against this estimator and the run aborts if reality exceeds it.
+
+RECALIBRATED 4.5 -> 3.3 at wave 17d (F-236), and the hole the paragraph above
+describes is exactly the one that opened: 4.5 was measured on ONE corpus and
+applied to another with nothing asking whether the new text tokenises the same
+way. ``h2_polarity`` aborted on its first live call — 885 actual against 741
+estimated, 3.62 chars/token — and eight of nine arms could not run.
+
+The evidence is now 30 observations across two corpora:
+
+    source            n    density (chars/token)
+    wave15b VR        8    4.48 .. 5.23   (median 4.98)
+    wave17 RSA h0    21    4.52 .. 4.74   (median 4.66)
+    wave17 RSA h2     1    3.61
+
+WITHIN ONE CORPUS the spread is 3.61 .. 4.74, so this is a FLOOR and not a
+mean: the guard's job is refusing prompts that will not fit, so the only safe
+direction to err is dense. 4.5 was, in effect, a mean, and a mean is what
+failed. Every one of the 30 observations is safe at 3.62; 3.3 is chosen for
+margin below the densest one, because the density gradient is real and
+under-measured — h0's samples sit at 4.52-4.74 across 4,036-9,954 chars while
+h2's single 3,199-char prompt sits at 3.61, and the ONLY point below 4,000
+chars is that one. Small prompts are denser: JSON scaffolding, field names,
+record ids and punctuation tokenise badly and dominate a small payload, while
+long prose tokenises efficiently and dominates a large one.
+
+3.3 is the lowest value that does not cause FALSE REFUSALS on this wave's
+prompts. Measured: the largest rendered prompt is 11,551 chars, which at 3.3
+estimates 3,531 tokens, and 3,531 + the guard's 400-token reserve is 3,931
+against a 4,096 window — inside it. At 3.0 the same prompt would estimate
+4,281 with reserve and the guard would refuse a prompt that fits, which is the
+opposite failure and a worse one.
+
+STILL UNDER-DETERMINED, deliberately recorded rather than smoothed over:
+``h9_batch1``'s prompts are 1,296-3,004 chars, ALL smaller than the single
+observation that establishes the dense end. If density keeps falling below
+3,199 chars, h9 can still trip the drift check. That costs one call and yields
+the datum the fit is missing, which is the right trade — so the guard stays
+strict and h9 is expected to be the informative arm rather than the safe one.
 """
 
 FRAMING_TOKENS = 30

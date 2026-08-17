@@ -2,7 +2,7 @@
   "arm": "h0_baseline",
   "declared_budget": 42,
   "calls_made_total": 24,
-  "wall_seconds_total": 191.7,
+  "wall_seconds_total": 191.3,
   "preflight": {
     "EL": {
       "endpoint": "http://localhost:11434/v1",
@@ -44,7 +44,7 @@
       "base_calls_no_reask": 14,
       "batch_size": 5,
       "cancelled": false,
-      "wall_seconds": 124.3,
+      "wall_seconds": 123.1,
       "counts": {
         "OUT": 0,
         "PASS_CLEAN": 27,
@@ -61,6 +61,92 @@
       "no_answer_after_reask": 0,
       "exclusion_policy": "flag_only",
       "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 2031,
+          "actual": 1902,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2168,
+          "actual": 2085,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2040,
+          "actual": 1913,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2219,
+          "actual": 2117,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 1490,
+          "actual": 1455,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 1844,
+          "actual": 1771,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 927,
+          "actual": 867,
+          "items": 2,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2032,
+          "actual": 1902,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2169,
+          "actual": 2085,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2041,
+          "actual": 1913,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2220,
+          "actual": 2117,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 1491,
+          "actual": 1455,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 1845,
+          "actual": 1771,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 928,
+          "actual": 867,
+          "items": 2,
+          "criterion": "EC-3"
+        }
+      ],
       "provenance": {
         "model": "qwen2.5:7b",
         "endpoint": "http://localhost:11434/v1",
@@ -83,7 +169,7 @@
       "base_calls_no_reask": 7,
       "batch_size": 5,
       "cancelled": false,
-      "wall_seconds": 67.4,
+      "wall_seconds": 68.0,
       "counts": {
         "OUT": 0,
         "PASS_CLEAN": 12,
@@ -100,6 +186,50 @@
       "no_answer_after_reask": 0,
       "exclusion_policy": "flag_only",
       "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 2054,
+          "actual": 1922,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2191,
+          "actual": 2105,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2063,
+          "actual": 1933,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2242,
+          "actual": 2137,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 1513,
+          "actual": 1475,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 1867,
+          "actual": 1791,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 949,
+          "actual": 887,
+          "items": 2,
+          "criterion": "IC-1"
+        }
+      ],
       "provenance": {
         "model": "qwen2.5:7b",
         "endpoint": "http://localhost:11434/v1",

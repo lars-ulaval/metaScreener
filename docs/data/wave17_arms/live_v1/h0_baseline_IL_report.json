@@ -26,5 +26,49 @@
   },
   "reasks_made": 1,
   "records": 32,
-  "request_shape": "json_schema"
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 1922,
+      "criterion": "IC-1",
+      "estimate": 2054,
+      "items": 5
+    },
+    {
+      "actual": 2105,
+      "criterion": "IC-1",
+      "estimate": 2191,
+      "items": 5
+    },
+    {
+      "actual": 1933,
+      "criterion": "IC-1",
+      "estimate": 2063,
+      "items": 5
+    },
+    {
+      "actual": 2137,
+      "criterion": "IC-1",
+      "estimate": 2242,
+      "items": 5
+    },
+    {
+      "actual": 1475,
+      "criterion": "IC-1",
+      "estimate": 1513,
+      "items": 5
+    },
+    {
+      "actual": 1791,
+      "criterion": "IC-1",
+      "estimate": 1867,
+      "items": 5
+    },
+    {
+      "actual": 887,
+      "criterion": "IC-1",
+      "estimate": 949,
+      "items": 2
+    }
+  ]
 }

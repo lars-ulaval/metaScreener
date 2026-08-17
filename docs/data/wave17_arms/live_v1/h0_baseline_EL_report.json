@@ -25,5 +25,91 @@
   },
   "reasks_made": 2,
   "records": 64,
-  "request_shape": "json_schema"
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 1902,
+      "criterion": "EC-2",
+      "estimate": 2031,
+      "items": 5
+    },
+    {
+      "actual": 2085,
+      "criterion": "EC-2",
+      "estimate": 2168,
+      "items": 5
+    },
+    {
+      "actual": 1913,
+      "criterion": "EC-2",
+      "estimate": 2040,
+      "items": 5
+    },
+    {
+      "actual": 2117,
+      "criterion": "EC-2",
+      "estimate": 2219,
+      "items": 5
+    },
+    {
+      "actual": 1455,
+      "criterion": "EC-2",
+      "estimate": 1490,
+      "items": 5
+    },
+    {
+      "actual": 1771,
+      "criterion": "EC-2",
+      "estimate": 1844,
+      "items": 5
+    },
+    {
+      "actual": 867,
+      "criterion": "EC-2",
+      "estimate": 927,
+      "items": 2
+    },
+    {
+      "actual": 1902,
+      "criterion": "EC-3",
+      "estimate": 2032,
+      "items": 5
+    },
+    {
+      "actual": 2085,
+      "criterion": "EC-3",
+      "estimate": 2169,
+      "items": 5
+    },
+    {
+      "actual": 1913,
+      "criterion": "EC-3",
+      "estimate": 2041,
+      "items": 5
+    },
+    {
+      "actual": 2117,
+      "criterion": "EC-3",
+      "estimate": 2220,
+      "items": 5
+    },
+    {
+      "actual": 1455,
+      "criterion": "EC-3",
+      "estimate": 1491,
+      "items": 5
+    },
+    {
+      "actual": 1771,
+      "criterion": "EC-3",
+      "estimate": 1845,
+      "items": 5
+    },
+    {
+      "actual": 867,
+      "criterion": "EC-3",
+      "estimate": 928,
+      "items": 2
+    }
+  ]
 }

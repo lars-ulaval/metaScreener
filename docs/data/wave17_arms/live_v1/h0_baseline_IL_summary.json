@@ -5,7 +5,7 @@
   "base_calls_no_reask": 7,
   "batch_size": 5,
   "cancelled": false,
-  "wall_seconds": 67.4,
+  "wall_seconds": 68.0,
   "counts": {
     "OUT": 0,
     "PASS_CLEAN": 12,
@@ -22,6 +22,50 @@
   "no_answer_after_reask": 0,
   "exclusion_policy": "flag_only",
   "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "estimate": 2054,
+      "actual": 1922,
+      "items": 5,
+      "criterion": "IC-1"
+    },
+    {
+      "estimate": 2191,
+      "actual": 2105,
+      "items": 5,
+      "criterion": "IC-1"
+    },
+    {
+      "estimate": 2063,
+      "actual": 1933,
+      "items": 5,
+      "criterion": "IC-1"
+    },
+    {
+      "estimate": 2242,
+      "actual": 2137,
+      "items": 5,
+      "criterion": "IC-1"
+    },
+    {
+      "estimate": 1513,
+      "actual": 1475,
+      "items": 5,
+      "criterion": "IC-1"
+    },
+    {
+      "estimate": 1867,
+      "actual": 1791,
+      "items": 5,
+      "criterion": "IC-1"
+    },
+    {
+      "estimate": 949,
+      "actual": 887,
+      "items": 2,
+      "criterion": "IC-1"
+    }
+  ],
   "provenance": {
     "model": "qwen2.5:7b",
     "endpoint": "http://localhost:11434/v1",
