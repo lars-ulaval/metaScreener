@@ -325,7 +325,7 @@ network, using only files that ship with the repository:
 
 1. Launch the GUI.
 2. In **Plugin 03 (Criteria Parser)**:
-   - **Load TXT/RTF…** → `samples/ic_ec_12.txt`, and review the inferred
+   - **Load TXT/RTF…** → `samples/20260122_1654_sampleIcEc.txt`, and review the inferred
      criteria;
    - **Load A CSV…** → `samples/20260122_1654_aggregate.csv`. Both
      harmonise buttons need this corpus, and neither is enabled without

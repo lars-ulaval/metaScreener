@@ -76,7 +76,7 @@ metaScreener organises its screening workflow into seven plugins across four fun
 |---|--------|-------------|--------|
 | 03 | **Criteria Parser** | Converts free-text inclusion/exclusion criteria into a structured, machine-executable criteria table (`criteria_harmonized.csv`) | Rule-based inference + optional LLM refinement |
 
-The Criteria Parser accepts plain-text criteria (e.g., `ic_ec_12.txt`) and automatically assigns each criterion to the appropriate pipeline stage (EH/IH for deterministic rules, EL/IL for semantic rules) based on six pattern categories: language, year, document type, venue, DOI, and keyword-in-text. An optional LLM refinement pass adjusts the assignments under structural guardrails (row-count and identifier invariance). **The harmonized output should always be reviewed by the researcher before proceeding.**
+The Criteria Parser accepts plain-text criteria (e.g., `20260122_1654_sampleIcEc.txt`) and automatically assigns each criterion to the appropriate pipeline stage (EH/IH for deterministic rules, EL/IL for semantic rules) based on six pattern categories: language, year, document type, venue, DOI, and keyword-in-text. An optional LLM refinement pass adjusts the assignments under structural guardrails (row-count and identifier invariance). **The harmonized output should always be reviewed by the researcher before proceeding.**
 
 ### Deterministic heuristic-based filtering
 
@@ -212,7 +212,7 @@ python run.py
 1. **Launch** the application with `python run.py`. You will be prompted for your OpenAI API key.
 
 2. **Prepare your inputs**:
-   - A **criteria file** in plain text (see `samples/ic_ec_12.txt` for format — one criterion per line with `IC-N` / `EC-N` identifiers)
+   - A **criteria file** in plain text (see `samples/20260122_1654_sampleIcEc.txt` for format — one criterion per line with `IC-N` / `EC-N` identifiers)
    - A **citation corpus** as an aggregate CSV (see `samples/20260122_1654_aggregate.csv` for the expected schema)
    - Or, for the experimental Plugin 01, an image (PDF or PNG) containing **visible reference markers** (numbered or author–year citation lists). *Note: standard PRISMA flow diagrams typically do not contain reference markers.*
 
@@ -235,9 +235,11 @@ The repository's `samples/` directory contains minimal sample inputs for testing
 
 | File | Description |
 |------|-------------|
-| `ic_ec_12.txt` | Sample inclusion/exclusion criteria (4 IC + 4 EC) for a VR/HMD workplace training review |
+| `20260122_1654_sampleIcEc.txt` | Sample inclusion/exclusion criteria (4 IC + 4 EC) for a VR/HMD workplace training review |
 | `20260122_1654_aggregate.csv` | Sample aggregate citation corpus (776 records) with structured metadata fields |
-| `ex_ref_2.txt` | Sample free-text reference list for Plugin 02 |
+| `20260816_1841_rsaAggregate.csv` | A second aggregate corpus (463 records, respiratory sinus arrhythmia) in the same 34-column schema |
+| `20260122_1654_sampleReferences.txt` | Sample free-text reference list for Plugin 02 |
+| `20260122_1654_rsaSampleReferences.txt` | The seed bibliography the RSA corpus was harvested from |
 
 ---
 

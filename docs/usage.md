@@ -18,13 +18,13 @@ appropriate step.
 
 ### Sample inputs
 
-Three files live in `samples/`:
+Five files live in `samples/`:
 
-- **`ic_ec_12.txt`** — eight free-text criteria (four inclusion,
-  four exclusion) for a systematic review on head-mounted-display
+- **`20260122_1654_sampleIcEc.txt`** — eight free-text criteria (four
+  inclusion, four exclusion) for a systematic review on head-mounted-display
   virtual reality. This is the input to Plugin 03 (Criteria Parser).
-- **`ex_ref_2.txt`** — a short bibliography rendered as numbered
-  citations, used to demonstrate Plugin 01's behaviour on
+- **`20260122_1654_sampleReferences.txt`** — a short bibliography rendered as
+  numbered citations, used to demonstrate Plugin 01's behaviour on
   reference-marker images. Not directly relevant if you start with
   a structured citation list.
 - **`20260122_1654_aggregate.csv`** — 776 candidate records in the
@@ -32,6 +32,12 @@ Three files live in `samples/`:
   keywords, venue, DOI, etc.). This is the input to Plugin 02 when
   using a pre-existing record set, and the corpus on which the
   rest of the demonstration runs.
+- **`20260816_1841_rsaAggregate.csv`** — a second corpus, 463 records on
+  respiratory sinus arrhythmia, in the same 34-column schema. Useful for
+  running the pipeline on material the walkthrough has not pre-digested.
+  No criteria file ships for it.
+- **`20260122_1654_rsaSampleReferences.txt`** — the seed bibliography that
+  corpus was harvested from.
 
 ### The bundle pipeline in one paragraph
 
@@ -116,7 +122,7 @@ output of Plugin 02 is the standard input to the rest of the
 pipeline.
 
 **Inputs.** Either a raw bibliography text file (like
-`samples/ex_ref_2.txt`) or an existing aggregate CSV. The
+`samples/20260122_1654_sampleReferences.txt`) or an existing aggregate CSV. The
 plugin will pass through records that already have complete metadata
 and only query the network for records that need enrichment.
 
@@ -143,7 +149,7 @@ makes it easy to spot records that landed in only one database.
 ### Plugin 03 - Criteria Parser
 
 ![Plugin 03 main view, with sample criteria loaded and the harmonised table populated on the right](images/usage/plugin03_criteria_parser.png)
-> *Figure: Plugin 03 (Criteria Parser / Harmoniser) after loading `samples/ic_ec_12.txt`. The left panel holds the editable free-text criteria; the right panel shows the inferred harmonised criteria table with stage and operator assignments per row. The log at the bottom records each step of parsing and the optional LLM refinement pass.*
+> *Figure: Plugin 03 (Criteria Parser / Harmoniser) after loading `samples/20260122_1654_sampleIcEc.txt`. The left panel holds the editable free-text criteria; the right panel shows the inferred harmonised criteria table with stage and operator assignments per row. The log at the bottom records each step of parsing and the optional LLM refinement pass.*
 
 **Purpose.** Converts free-text inclusion and exclusion criteria
 into a structured, machine-executable criteria table that the
@@ -156,7 +162,7 @@ it.
 
 **Inputs.** A plain-text file with one criterion per line, optionally
 prefixed by an `IC-` or `EC-` tag and a separator. The bundled
-example (`samples/ic_ec_12.txt`) shows the expected format.
+example (`samples/20260122_1654_sampleIcEc.txt`) shows the expected format.
 
 **What it produces.** A CSV with one row per criterion and columns
 including:
