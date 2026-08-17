@@ -66,6 +66,14 @@ presence gate and reached `ACTION_EXCLUDE`** — validated quote, over the 20-ch
 floor, over threshold. What stopped them was `exclusion_policy: flag_only`, not
 the gate. That number has never been reported. (§5.4.1)
 
+**EL's excluding verdicts are 0 for 9.** Extending §7.6's `h0` finding to `h1`
+and `h8` at zero call cost gives 16 excluding verdicts on 9 distinct pairs;
+three independent judges call 8 unanimously wrong and the ninth merely
+defensible, **none correct**. EC-2's true-positive set on the pile is empty, and
+EC-3 never fired on either record it was written to catch (0 of 6). On A187 and
+A275 the model offered **the same quote, at the same span, as proof of inclusion
+and of exclusion** — both `quote_valid: true`. Raised F-244 to High. (§7.8)
+
 **K5 — the pile is mostly right; what is missing from it is not.** Two substring
 rules removed 391 of 423 records and let through **none** of the 152 that are
 off-topic by construction. Three independent reviewers judged the surviving 32:
@@ -1331,7 +1339,76 @@ permits and the absence rule does not examine. Their confidences are
 the confidence field carries almost no triage information on the exclusion
 branch. A reviewer sorting the pile by model confidence would be sorting noise.
 
-### 7.8 The caveats that must travel with all of this
+### 7.8 EL's excluding verdicts across all three arms: 0 correct of 9
+
+§7.6 reported EL's four `meet` decisions on `h0` and noted that the same
+comparison on `h1` and `h8` was available for free. It was taken. `h1` and `h8`
+ran the **same 32 records** through the **same two EL criteria** — `h1`
+paraphrases them, `h8` changes only a `target` hint — so the three arms together
+give **16 arm-level excluding verdicts on 9 distinct (record, criterion)
+pairs**, EC-2 ten and EC-3 six.
+
+**Precision: zero.** Three independent judges — a word-by-word literalist, a
+psychophysiologist, and an adversarial steelman explicitly instructed to build
+the strongest case *for* each exclusion — graded all nine pairs:
+
+| judgement | pairs |
+|---|---|
+| WRONG, unanimous | **8** |
+| DEFENSIBLE (steelman only; the other two called it wrong) | **1** — A052/EC-3, cardiology-adjacent |
+| CORRECT | **0** |
+
+So **15 or 16 of the 16 arm-level verdicts are wrong and none is right.**
+
+**EC-2's true-positive set on this pile is empty.** Its second clause — *"with no
+human participants"* — is a factual test the abstracts settle, and 26 of the 32
+records state a participant count outright (A199 n=133, A224 n=48, A455 n=151,
+A014 n=15+controls, …). All **ten** EC-2 `meet` verdicts are false positives by
+construction. Six of the ten come from `h1_paraphrase` alone: the paraphrase
+added four exclusions no other arm produced.
+
+**Recall: 0 of 6.** A014 (olanzapine, QT variability, schizophrenia) and A220
+(heart rate and QT variability in children with anxiety disorders) are the two
+records for which an arrhythmia-focus exclusion is arguable. **EC-3 returned
+`not_meet` on both, on all three arms** — six opportunities, zero hits, verified
+directly from the three `_EL_FULL.csv` files. A014's only excluding verdict came
+from EC-2, the wrong criterion.
+
+**And the errors are inverted, not merely wrong.** EC-3's three `meet` records
+are A187, A275 and A052; the first two are in the seven-record unanimous
+CORRECT_INCLUSION set. The evidence they carry is the finding:
+
+```
+h0 / A187   IC-1 (INCLUDE) meet 0.95  quote "Heart Rate Variability as an Index
+                                             of Regulated Emotional Responding"  span [0,36]
+            EC-3 (EXCLUDE) meet 0.90  quote  ...the same string...              span [0,36]
+
+h0 / A275   IC-1 meet 0.85  quote "How heart rate variability affects emotion
+                                   regulation brain networks"
+            EC-3 meet 0.90  quote  ...the same string...
+```
+
+**The byte-identical quote, at the same span, offered as proof that the paper
+reports HRV as an index of emotion regulation and as proof that its primary
+focus is clinical arrhythmia diagnosis rather than psychological function.** Both
+carry `quote_valid: true`, because the string exists, and the gate accepted both
+— which is §7.6's point at its sharpest: a substring check cannot distinguish
+evidence from its own negation. The same pattern recurs on `h8`/A275, and on
+`h8`/A187 EC-3 quotes the abstract sentence *"HRV analysis is emerging as an
+objective measure of regulated emotional responding"* as proof of an arrhythmia
+focus.
+
+**What this does and does not license.** It raised **F-244** from Medium to High.
+It does not license "EL is unreliable" as a general claim: 16 verdicts fall on 8
+records and 2 criteria, and the three arms are not three independent samples —
+they share a corpus, a record set, and (for `h0`/`h8`) byte-identical criterion
+text. **The defensible unit is the 9 distinct pairs, and the defensible claim is
+that on this pile EL's excluding verdicts were correct 0 times out of 9 while its
+recall on the intended targets was 0 of 2.** Set against IL's 15 of 18 on the
+same records in the same runs, the conclusion is not about "the LLM stage" — it
+is that the two stages must be reported separately.
+
+### 7.9 The caveats that must travel with all of this
 
 1. **It is one arm on one corpus.** `h3` shows the same model, on criteria
    checkable from a title, getting **1 of 10** paediatric-population calls right
@@ -1353,16 +1430,41 @@ branch. A reviewer sorting the pile by model confidence would be sorting noise.
 ## 8. Candidate findings — list only
 
 Following wave 16c's convention: observed, then adjudicated by the maintainer.
-**Adjudication is complete for 12 of the 24.**
+**Adjudication is complete for all 24.**
 
 | outcome | candidates | rows |
 |---|---|---|
-| **filed as their own row** | #1, #2, #3, #5, #6, #7, #12 | `F-238` … `F-244` |
-| **folded into an existing row** | #8 → F-238 · #10, #20 → F-237 · #19 → F-236 · #23 → F-221 | — |
-| **unfiled, still candidates** | #4, #9, #11, #13, #14, #15, #16, #17, #18, #21, #22, #24 | — |
+| **filed as their own row** | #1, #2, #3, #5, #6, #7, #11, #12, #17 | `F-238` … `F-246` |
+| **folded into an existing row** | #8 → F-238 · #10, #20 → F-237 · #19 → F-236 · #22 → F-246 · #23 → F-221 | — |
+| **deliberately not filed** | #4, #9, #13, #14, #15, #16, #18, #21, #24 | recorded in §8.1 |
 
-The register now reads **241 rows**, next free **F-245**, 40 machine cells
-verifying. Severity for the twelve that remain is the maintainer's.
+The register reads **243 rows**, next free **F-247**, 40 machine cells verifying.
+
+**F-244 was raised Medium → High** once its own recommended next step was taken:
+extending the EL analysis to `h1` and `h8` cost zero calls and took it from n=4
+to **16 arm-level verdicts on 9 distinct pairs, 0 of them correct**, with EC-3
+never firing on either of the two records it was written to catch (0 of 6). See
+§7.8.
+
+### 8.1 The nine that were deliberately not filed, and why
+
+Nine candidates were adjudicated as **not warranting a register row**. They are
+instances of a filed row, measurement gaps with no defect behind them, or
+observations with no remedy to propose — and nine more rows would dilute a
+register that exists to decide what to work on. They are recorded here so the
+decision is visible and re-openable rather than forgotten.
+
+| # | observation | why it is not a row |
+|---|---|---|
+| **#4** | 16 of 19 IL `not_meet` confidences sit at a flat 0.8, so confidence carries no triage information on the exclusion branch | an observation with no remedy: the field is the model's, and nothing in the product claims it is a ranking signal. Becomes a row the moment anything sorts a review pile by it |
+| **#9** | `intended_target` is registered on all 70 spec intents and read by no code | a defect in this wave's own experiment spec, not in the product. All 52 landed targets were checked by hand and matched (§5) |
+| **#13** | an absence-*phrased* criterion does not reach `RULE_REMOVES_BY_ABSENCE`; only its `type` cell decides | criterion-authoring hazard, and the mechanism is already stated in F-241's fix cell. No code is wrong |
+| **#14** | a "has no X" criterion drops its empty operand and can never exclude on any corpus | an instance of **F-240**'s class — the translator emitting a rule that cannot do what its sentence says. Carried in that row rather than duplicated |
+| **#15** | identical aggregate counts hid a two-record swap (`h0` vs `h8` at IL) | a method warning about reading `summary.json` alone, already stated in §3.2 and in F-227's evidence. Nothing to fix in the product |
+| **#16** | the `target` hint changes gate outcomes, not just the reviewer's reading | strengthens **F-227**, which is open and already carries it; a second row would split one finding |
+| **#18** | no per-call timing exists in any artefact, so F-218's prescribed test cannot be run | a measurement gap, folded into F-236's fix cell as the `token_samples` precedent. F-218 already records that it is not reproducing |
+| **#21** | `EXCLUSION_SUPPRESSED` is two different outcomes and reports pool them | stated in F-221's fix cell and in F-238's evidence; it is a reporting convention, not a defect |
+| **#24** | the `h0` replicate is a real control and survives only because git kept the first commit | a note for the 17e freeze, not a finding. Recorded in §1 |
 
 Ordered by what they would change, not by discovery order.
 
