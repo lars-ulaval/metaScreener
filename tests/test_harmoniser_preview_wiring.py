@@ -29,7 +29,7 @@ from conftest import _import_plugin, PROJECT_ROOT
 
 
 CORPUS = PROJECT_ROOT / "samples" / "20260122_1654_aggregate.csv"
-PROSE = PROJECT_ROOT / "samples" / "ic_ec_12.txt"
+PROSE = PROJECT_ROOT / "samples" / "20260122_1654_sampleIcEc.txt"
 
 
 def _ui():

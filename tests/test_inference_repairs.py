@@ -51,7 +51,7 @@ def _rule_for(label, crit_type="exclude", crit_id="X-1"):
 
 
 def _reference_rules():
-    """Every rule from `samples/ic_ec_12.txt`, keyed by id, via the real path."""
+    """Every rule from the sample criteria file, keyed by id, via the real path."""
     h = get_harmoniser()
     a_columns, text_stats = h._load_a_header_and_stats(str(AGGREGATE_CSV))
     default_text_target = h._get_best_text_targets(a_columns, text_stats)

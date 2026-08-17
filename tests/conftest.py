@@ -68,17 +68,27 @@ if str(PROJECT_ROOT) not in sys.path:
 # 3. Shared paths / data
 # ---------------------------------------------------------------------------
 SAMPLES_DIR = PROJECT_ROOT / "samples"
-IC_EC_FILE = SAMPLES_DIR / "ic_ec_12.txt"
+IC_EC_FILE = SAMPLES_DIR / "20260122_1654_sampleIcEc.txt"
 AGGREGATE_CSV = SAMPLES_DIR / "20260122_1654_aggregate.csv"
 
-# Columns present in the sample aggregate CSV (used in criterion inference)
+# Columns present in the sample aggregate CSVs (used in criterion inference).
+# Both corpora — the 776-record VR aggregate and the 463-record RSA aggregate —
+# carry this same 34-column header, byte for byte.
+#
+# Wave 17a: this list had drifted to 30, omitting the last four. Nothing
+# depended on the short list — all eight sample criteria infer an identical
+# rule under either, and `_validate_row` canonicalises targets identically,
+# because no `pick_col` candidate or target alias matches any of the four.
+# It is corrected rather than left because it is a hand-maintained mirror of a
+# real header and the fixture below calls it exactly that.
 AGGREGATE_COLUMNS = [
     "local_id", "source_key", "title", "authors", "first_author", "year",
     "doi", "pmid", "pmcid", "arxiv", "venue", "volume", "issue", "pages",
     "publisher", "lang", "url", "confidence", "status", "provenance",
     "last_checked", "parents", "abstract", "keywords", "open_access",
     "doc_type", "hit_openalex", "hit_crossref", "hit_semanticscholar",
-    "match_strategy",
+    "match_strategy", "winner_source", "field_sources",
+    "filled_by_source_counts", "resolver_notes",
 ]
 
 
@@ -168,7 +178,7 @@ os.environ["XDG_CONFIG_HOME"] = str(Path(_ISOLATED_SETTINGS) / "xdg")
 
 @pytest.fixture
 def ic_ec_text() -> str:
-    """Raw text of the sample ic_ec_12.txt criteria file."""
+    """Raw text of the sample 20260122_1654_sampleIcEc.txt criteria file."""
     return IC_EC_FILE.read_text(encoding="utf-8-sig")
 
 

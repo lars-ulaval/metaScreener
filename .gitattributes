@@ -145,3 +145,32 @@ docs/data/*.csv binary
 # `eol=crlfsamples/*.txt binary` — which sets text=unset, i.e. exactly the
 # `binary` inversion this comment exists to warn against. Measured.
 samples/20260122_1654_aggregate.csv text eol=crlf
+
+# The RSA corpus (wave 17a), pinned the same way and for the same reason as
+# the line above — but it needed a byte fix FIRST, and the order matters.
+#
+# As harvested it carried 464 CRLF row terminators, 12 CRLF *inside* quoted
+# abstracts, and 36 BARE LFs also inside quoted abstracts. That mix is
+# exactly what `* text=auto` normalises: the index would hold every newline
+# as LF, and a Windows checkout would convert all of them back to CRLF —
+# including the 36 that were never CRLF to begin with. The file came back
+# 36 bytes longer (857,600 -> 857,636) with a different sha256. Measured:
+# eb01aca5… on disk, 2c1e2e9b… in the index, e5bf3ab1… after checkout.
+#
+# `eol=crlf` alone does NOT fix that, and this is the trap worth naming:
+# the rule above works only because its file has ZERO bare LFs, so LF->CRLF
+# on checkout reproduces the original exactly. Copying the rule onto a file
+# with mixed terminators reproduces the bug. Measured both files both ways.
+#
+# So the 36 bare LFs were substituted (not deleted) with a single space,
+# in binary, with no CSV round-trip: eb01aca5… -> dcf9b9e5…, byte count
+# unchanged at 857,600 because the substitution is 1:1. Deletion was the
+# wrong move — 30 of the 36 sit between two non-space characters and would
+# have fused word pairs. The 12 intra-field CRLFs were left alone; they
+# round-trip correctly under this rule, being CRLF on both sides.
+#
+# With bare LFs at zero the file is now structurally identical to the
+# corpus above, and `eol=crlf` makes every platform check out the bytes
+# dcf9b9e5… names. No manifest pins this file yet — the rule exists so
+# that the first one to do so records a digest that survives a clone.
+samples/20260816_1841_rsaAggregate.csv text eol=crlf

@@ -11,7 +11,8 @@ It warns and never blocks, so nothing here asserts that anything raises.
 
 THE FIXTURES CERTIFY THEMSELVES. Every row these tests lint is produced by
 the real harmoniser path — `_parse_free_text_criteria` → `_infer_criterion_details`
-— over `samples/ic_ec_12.txt` against `samples/20260122_1654_aggregate.csv`, and
+— over `samples/20260122_1654_sampleIcEc.txt` against
+`samples/20260122_1654_aggregate.csv`, and
 `test_the_fixture_is_what_the_harmoniser_actually_emits` exports those rows and
 compares them byte-for-byte against `tests/golden/criteria_harmonized_v3.1.0.csv`.
 A hand-typed row that the harmoniser could never emit certifies nothing, and this
@@ -692,7 +693,7 @@ class TestItNeverRaises:
 
 
 # ---------------------------------------------------------------------------
-# A second, harder criteria file. The eight rows of `ic_ec_12.txt` are clean,
+# A second, harder criteria file. The eight rows of the sample are clean,
 # one-per-line, well-punctuated sentences — which `07_criteria_parsing.md` §7.1
 # notes are the OPPOSITE of the input this feature exists for. These eleven are
 # written to break the linter, and four of them did: they are the reason

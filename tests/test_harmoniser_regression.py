@@ -8,7 +8,8 @@ test_harmoniser_regression.py — Golden-file regression for Plugin 03.
 
 Drives the same engine functions that the Harmoniser tab's "Harmonise (no-LLM)"
 button calls, and asserts the rule emitted for each criterion of
-`samples/ic_ec_12.txt` — row by row, so a change shows WHICH rule moved.
+`samples/20260122_1654_sampleIcEc.txt` — row by row, so a change shows
+WHICH rule moved.
 
 Until wave 13d this asserted byte-identity against
 `tests/golden/criteria_harmonized_v3.1.0.csv`. Repairing F-166 and F-167 breaks
@@ -114,7 +115,7 @@ def _build_rows():
     return rows
 
 
-#: The rule the harmoniser emits for each criterion of `samples/ic_ec_12.txt`,
+#: The rule the harmoniser emits for each criterion of the sample criteria file,
 #: as (stage, operator, target, what). CHARACTERISATION: this records what the
 #: translator does TODAY, defects included, so wave 13d's repairs of F-166 and
 #: F-167 have to flip these entries in the open rather than silently.

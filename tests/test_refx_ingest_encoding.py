@@ -140,11 +140,12 @@ class TestEmptyResultIsReported:
 class TestShippedSampleIsReadable:
 
     def test_docs_samples_reference_list_decodes(self):
-        """samples/ex_ref_2.txt is the documented Plugin 02 input.
+        """samples/20260122_1654_sampleReferences.txt is the documented
+        Plugin 02 input (named ex_ref_2.txt until the wave-17a rename).
 
         It was cp1252 until F-56; this pins that the shipped sample can
         actually be read by the plugin it demonstrates.
         """
         from conftest import SAMPLES_DIR
-        raw = (SAMPLES_DIR / "ex_ref_2.txt").read_bytes()
+        raw = (SAMPLES_DIR / "20260122_1654_sampleReferences.txt").read_bytes()
         raw.decode("utf-8")  # must not raise

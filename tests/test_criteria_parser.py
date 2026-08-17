@@ -7,7 +7,7 @@
 test_criteria_parser.py — Tests for _parse_free_text_criteria() and
 _infer_criterion_details() from the Harmoniser plugin (Plugin 03).
 
-Uses the sample ic_ec_12.txt shipped in samples/.
+Uses the sample 20260122_1654_sampleIcEc.txt shipped in samples/.
 """
 import pytest
 from conftest import get_harmoniser
@@ -29,7 +29,7 @@ def _h():
 class TestParseFreeTextCriteria:
 
     def test_returns_eight_criteria(self, ic_ec_text):
-        """ic_ec_12.txt contains 4 IC + 4 EC = 8 criteria."""
+        """The sample criteria file contains 4 IC + 4 EC = 8 criteria."""
         result = _h()._parse_free_text_criteria(ic_ec_text)
         assert len(result) == 8
 
