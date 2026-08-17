@@ -37,7 +37,7 @@
     {
       "key": "arm0_baseline",
       "kind": "free_text",
-      "source": "samples/ic_ec_12.txt",
+      "source": "samples/20260122_1654_sampleIcEc.txt",
       "pin": {
         "chain": {
           "input": 776,
