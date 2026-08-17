@@ -1,0 +1,9 @@
+IC-31 – The publication year is 2015 or later.
+IC-32 – The paper is written in English.
+IC-33 – The study population consists of children or adolescents rather than adults.
+
+EC-34 – The paper is written in German.
+EC-35 – The publication year is before 1990.
+EC-36 – The record has no DOI.
+EC-37 – The publication type is a conference paper.
+EC-38 – The paper is primarily a review or meta-analysis rather than an empirical study.

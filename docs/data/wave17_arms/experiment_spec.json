@@ -1,0 +1,642 @@
+{
+  "spec_version": 1,
+  "authored": "2026-08-16 (wave 17b); intents recorded BEFORE any dry run. The deterministic half of each intent was established by running the real translator, loader and evaluator during authoring — no LLM calls — so `intended_stage` / `intended_operator` / `intended_target` are measured predictions, not guesses; what the dry run tests is the harness and the EL/IL half, which nothing here has exercised.",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "batch_sizes_reported": [
+    5,
+    1
+  ],
+  "call_ceiling_total": 900,
+  "expected_endpoint": "http://localhost:11434/v1",
+  "llm_target_policy": "Every `harmonized_csv` arm pins its llm rows to `title,abstract,keywords`. The four `free_text` arms CANNOT: `tools/run_criteria_experiment.py::translate_free_text` computes the target from `_get_best_text_targets` and accepts no override, and `load_spec` reads no such field, so a spec key would be inert without a code change. Their llm rows therefore target `title` alone on this corpus (F-227), which is recorded in each intent's `intended_target` as a registered variable rather than a hidden one. h0 must stay free_text and unmodified to be an anchor at all.",
+  "live_defaults": {
+    "temperature": 0.0,
+    "use_cache": false,
+    "model": {
+      "EL": "qwen2.5:7b",
+      "IL": "qwen2.5:7b"
+    },
+    "batch_size": {
+      "EL": 5,
+      "IL": 5
+    }
+  },
+  "arms": [
+    {
+      "key": "h0_baseline",
+      "kind": "free_text",
+      "source": "samples/20260816_1841_rsaSampleIcEc.txt",
+      "source_sha256": "62e59ab8d8f25a430c85135ff643fce54e483eef565e9f4bcac1cd207ef5c9cc",
+      "intents": [
+        {
+          "id": "IC-1",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "semantic; falls through all six branches to the llm default. TARGET IS `title` ALONE — F-227, registered not hidden: this arm is the anchor and must show what the product actually does."
+        },
+        {
+          "id": "IC-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "branch 1 (language), single operand English"
+        },
+        {
+          "id": "IC-4",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "branch 6 (keyword-in-text), post-F-65 routing to IH"
+        },
+        {
+          "id": "IC-5",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "branch 6 again; ANDed with IC-4 at IH, which is what leaves 32"
+        },
+        {
+          "id": "EC-1",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "branch 1; INERT until F-212 was fixed this wave, now cuts its 12 `pt` records at EH"
+        },
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "semantic; llm default at EL, target `title` alone (F-227)"
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "semantic; llm default at EL, target `title` alone (F-227)"
+        },
+        {
+          "id": "EC-4",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "venue",
+          "rationale": "branch 4 (venue) with quoted operands, post-F-166"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "pin": {
+        "chain": {
+          "input": 463,
+          "eh_out": 40,
+          "eh_surv": 423,
+          "ih_out": 391,
+          "ih_surv": 32
+        },
+        "ih_impacts": {
+          "IC-3": {
+            "met": 423,
+            "failed": 0
+          },
+          "IC-4": {
+            "met": 149,
+            "failed": 274
+          },
+          "IC-5": {
+            "met": 112,
+            "failed": 311
+          }
+        },
+        "eh_impacts": {
+          "EC-1": {
+            "met": 451,
+            "failed": 12
+          },
+          "EC-4": {
+            "met": 398,
+            "failed": 28
+          }
+        }
+      }
+    },
+    {
+      "key": "h1_paraphrase",
+      "kind": "free_text",
+      "source": "docs/data/wave17_arms/h1_paraphrase.txt",
+      "source_sha256": "8ea360e5a06a6f4cbc26815e2ff7a18bb1f97c3c5a403935a513f41e41dd3bda",
+      "intents": [
+        {
+          "id": "IC-1",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "reworded; must still reach the llm default at IL"
+        },
+        {
+          "id": "IC-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "reworded; branch 1 must still fire"
+        },
+        {
+          "id": "IC-4",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "reworded to 'Either the title, the abstract, or the keywords'; branch 6 must still fire with the same three operands"
+        },
+        {
+          "id": "IC-5",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "reworded likewise; same operands"
+        },
+        {
+          "id": "EC-1",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "reworded; branch 1, now live post-F-212"
+        },
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "reworded; llm at EL"
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "reworded; llm at EL"
+        },
+        {
+          "id": "EC-4",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "venue",
+          "rationale": "reworded venue phrasing; quoted operands must survive"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 40,
+        "eh_surv": 423,
+        "ih_out": 391,
+        "ih_surv": 32
+      }
+    },
+    {
+      "key": "h2_polarity",
+      "kind": "free_text",
+      "source": "docs/data/wave17_arms/h2_polarity.txt",
+      "source_sha256": "69d0b28c59b6eba6ccf0717a9c313f12a71dec60ae454f8cc210ffdc3c30f5f0",
+      "intents": [
+        {
+          "id": "IC-21",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "inversion of h0's EC-2; llm at IL"
+        },
+        {
+          "id": "IC-22",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "inversion of h0's EC-3; llm at IL"
+        },
+        {
+          "id": "IC-26",
+          "intended_stage": "IH",
+          "intended_operator": "in_list",
+          "intended_target": "lang",
+          "rationale": "inversion of h0's EC-1. HAZARD REGISTERED PRE-RUN: 'written in a language other than Portuguese' makes branch 1's free-capture take `in a` and emit in_list lang ['A','Portuguese'] — a spurious operand the linter does not flag. Expected to cut 0."
+        },
+        {
+          "id": "EC-23",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "inversion of h0's IC-1; llm at EL"
+        },
+        {
+          "id": "EC-24",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "inversion of h0's IC-5. HAZARD REGISTERED PRE-RUN: the comma-and-or tail is taken WHOLE, so branch 6 emits one operand 'emotion, dysregulation, child, adolescent, youth or infant' rather than six. Expected to cut ~0."
+        },
+        {
+          "id": "EC-28",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "inversion of h0's IC-1 by a different route; llm at EL"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 2,
+        "eh_surv": 461,
+        "ih_out": 449,
+        "ih_surv": 12
+      }
+    },
+    {
+      "key": "h3_stage_stress",
+      "kind": "free_text",
+      "source": "docs/data/wave17_arms/h3_stage_stress.txt",
+      "source_sha256": "941b1e9b342cc8aaab607836b14340c19de9fc2d54634e29ff945af942ae3096",
+      "intents": [
+        {
+          "id": "IC-31",
+          "intended_stage": "IH",
+          "intended_operator": "gte",
+          "intended_target": "year",
+          "rationale": "BRANCH 2 (year), gte — unexercised by h0 and the reason this arm exists"
+        },
+        {
+          "id": "IC-32",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "branch 1, English"
+        },
+        {
+          "id": "IC-33",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "semantic; llm at IL"
+        },
+        {
+          "id": "EC-34",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "branch 1 with German — post-F-212 this now maps to `de`; the corpus holds no `de`, so a correct 0 rather than an inert 0. The distinction F-229 is about."
+        },
+        {
+          "id": "EC-35",
+          "intended_stage": "EH",
+          "intended_operator": "lte",
+          "intended_target": "year",
+          "rationale": "BRANCH 2 the other way, lte"
+        },
+        {
+          "id": "EC-36",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "doi",
+          "rationale": "branch 5 (DOI). Expected UNKNOWN for every record, not FAILED — equals '' against a populated column."
+        },
+        {
+          "id": "EC-37",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "doc_type",
+          "rationale": "branch 3 (doc_type)"
+        },
+        {
+          "id": "EC-38",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "semantic; llm at EL"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 65,
+        "eh_surv": 398,
+        "ih_out": 282,
+        "ih_surv": 116
+      }
+    },
+    {
+      "key": "h4_edge_shapes",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave17_arms/h4_edge_shapes.csv",
+      "source_sha256": "d8f8d481cc3171440cf8cb02873e281b98fcb9985d24a240050ef091e46d2f8a",
+      "intents": [
+        {
+          "id": "H4-1",
+          "intended_stage": "IH",
+          "intended_operator": "between",
+          "intended_target": "year",
+          "rationale": "between bounds — the translator can never emit this from prose"
+        },
+        {
+          "id": "H4-2",
+          "intended_stage": "EH",
+          "intended_operator": "in_list",
+          "intended_target": "lang",
+          "rationale": "in_list exactness on ISO codes"
+        },
+        {
+          "id": "H4-3",
+          "intended_stage": "IH",
+          "intended_operator": "not_in",
+          "intended_target": "doi",
+          "rationale": "not_in with an empty operand; expected UNKNOWN for all, i.e. PASS_FLAGGED"
+        },
+        {
+          "id": "H4-4",
+          "intended_stage": "EH",
+          "intended_operator": "regex",
+          "intended_target": "title",
+          "rationale": "regex, the other unreachable operator. Moved to EH/exclude during authoring: as IH/include it failed all 451 and wiped the arm before EL/IL ran."
+        },
+        {
+          "id": "H4-5",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "thin `what` — 6 normalised chars, under F-21's 20-char substance floor"
+        },
+        {
+          "id": "H4-6",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "absence-phrased exclusion; verdict_gate RULE_REMOVES_BY_ABSENCE, never auto-acted"
+        },
+        {
+          "id": "H4-7",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "long prose near the 1500-char truncation bound"
+        },
+        {
+          "id": "H4-8",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "threshold 1.00, the upper bound"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 12,
+        "eh_surv": 451,
+        "ih_out": 131,
+        "ih_surv": 320
+      }
+    },
+    {
+      "key": "h5_adversarial",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave17_arms/h5_adversarial.csv",
+      "source_sha256": "72ca9c2d3efbe6cbb1c6e9801dc39a403101c4f80fcc6e6b8db7bbbcf4497442",
+      "intents": [
+        {
+          "id": "H5-1",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "curly quotes, em dash, doubled quotes, accents, checkmark — CSV and unicode hazards in one cell"
+        },
+        {
+          "id": "H5-2",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "an operand containing a comma, inside a comma-delimited target cell"
+        },
+        {
+          "id": "H5-3",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "venue",
+          "rationale": "semicolon is the operand separator: two operands, not one"
+        },
+        {
+          "id": "H5-4",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "a wholly Cyrillic criterion; the corpus carries 40 Cyrillic characters"
+        },
+        {
+          "id": "H5-5",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "a U+00A0 non-breaking space inside the label, invisible in every viewer"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 23,
+        "eh_surv": 440,
+        "ih_out": 411,
+        "ih_surv": 29
+      }
+    },
+    {
+      "key": "h6_no_abstract",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave17_arms/h6_no_abstract.csv",
+      "source_sha256": "8196b451f3b49aaccbe4e7851e6530f05a9b638eb773170c862ad944cc2b3dae",
+      "intents": [
+        {
+          "id": "H6-1",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,keywords",
+          "rationale": "deliberately omits `abstract` from the deterministic gate so abstract-less records survive to EL/IL"
+        },
+        {
+          "id": "H6-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "asks about abstract CONTENT; 119 of 463 records have no abstract at all"
+        },
+        {
+          "id": "H6-3",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "inclusion resting on abstract content; absence must route to UNCERTAIN, never to a removal"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 0,
+        "eh_surv": 463,
+        "ih_out": 324,
+        "ih_surv": 139
+      }
+    },
+    {
+      "key": "h7_loose",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave17_arms/h7_loose.csv",
+      "source_sha256": "893b66e9c4194ad2b3b9e894487a1dd1283973a708e1b8f86176e34343a1fee5",
+      "intents": [
+        {
+          "id": "H7-1",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "h0's EC-1 unchanged"
+        },
+        {
+          "id": "H7-2",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "venue",
+          "rationale": "h0's EC-4 unchanged"
+        },
+        {
+          "id": "H7-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "h0's IC-3 unchanged"
+        },
+        {
+          "id": "H7-4",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-4 unchanged — IC-5 is the ONLY relaxation, so every admitted record is attributable to it"
+        },
+        {
+          "id": "H7-5",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's EC-2, target pinned to the full evidence set"
+        },
+        {
+          "id": "H7-6",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's EC-3, target pinned"
+        },
+        {
+          "id": "H7-7",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-1, target pinned; the criterion the admitted noise must be screened by"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 40,
+        "eh_surv": 423,
+        "ih_out": 274,
+        "ih_surv": 149
+      }
+    }
+  ]
+}

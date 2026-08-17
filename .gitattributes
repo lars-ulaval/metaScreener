@@ -174,3 +174,21 @@ samples/20260122_1654_aggregate.csv text eol=crlf
 # dcf9b9e5… names. No manifest pins this file yet — the rule exists so
 # that the first one to do so records a digest that survives a clone.
 samples/20260816_1841_rsaAggregate.csv text eol=crlf
+# Wave 17b's experiment arms. `experiment_spec.json` records a `source_sha256`
+# for every arm, and a recorded digest is a promise about bytes (F-224) — so the
+# bytes have to survive checkout unchanged or the promise is platform-dependent.
+#
+# `eol=crlf` rather than `binary`, and the direction matters here for the same
+# reason it does for the corpus rule above: the digests were computed from the
+# working-tree form, which is CRLF, so pinning the index bytes (LF) would invert
+# the failure rather than remove it. Every arm file is pure-CRLF with zero bare
+# LFs, so the round trip is exact.
+#
+# MEASURED, and the reason this rule exists at all: wave16_arms has no such rule
+# and 7 of its 8 recorded `source_sha256` values are the LF form, so they do not
+# match a Windows checkout today. Nothing reads them at test time, so it is
+# silent — but it is the same defect, one directory over, and this rule is what
+# stops wave 17 shipping it too.
+docs/data/wave17_arms/*.txt text eol=crlf
+docs/data/wave17_arms/*.csv text eol=crlf
+docs/data/wave17_arms/*.json text eol=crlf

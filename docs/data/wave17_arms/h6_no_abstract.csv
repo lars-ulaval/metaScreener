@@ -1,0 +1,4 @@
+stage,id,type,scope,label,operator,target,what,threshold,enabled,source_text
+IH,H6-1,include,metadata,The title or keywords mention respiratory sinus arrhythmia OR vagal OR heart rate variability.,contains,"title,keywords",respiratory sinus arrhythmia;vagal;heart rate variability,,1,"H6-1 - deliberately EXCLUDES abstract from the deterministic gate, so abstract-less records survive to EL/IL"
+EL,H6-2,exclude,metadata,The abstract states that no human participants took part.,llm,"title,abstract,keywords",The abstract states that no human participants took part.,0.60,1,H6-2 - asks about abstract CONTENT; 119 of 463 records have no abstract at all
+IL,H6-3,include,metadata,The abstract describes an emotion-regulation or self-regulation outcome.,llm,"title,abstract,keywords",The abstract describes an emotion-regulation or self-regulation outcome.,0.60,1,"H6-3 - inclusion resting on abstract content; absence should route to UNCERTAIN, never to a removal"

@@ -1,0 +1,7 @@
+IC-21 – The paper's primary focus is something other than a numerical or computational method without human participants.
+IC-22 – The paper's main topic is not clinical arrhythmia diagnosis.
+IC-26 – The paper was written in a language other than Portuguese.
+
+EC-23 – The paper does not report respiratory sinus arrhythmia or any vagally-mediated heart rate variability measure.
+EC-24 – The title, abstract, and keywords fail to mention emotion, dysregulation, child, adolescent, youth or infant.
+EC-28 – The study uses no index of cardiac vagal tone of any kind.
