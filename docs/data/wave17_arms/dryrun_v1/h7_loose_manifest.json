@@ -1,0 +1,430 @@
+{
+  "arm": "h7_loose",
+  "kind": "harmonized_csv",
+  "source": "docs/data/wave17_arms/h7_loose.csv",
+  "source_sha256": "75b303baf2ed7cd230da89c39248574213f1969564611da2d9644d4aeb07288e",
+  "harmonized_sha256": "e21b07add4c7c69effe9459bc97adcea23b4315b24c87206ed1c7ba3edddf83f",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "EH",
+      "id": "H7-1",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "Portuguese"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "H7-2",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "venue",
+      "what": [
+        "Physical Review",
+        "Physics Letters",
+        "Bifurcation and Chaos"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "H7-3",
+      "type": "include",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "English"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "H7-4",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "signal",
+        "dynamics",
+        "variability"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "H7-5",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper's primary focus is a numerical or computational method with no human participants."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "H7-6",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper's primary focus is clinical arrhythmia diagnosis rather than psychological function."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "H7-7",
+      "type": "include",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper reports respiratory sinus arrhythmia OR vagally-mediated heart rate variability as an index of emotion regulation or self-regulation."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "H7-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "H7-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "H7-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "H7-4": {
+      "errors": [],
+      "warnings": []
+    },
+    "H7-5": {
+      "errors": [],
+      "warnings": []
+    },
+    "H7-6": {
+      "errors": [],
+      "warnings": []
+    },
+    "H7-7": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "H7-1",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "H7-2",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "H7-3",
+          "operator": "equals",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "H7-4",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "H7-5",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "H7-6",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "H7-7",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "H7-1",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "h0's EC-1 unchanged; removes its 12 pt records at EH"
+    },
+    {
+      "id": "H7-2",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "h0's EC-4 unchanged; removes 28 off-topic records at EH"
+    },
+    {
+      "id": "H7-3",
+      "intended_stage": "IH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "h0's IC-3 unchanged; removes 0 further, the pt records having already gone at EH"
+    },
+    {
+      "id": "H7-4",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "REPLACES h0's IC-4 rather than relaxing IC-5. Measured: relaxing IC-5 admits 117 records of which exactly ONE is off-topic, because IC-4 is the gate doing the topical work and cannot be bypassed from the other side (F-231). A methodological gate \u2014 signal OR dynamics OR variability \u2014 is the only thing that admits the X002/X012 mass: 189 survivors, 47 off-topic, 24.9%."
+    },
+    {
+      "id": "H7-5",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "h0's EC-2, target pinned; the criterion that should reject the X012 computational-methods mass"
+    },
+    {
+      "id": "H7-6",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "h0's EC-3, target pinned"
+    },
+    {
+      "id": "H7-7",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "h0's IC-1, target pinned; the criterion that must reject what H7-4 deliberately let in"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 40,
+      "survivors": 423,
+      "pass_flagged": 33,
+      "impacts": {
+        "H7-1": {
+          "failed": 12,
+          "missing": 0,
+          "met": 451,
+          "unknown": 0
+        },
+        "H7-2": {
+          "failed": 28,
+          "missing": 37,
+          "met": 398,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 234,
+      "survivors": 189,
+      "pass_flagged": 0,
+      "impacts": {
+        "H7-3": {
+          "failed": 0,
+          "missing": 0,
+          "met": 423,
+          "unknown": 0
+        },
+        "H7-4": {
+          "failed": 234,
+          "missing": 0,
+          "met": 189,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 189,
+    "records_at_il": 189,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "H7-5",
+        "H7-6"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H7-5": {
+              "ok": true,
+              "worst_estimate": 2259,
+              "reserve": 400,
+              "n_batches": 38,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "H7-6": {
+              "ok": true,
+              "worst_estimate": 2260,
+              "reserve": 400,
+              "n_batches": 38,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H7-5": {
+              "ok": true,
+              "worst_estimate": 679,
+              "reserve": 80,
+              "n_batches": 189,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "H7-6": {
+              "ok": true,
+              "worst_estimate": 680,
+              "reserve": 80,
+              "n_batches": 189,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "H7-7"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H7-7": {
+              "ok": true,
+              "worst_estimate": 2282,
+              "reserve": 400,
+              "n_batches": 38,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H7-7": {
+              "ok": true,
+              "worst_estimate": 701,
+              "reserve": 80,
+              "n_batches": 189,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 76,
+      "IL": 38,
+      "total": 114,
+      "wall_clock_s_est": 1003.2
+    },
+    "batch1": {
+      "EL": 378,
+      "IL": 189,
+      "total": 567,
+      "wall_clock_s_est": 1967.1
+    }
+  }
+}

@@ -1,0 +1,485 @@
+{
+  "arm": "h4_edge_shapes",
+  "kind": "harmonized_csv",
+  "source": "docs/data/wave17_arms/h4_edge_shapes.csv",
+  "source_sha256": "d8f8d481cc3171440cf8cb02873e281b98fcb9985d24a240050ef091e46d2f8a",
+  "harmonized_sha256": "155557f44eb53869cc2d3cae9aa7ad14c541179db20f49468f7a3cf9c776966a",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IH",
+      "id": "H4-1",
+      "type": "include",
+      "operator": "between",
+      "target": "year",
+      "what": [
+        "2000",
+        "2020"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "H4-2",
+      "type": "exclude",
+      "operator": "in_list",
+      "target": "lang",
+      "what": [
+        "pt",
+        "de"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "H4-3",
+      "type": "include",
+      "operator": "not_in",
+      "target": "doi",
+      "what": [],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "H4-4",
+      "type": "exclude",
+      "operator": "regex",
+      "target": "title",
+      "what": [
+        "\\(\\d{4}\\)"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "H4-5",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "Noise."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "H4-6",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The abstract does not mention any measure of cardiac vagal tone."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "H4-7",
+      "type": "include",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper's contribution is a purely instrumental recording of cardiac interbeat intervals in which no psychological construct is measured, modelled or interpreted \u2014 a determination that must hold across every one of the following study families the reviewers enumerated at protocol registration, namely the resting-baseline laboratory family with its seated and supine conditions and its paced-breathing controls, the cognitive-load family with its n-back and arithmetic stressors and its paced-breathing controls, the social-stress family with its speech and evaluative-audience tasks and its paced-breathing controls, the emotion-induction family with its film and imagery inductions and its paced-breathing controls, the dyadic-interaction family with its parent-child and peer conditions and its paced-breathing controls, the clinical-comparison family with its patient and matched-control arms and its paced-breathing controls, the developmental-cohort family with its infant, child and adolescent strata and its paced-breathing controls, the ambulatory-monitoring family with its daytime and nocturnal windows and its paced-breathing controls, the intervention family with its biofeedback and mindfulness arms and its paced-breathing controls, and the psychometric-validation family with its test-retest and cross-instrument designs and its paced-breathing controls \u2014 and the exclusion applies only when the paper belongs to none of them."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "H4-8",
+      "type": "include",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The study measures a psychological construct."
+      ],
+      "threshold": "1.00",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "H4-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-4": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-5": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-6": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-7": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-8": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [
+    {
+      "criterion_id": "H4-3",
+      "check": "dropped-operand",
+      "severity": "MISTRANSLATED",
+      "message": "H4-3 offers 1 alternatives but the rule carries only 0: nothing. The rest of the sentence will not be applied to any record."
+    }
+  ],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "H4-2",
+          "operator": "in_list",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "H4-4",
+          "operator": "regex",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "H4-1",
+          "operator": "between",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "H4-3",
+          "operator": "not_in",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "H4-5",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "H4-6",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "H4-7",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "H4-8",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "H4-1",
+      "intended_stage": "IH",
+      "intended_operator": "between",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "between"
+      ],
+      "match": true,
+      "rationale": "between bounds \u2014 the translator can never emit this from prose"
+    },
+    {
+      "id": "H4-2",
+      "intended_stage": "EH",
+      "intended_operator": "in_list",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "in_list"
+      ],
+      "match": true,
+      "rationale": "in_list exactness on ISO codes"
+    },
+    {
+      "id": "H4-3",
+      "intended_stage": "IH",
+      "intended_operator": "not_in",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "not_in"
+      ],
+      "match": true,
+      "rationale": "not_in with an empty operand; expected UNKNOWN for all, i.e. PASS_FLAGGED"
+    },
+    {
+      "id": "H4-4",
+      "intended_stage": "EH",
+      "intended_operator": "regex",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "regex"
+      ],
+      "match": true,
+      "rationale": "regex, the other unreachable operator. Moved to EH/exclude during authoring: as IH/include it failed all 451 and wiped the arm before EL/IL ran."
+    },
+    {
+      "id": "H4-5",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "thin `what` \u2014 6 normalised chars, under F-21's 20-char substance floor"
+    },
+    {
+      "id": "H4-6",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "absence-phrased exclusion; verdict_gate RULE_REMOVES_BY_ABSENCE, never auto-acted"
+    },
+    {
+      "id": "H4-7",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "long prose near the 1500-char truncation bound"
+    },
+    {
+      "id": "H4-8",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "threshold 1.00, the upper bound"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 12,
+      "survivors": 451,
+      "pass_flagged": 0,
+      "impacts": {
+        "H4-2": {
+          "failed": 12,
+          "missing": 0,
+          "met": 451,
+          "unknown": 0
+        },
+        "H4-4": {
+          "failed": 0,
+          "missing": 0,
+          "met": 463,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 131,
+      "survivors": 320,
+      "pass_flagged": 320,
+      "impacts": {
+        "H4-1": {
+          "failed": 131,
+          "missing": 1,
+          "met": 319,
+          "unknown": 0
+        },
+        "H4-3": {
+          "failed": 0,
+          "missing": 0,
+          "met": 0,
+          "unknown": 451
+        }
+      }
+    },
+    "records_at_el": 320,
+    "records_at_il": 320,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "H4-5",
+        "H4-6"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H4-5": {
+              "ok": true,
+              "worst_estimate": 2142,
+              "reserve": 400,
+              "n_batches": 64,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "H4-6": {
+              "ok": true,
+              "worst_estimate": 2168,
+              "reserve": 400,
+              "n_batches": 64,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H4-5": {
+              "ok": true,
+              "worst_estimate": 645,
+              "reserve": 80,
+              "n_batches": 320,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "H4-6": {
+              "ok": true,
+              "worst_estimate": 671,
+              "reserve": 80,
+              "n_batches": 320,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "H4-7",
+        "H4-8"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H4-7": {
+              "ok": true,
+              "worst_estimate": 2782,
+              "reserve": 400,
+              "n_batches": 64,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "H4-8": {
+              "ok": true,
+              "worst_estimate": 2159,
+              "reserve": 400,
+              "n_batches": 64,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H4-7": {
+              "ok": true,
+              "worst_estimate": 1285,
+              "reserve": 80,
+              "n_batches": 320,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "H4-8": {
+              "ok": true,
+              "worst_estimate": 663,
+              "reserve": 80,
+              "n_batches": 320,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 128,
+      "IL": 128,
+      "total": 256,
+      "wall_clock_s_est": 2252.8
+    },
+    "batch1": {
+      "EL": 640,
+      "IL": 640,
+      "total": 1280,
+      "wall_clock_s_est": 4440.8
+    }
+  }
+}

@@ -1,0 +1,489 @@
+{
+  "arm": "h1_paraphrase",
+  "kind": "free_text",
+  "source": "docs/data/wave17_arms/h1_paraphrase.txt",
+  "source_sha256": "8ea360e5a06a6f4cbc26815e2ff7a18bb1f97c3c5a403935a513f41e41dd3bda",
+  "harmonized_sha256": "b6794a9a4f6050d4ffe62fc24bc3b65334f79f11c824d6460881be14109a1b10",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IL",
+      "id": "IC-1",
+      "type": "include",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The study reports respiratory sinus arrhythmia, or vagally-mediated heart rate variability, as a marker of emotion regulation or self-regulation."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-3",
+      "type": "include",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "English"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-4",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "respiratory sinus arrhythmia",
+        "vagal",
+        "heart rate variability"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-5",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "emotion",
+        "dysregulation",
+        "child",
+        "adolescent",
+        "youth",
+        "infant"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-1",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "Portuguese"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-2",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The article is chiefly a numerical or computational method paper with no human participants."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-3",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The article is chiefly about diagnosing clinical arrhythmia rather than about psychological function."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-4",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "venue",
+      "what": [
+        "Physical Review",
+        "Physics Letters",
+        "Bifurcation and Chaos"
+      ],
+      "threshold": "",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "IC-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-4": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-5": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-4": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [
+    {
+      "criterion_id": "IC-4",
+      "check": "dropped-operand",
+      "severity": "MISTRANSLATED",
+      "message": "IC-4 offers 4 alternatives but the rule carries only 3: \"respiratory sinus arrhythmia\", \"vagal\", \"heart rate variability\". The rest of the sentence will not be applied to any record."
+    },
+    {
+      "criterion_id": "IC-5",
+      "check": "dropped-operand",
+      "severity": "MISTRANSLATED",
+      "message": "IC-5 offers 7 alternatives but the rule carries only 6: \"emotion\", \"dysregulation\", \"child\", \"adolescent\", \"youth\", \"infant\". The rest of the sentence will not be applied to any record."
+    }
+  ],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "EC-1",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-4",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "IC-3",
+          "operator": "equals",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-4",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-5",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "EC-2",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-3",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "IC-1",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "IC-1",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "reworded; must still reach the llm default at IL"
+    },
+    {
+      "id": "IC-3",
+      "intended_stage": "IH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "reworded; branch 1 must still fire"
+    },
+    {
+      "id": "IC-4",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "reworded to 'Either the title, the abstract, or the keywords'; branch 6 must still fire with the same three operands"
+    },
+    {
+      "id": "IC-5",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "reworded likewise; same operands"
+    },
+    {
+      "id": "EC-1",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "reworded; branch 1, now live post-F-212"
+    },
+    {
+      "id": "EC-2",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "reworded; llm at EL"
+    },
+    {
+      "id": "EC-3",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "reworded; llm at EL"
+    },
+    {
+      "id": "EC-4",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "reworded venue phrasing; quoted operands must survive"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 40,
+      "survivors": 423,
+      "pass_flagged": 33,
+      "impacts": {
+        "EC-1": {
+          "failed": 12,
+          "missing": 0,
+          "met": 451,
+          "unknown": 0
+        },
+        "EC-4": {
+          "failed": 28,
+          "missing": 37,
+          "met": 398,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 391,
+      "survivors": 32,
+      "pass_flagged": 0,
+      "impacts": {
+        "IC-3": {
+          "failed": 0,
+          "missing": 0,
+          "met": 423,
+          "unknown": 0
+        },
+        "IC-4": {
+          "failed": 274,
+          "missing": 0,
+          "met": 149,
+          "unknown": 0
+        },
+        "IC-5": {
+          "failed": 311,
+          "missing": 0,
+          "met": 112,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 32,
+    "records_at_il": 32,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-2",
+        "EC-3"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 2219,
+              "reserve": 400,
+              "n_batches": 7,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 2223,
+              "reserve": 400,
+              "n_batches": 7,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 675,
+              "reserve": 80,
+              "n_batches": 32,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 679,
+              "reserve": 80,
+              "n_batches": 32,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "IC-1"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "IC-1": {
+              "ok": true,
+              "worst_estimate": 2243,
+              "reserve": 400,
+              "n_batches": 7,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "IC-1": {
+              "ok": true,
+              "worst_estimate": 698,
+              "reserve": 80,
+              "n_batches": 32,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 14,
+      "IL": 7,
+      "total": 21,
+      "wall_clock_s_est": 184.8
+    },
+    "batch1": {
+      "EL": 64,
+      "IL": 32,
+      "total": 96,
+      "wall_clock_s_est": 333.1
+    }
+  }
+}

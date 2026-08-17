@@ -1,0 +1,493 @@
+{
+  "arm": "h0_baseline",
+  "kind": "free_text",
+  "source": "samples/20260816_1841_rsaSampleIcEc.txt",
+  "source_sha256": "62e59ab8d8f25a430c85135ff643fce54e483eef565e9f4bcac1cd207ef5c9cc",
+  "harmonized_sha256": "e4640ac4c08bb80796fc0248d8bd344baefd50407a49d21faeffcfcaa8045b25",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IL",
+      "id": "IC-1",
+      "type": "include",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The paper reports respiratory sinus arrhythmia OR vagally-mediated heart rate variability as an index of emotion regulation or self-regulation."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-3",
+      "type": "include",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "English"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-4",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "respiratory sinus arrhythmia",
+        "vagal",
+        "heart rate variability"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-5",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "emotion",
+        "dysregulation",
+        "child",
+        "adolescent",
+        "youth",
+        "infant"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-1",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "Portuguese"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-2",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The paper's primary focus is a numerical or computational method with no human participants."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-3",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The paper's primary focus is clinical arrhythmia diagnosis rather than psychological function."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-4",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "venue",
+      "what": [
+        "Physical Review",
+        "Physics Letters",
+        "Bifurcation and Chaos"
+      ],
+      "threshold": "",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "IC-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-4": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-5": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-4": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "EC-1",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-4",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "IC-3",
+          "operator": "equals",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-4",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-5",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "EC-2",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-3",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "IC-1",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "IC-1",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic; falls through all six branches to the llm default. TARGET IS `title` ALONE \u2014 F-227, registered not hidden: this arm is the anchor and must show what the product actually does."
+    },
+    {
+      "id": "IC-3",
+      "intended_stage": "IH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 1 (language), single operand English"
+    },
+    {
+      "id": "IC-4",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "branch 6 (keyword-in-text), post-F-65 routing to IH"
+    },
+    {
+      "id": "IC-5",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "branch 6 again; ANDed with IC-4 at IH, which is what leaves 32"
+    },
+    {
+      "id": "EC-1",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 1; INERT until F-212 was fixed this wave, now cuts its 12 `pt` records at EH"
+    },
+    {
+      "id": "EC-2",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic; llm default at EL, target `title` alone (F-227)"
+    },
+    {
+      "id": "EC-3",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic; llm default at EL, target `title` alone (F-227)"
+    },
+    {
+      "id": "EC-4",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "branch 4 (venue) with quoted operands, post-F-166"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 40,
+      "survivors": 423,
+      "pass_flagged": 33,
+      "impacts": {
+        "EC-1": {
+          "failed": 12,
+          "missing": 0,
+          "met": 451,
+          "unknown": 0
+        },
+        "EC-4": {
+          "failed": 28,
+          "missing": 37,
+          "met": 398,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 391,
+      "survivors": 32,
+      "pass_flagged": 0,
+      "impacts": {
+        "IC-3": {
+          "failed": 0,
+          "missing": 0,
+          "met": 423,
+          "unknown": 0
+        },
+        "IC-4": {
+          "failed": 274,
+          "missing": 0,
+          "met": 149,
+          "unknown": 0
+        },
+        "IC-5": {
+          "failed": 311,
+          "missing": 0,
+          "met": 112,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 32,
+    "records_at_il": 32,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-2",
+        "EC-3"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 2219,
+              "reserve": 400,
+              "n_batches": 7,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 2220,
+              "reserve": 400,
+              "n_batches": 7,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-2": {
+              "ok": true,
+              "worst_estimate": 675,
+              "reserve": 80,
+              "n_batches": 32,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "EC-3": {
+              "ok": true,
+              "worst_estimate": 676,
+              "reserve": 80,
+              "n_batches": 32,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "IC-1"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "IC-1": {
+              "ok": true,
+              "worst_estimate": 2242,
+              "reserve": 400,
+              "n_batches": 7,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "IC-1": {
+              "ok": true,
+              "worst_estimate": 697,
+              "reserve": 80,
+              "n_batches": 32,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 14,
+      "IL": 7,
+      "total": 21,
+      "wall_clock_s_est": 184.8
+    },
+    "batch1": {
+      "EL": 64,
+      "IL": 32,
+      "total": 96,
+      "wall_clock_s_est": 333.1
+    }
+  },
+  "pin_check": {
+    "want": {
+      "input": 463,
+      "eh_out": 40,
+      "eh_surv": 423,
+      "ih_out": 391,
+      "ih_surv": 32
+    },
+    "got": {
+      "input": 463,
+      "eh_out": 40,
+      "eh_surv": 423,
+      "ih_out": 391,
+      "ih_surv": 32
+    },
+    "ok": true
+  }
+}

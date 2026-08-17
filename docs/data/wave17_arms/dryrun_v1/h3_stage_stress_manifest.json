@@ -1,0 +1,463 @@
+{
+  "arm": "h3_stage_stress",
+  "kind": "free_text",
+  "source": "docs/data/wave17_arms/h3_stage_stress.txt",
+  "source_sha256": "941b1e9b342cc8aaab607836b14340c19de9fc2d54634e29ff945af942ae3096",
+  "harmonized_sha256": "dbd4544f6192577eb572f8d8486db9ab9fcf720dc86814a5902a7f16d4f3808a",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IH",
+      "id": "IC-31",
+      "type": "include",
+      "operator": "gte",
+      "target": "year",
+      "what": [
+        "2015"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "IC-32",
+      "type": "include",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "English"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "IC-33",
+      "type": "include",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The study population consists of children or adolescents rather than adults."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-34",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "lang",
+      "what": [
+        "German"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-35",
+      "type": "exclude",
+      "operator": "lte",
+      "target": "year",
+      "what": [
+        "1990"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-36",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "doi",
+      "what": [
+        ""
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "EC-37",
+      "type": "exclude",
+      "operator": "equals",
+      "target": "doc_type",
+      "what": [
+        "conference"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "EC-38",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title",
+      "what": [
+        "The paper is primarily a review or meta-analysis rather than an empirical study."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "IC-31": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-32": {
+      "errors": [],
+      "warnings": []
+    },
+    "IC-33": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-34": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-35": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-36": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-37": {
+      "errors": [],
+      "warnings": []
+    },
+    "EC-38": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [
+    {
+      "criterion_id": "EC-36",
+      "check": "dropped-operand",
+      "severity": "MISTRANSLATED",
+      "message": "EC-36 offers 1 alternatives but the rule carries only 0: nothing. The rest of the sentence will not be applied to any record."
+    }
+  ],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "EC-34",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-35",
+          "operator": "lte",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-36",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "EC-37",
+          "operator": "equals",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "IC-31",
+          "operator": "gte",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "IC-32",
+          "operator": "equals",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "EC-38",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "IC-33",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "IC-31",
+      "intended_stage": "IH",
+      "intended_operator": "gte",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "gte"
+      ],
+      "match": true,
+      "rationale": "BRANCH 2 (year), gte \u2014 unexercised by h0 and the reason this arm exists"
+    },
+    {
+      "id": "IC-32",
+      "intended_stage": "IH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 1, English"
+    },
+    {
+      "id": "IC-33",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic; llm at IL"
+    },
+    {
+      "id": "EC-34",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 1 with German \u2014 post-F-212 this now maps to `de`; the corpus holds no `de`, so a correct 0 rather than an inert 0. The distinction F-229 is about."
+    },
+    {
+      "id": "EC-35",
+      "intended_stage": "EH",
+      "intended_operator": "lte",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "lte"
+      ],
+      "match": true,
+      "rationale": "BRANCH 2 the other way, lte"
+    },
+    {
+      "id": "EC-36",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 5 (DOI). Expected UNKNOWN for every record, not FAILED \u2014 equals '' against a populated column."
+    },
+    {
+      "id": "EC-37",
+      "intended_stage": "EH",
+      "intended_operator": "equals",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "equals"
+      ],
+      "match": true,
+      "rationale": "branch 3 (doc_type)"
+    },
+    {
+      "id": "EC-38",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "semantic; llm at EL"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 65,
+      "survivors": 398,
+      "pass_flagged": 398,
+      "impacts": {
+        "EC-34": {
+          "failed": 0,
+          "missing": 0,
+          "met": 463,
+          "unknown": 0
+        },
+        "EC-35": {
+          "failed": 61,
+          "missing": 1,
+          "met": 401,
+          "unknown": 0
+        },
+        "EC-36": {
+          "failed": 0,
+          "missing": 0,
+          "met": 0,
+          "unknown": 463
+        },
+        "EC-37": {
+          "failed": 4,
+          "missing": 0,
+          "met": 459,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 282,
+      "survivors": 116,
+      "pass_flagged": 1,
+      "impacts": {
+        "IC-31": {
+          "failed": 277,
+          "missing": 1,
+          "met": 120,
+          "unknown": 0
+        },
+        "IC-32": {
+          "failed": 11,
+          "missing": 0,
+          "met": 387,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 116,
+    "records_at_il": 116,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "EC-38"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "EC-38": {
+              "ok": true,
+              "worst_estimate": 2116,
+              "reserve": 400,
+              "n_batches": 24,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "EC-38": {
+              "ok": true,
+              "worst_estimate": 674,
+              "reserve": 80,
+              "n_batches": 116,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "IC-33"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "IC-33": {
+              "ok": true,
+              "worst_estimate": 2114,
+              "reserve": 400,
+              "n_batches": 24,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "IC-33": {
+              "ok": true,
+              "worst_estimate": 673,
+              "reserve": 80,
+              "n_batches": 116,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 24,
+      "IL": 24,
+      "total": 48,
+      "wall_clock_s_est": 422.4
+    },
+    "batch1": {
+      "EL": 116,
+      "IL": 116,
+      "total": 232,
+      "wall_clock_s_est": 804.9
+    }
+  }
+}

@@ -9,7 +9,7 @@
     5,
     1
   ],
-  "call_ceiling_total": 900,
+  "call_ceiling_total": 1134,
   "expected_endpoint": "http://localhost:11434/v1",
   "llm_target_policy": "Every `harmonized_csv` arm pins its llm rows to `title,abstract,keywords`. The four `free_text` arms CANNOT: `tools/run_criteria_experiment.py::translate_free_text` computes the target from `_get_best_text_targets` and accepts no override, and `load_spec` reads no such field, so a spec key would be inert without a code change. Their llm rows therefore target `title` alone on this corpus (F-227), which is recorded in each intent's `intended_target` as a registered variable rather than a hidden one. h0 must stay free_text and unmodified to be an anchor at all.",
   "live_defaults": {
@@ -723,5 +723,169 @@
         "ih_surv": 32
       }
     }
-  ]
+  ],
+  "call_budget": {
+    "derived_by": "tools/run_criteria_experiment.py dry run, wave 17c, zero calls; docs/data/wave17_arms/dryrun_v1/",
+    "batching_model": "calls = ceil(records / batch_size) * criteria, PER STAGE, summed. Records are batched within a criterion; criteria are never mixed in one call. tools/run_criteria_experiment.py::calls_for asserts equality with the product's own plugins/_common/run_estimate.py::RunPlan.requests, so the estimate and the engine cannot disagree.",
+    "residue_reask": "F-197: a reply short of its batch gets exactly ONE re-ask of the omitted subset — a different item list, so a different request, not a retry. Worst case is therefore one extra call per batch, i.e. 2x the base. The tool's own `reasks_expected` is 0, which is a declared expectation (temperature 0, constrained decoding) and not a model. Beneath this the SDK retries the transport at max_retries=2 (llm_client.py:1213); those are HTTP attempts, not logical calls, and the ceiling counts logical calls.",
+    "predicted_spend_batch5": 567,
+    "structural_maximum_batch5": 1134,
+    "reference_batch1_predicted": 2780,
+    "reference_batch1_structural_maximum": 5560,
+    "ceiling_is": "structural_maximum_batch5 — the number a run cannot exceed without something being wrong, NOT the number it is expected to spend. summarize() compares the batch-5 cross-arm total against this.",
+    "vs_wave16": "wave 16 measured 324 @batch5 / 1560 @batch1. Wave 17 is 1.75x / 1.78x — NOT the 5.1x its record-arm-unit ratio (901 vs 176) suggests, because calls scale with ceil(records/5)*criteria and wave 16's largest arms had many criteria over small piles.",
+    "wall_clock_estimate_hours_batch5": [
+      2.0,
+      3.0
+    ],
+    "wall_clock_basis": "F-218 / wave 15e: EL 8.8 s/call at batch 5 (runJ, the slower of the J/K pair); IL 2.0-3.6x that. Same-machine assumption.",
+    "dominant_arm": "h4_edge_shapes: 256 of 567 calls (45%) and 56-86 min of the 2-3 h. Its 320-record pile is an ACCIDENT of moving its regex row from IH/include to EH/exclude during authoring, not an intent. See uncapped_piles below.",
+    "uncapped_piles": "NOT CAPPED, and the reason is a failed premise rather than a decision: the harness supports no subsampling of any kind. It reads no subsample/seed/limit field, and no random, shuffle, sample or slice path exists in run_criteria_experiment.py, 06_el/screen.py, 07_il/screen.py or _common/runner.py. Worse, load_spec ACCEPTS an unknown `subsample` key and silently ignores it, so writing one would look pinned and do nothing — the same inert-field trap as the llm_target idea. Capping therefore requires either a code change or tighter IH gates, and the latter is a criteria change that must be adjudicated, not applied quietly. See the wave 17c report.",
+    "per_arm": {
+      "h0_baseline": {
+        "records_at_el": 32,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 14,
+          "IL": 7,
+          "total": 21
+        },
+        "calls_batch1_reference_only": 96,
+        "structural_max_batch5": 42,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          4.1,
+          5.7
+        ]
+      },
+      "h1_paraphrase": {
+        "records_at_el": 32,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 14,
+          "IL": 7,
+          "total": 21
+        },
+        "calls_batch1_reference_only": 96,
+        "structural_max_batch5": 42,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          4.1,
+          5.7
+        ]
+      },
+      "h2_polarity": {
+        "records_at_el": 12,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 2,
+        "calls_batch5": {
+          "EL": 6,
+          "IL": 6,
+          "total": 12
+        },
+        "calls_batch1_reference_only": 48,
+        "structural_max_batch5": 24,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          2.6,
+          4.0
+        ]
+      },
+      "h3_stage_stress": {
+        "records_at_el": 116,
+        "el_llm_criteria": 1,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 24,
+          "IL": 24,
+          "total": 48
+        },
+        "calls_batch1_reference_only": 232,
+        "structural_max_batch5": 96,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          10.6,
+          16.2
+        ]
+      },
+      "h4_edge_shapes": {
+        "records_at_el": 320,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 2,
+        "calls_batch5": {
+          "EL": 128,
+          "IL": 128,
+          "total": 256
+        },
+        "calls_batch1_reference_only": 1280,
+        "structural_max_batch5": 512,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          56.3,
+          86.4
+        ]
+      },
+      "h5_adversarial": {
+        "records_at_el": 29,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 12,
+          "IL": 6,
+          "total": 18
+        },
+        "calls_batch1_reference_only": 87,
+        "structural_max_batch5": 36,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          3.5,
+          4.9
+        ]
+      },
+      "h6_no_abstract": {
+        "records_at_el": 139,
+        "el_llm_criteria": 1,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 28,
+          "IL": 28,
+          "total": 56
+        },
+        "calls_batch1_reference_only": 278,
+        "structural_max_batch5": 112,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          12.3,
+          18.9
+        ]
+      },
+      "h7_loose": {
+        "records_at_el": 189,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 76,
+          "IL": 38,
+          "total": 114
+        },
+        "calls_batch1_reference_only": 567,
+        "structural_max_batch5": 228,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          22.3,
+          31.2
+        ]
+      },
+      "h8_pinned_target": {
+        "records_at_el": 32,
+        "el_llm_criteria": 2,
+        "il_llm_criteria": 1,
+        "calls_batch5": {
+          "EL": 14,
+          "IL": 7,
+          "total": 21
+        },
+        "calls_batch1_reference_only": 96,
+        "structural_max_batch5": 42,
+        "wall_clock_min_batch5_el_rate_to_il_worst": [
+          4.1,
+          5.7
+        ]
+      }
+    }
+  }
 }

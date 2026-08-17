@@ -1,0 +1,251 @@
+{
+  "arm": "h6_no_abstract",
+  "kind": "harmonized_csv",
+  "source": "docs/data/wave17_arms/h6_no_abstract.csv",
+  "source_sha256": "8196b451f3b49aaccbe4e7851e6530f05a9b638eb773170c862ad944cc2b3dae",
+  "harmonized_sha256": "3943d8708b72fcb8bfb8c1908727b140260c6c8b932caa74648ba6f53bfeaa89",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "IH",
+      "id": "H6-1",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,keywords",
+      "what": [
+        "respiratory sinus arrhythmia",
+        "vagal",
+        "heart rate variability"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "H6-2",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The abstract states that no human participants took part."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "H6-3",
+      "type": "include",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The abstract describes an emotion-regulation or self-regulation outcome."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "H6-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "H6-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "H6-3": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [],
+      "IH": [
+        {
+          "id": "H6-1",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "H6-2",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "H6-3",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "H6-1",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "deliberately omits `abstract` from the deterministic gate so abstract-less records survive to EL/IL"
+    },
+    {
+      "id": "H6-2",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "asks about abstract CONTENT; 119 of 463 records have no abstract at all"
+    },
+    {
+      "id": "H6-3",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "inclusion resting on abstract content; absence must route to UNCERTAIN, never to a removal"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 0,
+      "survivors": 463,
+      "pass_flagged": 0,
+      "impacts": {}
+    },
+    "ih": {
+      "out": 324,
+      "survivors": 139,
+      "pass_flagged": 0,
+      "impacts": {
+        "H6-1": {
+          "failed": 324,
+          "missing": 0,
+          "met": 139,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 139,
+    "records_at_il": 139,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "H6-2"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H6-2": {
+              "ok": true,
+              "worst_estimate": 2193,
+              "reserve": 400,
+              "n_batches": 28,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H6-2": {
+              "ok": true,
+              "worst_estimate": 663,
+              "reserve": 80,
+              "n_batches": 139,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "H6-3"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H6-3": {
+              "ok": true,
+              "worst_estimate": 2200,
+              "reserve": 400,
+              "n_batches": 28,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H6-3": {
+              "ok": true,
+              "worst_estimate": 670,
+              "reserve": 80,
+              "n_batches": 139,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 28,
+      "IL": 28,
+      "total": 56,
+      "wall_clock_s_est": 492.8
+    },
+    "batch1": {
+      "EL": 139,
+      "IL": 139,
+      "total": 278,
+      "wall_clock_s_est": 964.5
+    }
+  }
+}

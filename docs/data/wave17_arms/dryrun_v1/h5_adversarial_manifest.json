@@ -1,0 +1,346 @@
+{
+  "arm": "h5_adversarial",
+  "kind": "harmonized_csv",
+  "source": "docs/data/wave17_arms/h5_adversarial.csv",
+  "source_sha256": "72ca9c2d3efbe6cbb1c6e9801dc39a403101c4f80fcc6e6b8db7bbbcf4497442",
+  "harmonized_sha256": "b2b505aa7ee8d9ff3027a4c80b5cb044ea02b6b12fd665679a31e4b72d5a4ab0",
+  "corpus": "samples/20260816_1841_rsaAggregate.csv",
+  "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+  "window": 4096,
+  "trunc_chars": 1500,
+  "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "harmonized_rows": [
+    {
+      "stage": "EL",
+      "id": "H5-1",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper\u2019s \u201cprimary\u201d focus \u2014 na\u00efve contr\u00f4le-group comparisons versus so-called \"\"Herzfrequenz-paradigm\"\" baselines, \u00e9lan-driven d\u00e9cor and \u2713-marked r\u00e9sultats v\u00e9ritables \u2014 is aesthetic rather than a substantive contribution."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "H5-2",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,abstract,keywords",
+      "what": [
+        "heart rate, variability",
+        "RSA"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EH",
+      "id": "H5-3",
+      "type": "exclude",
+      "operator": "contains",
+      "target": "venue",
+      "what": [
+        "Physical Review",
+        "Physics Letters"
+      ],
+      "threshold": "",
+      "enabled": true
+    },
+    {
+      "stage": "EL",
+      "id": "H5-4",
+      "type": "exclude",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "\u0410\u043d\u043e\u0442\u0430\u0446\u0438\u044f \u043d\u0430\u043f\u0438\u0441\u0430\u043d\u0430 \u043a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0435\u0439 \u0438 \u043d\u0435 \u043e\u0442\u043d\u043e\u0441\u0438\u0442\u0441\u044f \u043a \u0442\u0435\u043c\u0435."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    },
+    {
+      "stage": "IL",
+      "id": "H5-5",
+      "type": "include",
+      "operator": "llm",
+      "target": "title,abstract,keywords",
+      "what": [
+        "The paper studies RSA\u00a0with a non-breaking space before the operand."
+      ],
+      "threshold": "0.60",
+      "enabled": true
+    }
+  ],
+  "validator": {
+    "H5-1": {
+      "errors": [],
+      "warnings": []
+    },
+    "H5-2": {
+      "errors": [],
+      "warnings": []
+    },
+    "H5-3": {
+      "errors": [],
+      "warnings": []
+    },
+    "H5-4": {
+      "errors": [],
+      "warnings": []
+    },
+    "H5-5": {
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "linter": [],
+  "landings": {
+    "stages": {
+      "EH": [
+        {
+          "id": "H5-3",
+          "operator": "contains",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IH": [
+        {
+          "id": "H5-2",
+          "operator": "contains",
+          "type": "include",
+          "enabled": true
+        }
+      ],
+      "EL": [
+        {
+          "id": "H5-1",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        },
+        {
+          "id": "H5-4",
+          "operator": "llm",
+          "type": "exclude",
+          "enabled": true
+        }
+      ],
+      "IL": [
+        {
+          "id": "H5-5",
+          "operator": "llm",
+          "type": "include",
+          "enabled": true
+        }
+      ]
+    },
+    "loader_warnings": {
+      "EH": [],
+      "IH": [],
+      "EL": [],
+      "IL": []
+    }
+  },
+  "landings_vs_intent": [
+    {
+      "id": "H5-1",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "curly quotes, em dash, doubled quotes, accents, checkmark \u2014 CSV and unicode hazards in one cell"
+    },
+    {
+      "id": "H5-2",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "an operand containing a comma, inside a comma-delimited target cell"
+    },
+    {
+      "id": "H5-3",
+      "intended_stage": "EH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "EH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": "semicolon is the operand separator: two operands, not one"
+    },
+    {
+      "id": "H5-4",
+      "intended_stage": "EL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "EL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "a wholly Cyrillic criterion; the corpus carries 40 Cyrillic characters"
+    },
+    {
+      "id": "H5-5",
+      "intended_stage": "IL",
+      "intended_operator": "llm",
+      "landed_stages": [
+        "IL"
+      ],
+      "landed_operators": [
+        "llm"
+      ],
+      "match": true,
+      "rationale": "a U+00A0 non-breaking space inside the label, invisible in every viewer"
+    }
+  ],
+  "funnel": {
+    "input": 463,
+    "eh": {
+      "out": 23,
+      "survivors": 440,
+      "pass_flagged": 37,
+      "impacts": {
+        "H5-3": {
+          "failed": 23,
+          "missing": 37,
+          "met": 403,
+          "unknown": 0
+        }
+      }
+    },
+    "ih": {
+      "out": 411,
+      "survivors": 29,
+      "pass_flagged": 0,
+      "impacts": {
+        "H5-2": {
+          "failed": 411,
+          "missing": 0,
+          "met": 29,
+          "unknown": 0
+        }
+      }
+    },
+    "records_at_el": 29,
+    "records_at_il": 29,
+    "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
+  },
+  "budget_guard": {
+    "EL": {
+      "llm_criteria": [
+        "H5-1",
+        "H5-4"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H5-1": {
+              "ok": true,
+              "worst_estimate": 2278,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            },
+            "H5-4": {
+              "ok": true,
+              "worst_estimate": 2200,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H5-1": {
+              "ok": true,
+              "worst_estimate": 734,
+              "reserve": 80,
+              "n_batches": 29,
+              "max_safe_batch": 1,
+              "message": ""
+            },
+            "H5-4": {
+              "ok": true,
+              "worst_estimate": 656,
+              "reserve": 80,
+              "n_batches": 29,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    },
+    "IL": {
+      "llm_criteria": [
+        "H5-5"
+      ],
+      "batches": {
+        "5": {
+          "ok": true,
+          "per_criterion": {
+            "H5-5": {
+              "ok": true,
+              "worst_estimate": 2207,
+              "reserve": 400,
+              "n_batches": 6,
+              "max_safe_batch": 5,
+              "message": ""
+            }
+          }
+        },
+        "1": {
+          "ok": true,
+          "per_criterion": {
+            "H5-5": {
+              "ok": true,
+              "worst_estimate": 663,
+              "reserve": 80,
+              "n_batches": 29,
+              "max_safe_batch": 1,
+              "message": ""
+            }
+          }
+        }
+      }
+    }
+  },
+  "call_arithmetic": {
+    "reasks_expected": 0,
+    "batch5": {
+      "EL": 12,
+      "IL": 6,
+      "total": 18,
+      "wall_clock_s_est": 158.4
+    },
+    "batch1": {
+      "EL": 58,
+      "IL": 29,
+      "total": 87,
+      "wall_clock_s_est": 301.8
+    }
+  }
+}
