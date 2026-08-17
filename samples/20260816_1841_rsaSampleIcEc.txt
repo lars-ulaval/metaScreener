@@ -1,0 +1,9 @@
+IC-1 – The paper reports respiratory sinus arrhythmia OR vagally-mediated heart rate variability as an index of emotion regulation or self-regulation.
+IC-3 – The paper is written in English.
+IC-4 – The title, abstract, or keywords mention respiratory sinus arrhythmia OR vagal OR heart rate variability.
+IC-5 – The title, abstract, or keywords mention emotion OR dysregulation OR child OR adolescent OR youth OR infant.
+
+EC-1 – The paper is written in Portuguese.
+EC-2 – The paper's primary focus is a numerical or computational method with no human participants.
+EC-3 – The paper's primary focus is clinical arrhythmia diagnosis rather than psychological function.
+EC-4 – The publication venue contains “Physical Review” OR “Physics Letters” OR “Bifurcation and Chaos”.
