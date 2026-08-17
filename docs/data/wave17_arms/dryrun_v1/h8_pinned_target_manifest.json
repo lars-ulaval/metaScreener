@@ -233,7 +233,7 @@
         "llm"
       ],
       "match": true,
-      "rationale": "h0's IC-1 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+      "rationale": "h0's IC-1 with `target` changed from `title` to `title,abstract,keywords`. NOT an evidence change \u2014 the prompt carries all three fields either way \u2014 but a HINT change: the only byte that differs is this string inside the criterion object the model is shown."
     },
     {
       "id": "IC-3",
@@ -246,7 +246,7 @@
         "equals"
       ],
       "match": true,
-      "rationale": "h0's IC-3, byte-identical"
+      "rationale": "h0's IC-3, byte-identical; deterministic, so `target` really does select columns here."
     },
     {
       "id": "IC-4",
@@ -259,7 +259,7 @@
         "contains"
       ],
       "match": true,
-      "rationale": "h0's IC-4, byte-identical"
+      "rationale": "h0's IC-4, byte-identical; deterministic, so `target` really does select columns here."
     },
     {
       "id": "IC-5",
@@ -272,7 +272,7 @@
         "contains"
       ],
       "match": true,
-      "rationale": "h0's IC-5, byte-identical"
+      "rationale": "h0's IC-5, byte-identical; deterministic, so `target` really does select columns here."
     },
     {
       "id": "EC-1",
@@ -285,7 +285,7 @@
         "equals"
       ],
       "match": true,
-      "rationale": "h0's EC-1, byte-identical"
+      "rationale": "h0's EC-1, byte-identical; deterministic, so `target` really does select columns here."
     },
     {
       "id": "EC-2",
@@ -298,7 +298,7 @@
         "llm"
       ],
       "match": true,
-      "rationale": "h0's EC-2 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+      "rationale": "h0's EC-2 with `target` changed from `title` to `title,abstract,keywords`. NOT an evidence change \u2014 the prompt carries all three fields either way \u2014 but a HINT change: the only byte that differs is this string inside the criterion object the model is shown."
     },
     {
       "id": "EC-3",
@@ -311,7 +311,7 @@
         "llm"
       ],
       "match": true,
-      "rationale": "h0's EC-3 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+      "rationale": "h0's EC-3 with `target` changed from `title` to `title,abstract,keywords`. NOT an evidence change \u2014 the prompt carries all three fields either way \u2014 but a HINT change: the only byte that differs is this string inside the criterion object the model is shown."
     },
     {
       "id": "EC-4",
@@ -324,7 +324,7 @@
         "contains"
       ],
       "match": true,
-      "rationale": "h0's EC-4, byte-identical"
+      "rationale": "h0's EC-4, byte-identical; deterministic, so `target` really does select columns here."
     }
   ],
   "funnel": {

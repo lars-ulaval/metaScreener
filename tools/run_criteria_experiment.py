@@ -58,7 +58,14 @@ from unittest.mock import MagicMock
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_SPEC = PROJECT_ROOT / "docs" / "data" / "wave16_arms" / "experiment_spec.json"
-DEFAULT_OUT = PROJECT_ROOT / "docs" / "data" / "wave16_arms" / "dryrun_v1"
+#: Where artefacts go. Derived from the SPEC's directory, never pinned to a
+#: wave (F-234). The old wave-16 default was the trap that wrote wave 17d's
+#: nine live artefacts into wave16_arms/dryrun_v1 when --out was omitted:
+#: silent, because a default that exists is a default that looks intended.
+#: Dry and live differ, so the subdirectory is chosen by mode.
+def default_out_for(spec_path: Path, live: bool) -> Path:
+    return (Path(spec_path).resolve().parent
+            / ("live_v1" if live else "dryrun_v1"))
 
 STAGES = ("EH", "IH", "EL", "IL")
 
@@ -1132,7 +1139,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
-    ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--out", type=Path, default=None,
+                    help="artefact directory; defaults to "
+                         "<spec dir>/dryrun_v1 (dry) or "
+                         "<spec dir>/live_v1 (live)")
     ap.add_argument("--arm", help="run a single arm by key")
     ap.add_argument("--dry-manifests", type=Path, default=None,
                     help="directory holding this spec's dry manifests; "
@@ -1144,6 +1154,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--yes-live", action="store_true",
                     help="explicit confirmation that live calls are intended")
     args = ap.parse_args(argv)
+    if args.out is None:
+        args.out = default_out_for(args.spec, bool(args.live))
 
     spec = load_spec(args.spec)
     mods = _Mods()

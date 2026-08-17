@@ -665,56 +665,56 @@
           "intended_stage": "IL",
           "intended_operator": "llm",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's IC-1 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+          "rationale": "h0's IC-1 with `target` changed from `title` to `title,abstract,keywords`. NOT an evidence change — the prompt carries all three fields either way — but a HINT change: the only byte that differs is this string inside the criterion object the model is shown."
         },
         {
           "id": "IC-3",
           "intended_stage": "IH",
           "intended_operator": "equals",
           "intended_target": "lang",
-          "rationale": "h0's IC-3, byte-identical"
+          "rationale": "h0's IC-3, byte-identical; deterministic, so `target` really does select columns here."
         },
         {
           "id": "IC-4",
           "intended_stage": "IH",
           "intended_operator": "contains",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's IC-4, byte-identical"
+          "rationale": "h0's IC-4, byte-identical; deterministic, so `target` really does select columns here."
         },
         {
           "id": "IC-5",
           "intended_stage": "IH",
           "intended_operator": "contains",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's IC-5, byte-identical"
+          "rationale": "h0's IC-5, byte-identical; deterministic, so `target` really does select columns here."
         },
         {
           "id": "EC-1",
           "intended_stage": "EH",
           "intended_operator": "equals",
           "intended_target": "lang",
-          "rationale": "h0's EC-1, byte-identical"
+          "rationale": "h0's EC-1, byte-identical; deterministic, so `target` really does select columns here."
         },
         {
           "id": "EC-2",
           "intended_stage": "EL",
           "intended_operator": "llm",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's EC-2 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+          "rationale": "h0's EC-2 with `target` changed from `title` to `title,abstract,keywords`. NOT an evidence change — the prompt carries all three fields either way — but a HINT change: the only byte that differs is this string inside the criterion object the model is shown."
         },
         {
           "id": "EC-3",
           "intended_stage": "EL",
           "intended_operator": "llm",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's EC-3 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+          "rationale": "h0's EC-3 with `target` changed from `title` to `title,abstract,keywords`. NOT an evidence change — the prompt carries all three fields either way — but a HINT change: the only byte that differs is this string inside the criterion object the model is shown."
         },
         {
           "id": "EC-4",
           "intended_stage": "EH",
           "intended_operator": "contains",
           "intended_target": "venue",
-          "rationale": "h0's EC-4, byte-identical"
+          "rationale": "h0's EC-4, byte-identical; deterministic, so `target` really does select columns here."
         }
       ],
       "live": {
@@ -729,7 +729,7 @@
           "IL": 5
         }
       },
-      "purpose": "h0 with exactly one variable changed: the three llm rows target title,abstract,keywords instead of title. Every other cell is the translator's own output, unmodified. h0 vs h8 isolates F-227's cost. Its deterministic chain is asserted identical to h0's, ids and order included.",
+      "purpose": "RE-DECLARED at wave 17d, after the h0 canary refuted the claim this arm was built to price. It was declared as isolating F-227's cost — h0 on `title` against h8 on `title,abstract,keywords` — on the belief that an llm criterion's `target` selects the evidence the model sees. IT DOES NOT. plugins/06_el/prompt.py:78-86 and its IL twin pack title, abstract AND keywords for every item unconditionally; `target` is carried only as a string inside the criterion object. Verified from the canary's own rendered prompt and corroborated by its live verdicts (field=abstract with quote_valid=True, impossible had only the title been sent).\n\nWHAT h8 NOW TESTS, which is F-227's only surviving claim: whether the `target` HINT STRING moves the model. h0's llm rows carry target `title`; h8's carry `title,abstract,keywords`. Both prompts contain the same three field texts for the same 32 records; the criterion objects differ in that one string. Same records, same model, same temperature 0, cache off. Any divergence in verdicts between h0 and h8 is attributable to the hint alone. A null result is a real result here — it would say the hint is inert, which is what the reframed F-227 asserts and what a reviewer reading `target: keywords` on an llm row in criteria_harmonized.csv needs to know.",
       "expected_chain": {
         "input": 463,
         "eh_out": 40,
@@ -831,7 +831,7 @@
     "residue_reask": "F-197: a reply short of its batch gets exactly ONE re-ask of the omitted subset - a different item list, so a different request, not a retry. Worst case is one extra call per batch, i.e. 2x base. Beneath that the SDK retries transport at max_retries=2 (llm_client.py:1213); those are HTTP attempts, not logical calls.",
     "ceiling_is": "structural_maximum - the number a run cannot exceed without something being wrong, NOT the number it is expected to spend.",
     "vs_wave16": "wave 16b spent 325 in-ledger (324 base + 1 re-ask) across 8 arms.",
-    "wall_clock_basis": "F-218 / wave 15e: EL 8.80 s/call at batch 5 (runJ, the slower of the J/K pair), 3.47 s/call at batch 1 (runL); IL 2.0-3.6x. Same-machine assumption.",
+    "wall_clock_basis": "MEASURED at wave 17d from the h0 canary, superseding F-218's projection: EL 7.77 s/call at batch 5 (124.3 s / 16 calls), IL 8.43 s/call (67.4 s / 8) = IL at 1.08x EL, NOT the 2.0-3.6x F-218 records and wave 17c assumed. Batch 1 keeps runL's 3.47 s/call, untested this wave. The earlier estimates were a 2.3 h upper bound; measured they are 0.9 h. One arm, 24 calls, 32 records — a contradiction of the range, not a new range (F-218).",
     "predicted_spend_as_declared": 463,
     "mixed_batch_note": "The dry run's cross_arm_summary TOTAL row sums calls_batch5 over every arm and reports 388, which is NOT this run's spend: h9_batch1 is declared batch_size 1 and costs 96, not 21. The figure above is the mixed total — each arm at the batch size its own `live` block declares. Anyone reading the summary CSV's TOTAL for a mixed-batch spec will under-count.",
     "reask_rate_calibrated": {
@@ -853,12 +853,9 @@
           "IL": 7,
           "total": 21
         },
-        "wall_clock_min": [
-          4.1,
-          5.7
-        ],
         "predicted": 21,
-        "structural_ceiling_arm": 42
+        "structural_ceiling_arm": 42,
+        "wall_clock_min_measured": 2.8
       },
       "h1_paraphrase": {
         "batch_size": 5,
@@ -868,12 +865,9 @@
           "IL": 7,
           "total": 21
         },
-        "wall_clock_min": [
-          4.1,
-          5.7
-        ],
         "predicted": 21,
-        "structural_ceiling_arm": 42
+        "structural_ceiling_arm": 42,
+        "wall_clock_min_measured": 2.8
       },
       "h2_polarity": {
         "batch_size": 5,
@@ -883,12 +877,9 @@
           "IL": 6,
           "total": 12
         },
-        "wall_clock_min": [
-          2.6,
-          4.0
-        ],
         "predicted": 12,
-        "structural_ceiling_arm": 24
+        "structural_ceiling_arm": 24,
+        "wall_clock_min_measured": 1.6
       },
       "h3_stage_stress": {
         "batch_size": 5,
@@ -898,12 +889,9 @@
           "IL": 24,
           "total": 48
         },
-        "wall_clock_min": [
-          10.6,
-          16.2
-        ],
         "predicted": 48,
-        "structural_ceiling_arm": 96
+        "structural_ceiling_arm": 96,
+        "wall_clock_min_measured": 6.5
       },
       "h4_edge_shapes": {
         "batch_size": 5,
@@ -913,12 +901,9 @@
           "IL": 28,
           "total": 56
         },
-        "wall_clock_min": [
-          12.3,
-          18.9
-        ],
         "predicted": 56,
-        "structural_ceiling_arm": 112
+        "structural_ceiling_arm": 112,
+        "wall_clock_min_measured": 7.6
       },
       "h5_adversarial": {
         "batch_size": 5,
@@ -928,12 +913,9 @@
           "IL": 6,
           "total": 18
         },
-        "wall_clock_min": [
-          3.5,
-          4.9
-        ],
         "predicted": 18,
-        "structural_ceiling_arm": 36
+        "structural_ceiling_arm": 36,
+        "wall_clock_min_measured": 2.4
       },
       "h6_no_abstract": {
         "batch_size": 5,
@@ -943,12 +925,9 @@
           "IL": 28,
           "total": 56
         },
-        "wall_clock_min": [
-          12.3,
-          18.9
-        ],
         "predicted": 56,
-        "structural_ceiling_arm": 112
+        "structural_ceiling_arm": 112,
+        "wall_clock_min_measured": 7.6
       },
       "h7_loose": {
         "batch_size": 5,
@@ -958,12 +937,9 @@
           "IL": 38,
           "total": 114
         },
-        "wall_clock_min": [
-          22.3,
-          31.2
-        ],
         "predicted": 114,
-        "structural_ceiling_arm": 228
+        "structural_ceiling_arm": 228,
+        "wall_clock_min_measured": 15.2
       },
       "h8_pinned_target": {
         "batch_size": 5,
@@ -973,12 +949,9 @@
           "IL": 7,
           "total": 21
         },
-        "wall_clock_min": [
-          4.1,
-          5.7
-        ],
         "predicted": 21,
-        "structural_ceiling_arm": 42
+        "structural_ceiling_arm": 42,
+        "wall_clock_min_measured": 2.8
       },
       "h9_batch1": {
         "batch_size": 1,
@@ -988,22 +961,16 @@
           "IL": 32,
           "total": 96
         },
-        "wall_clock_min": [
-          7.4,
-          10.4
-        ],
         "predicted": 96,
-        "structural_ceiling_arm": 192
+        "structural_ceiling_arm": 192,
+        "wall_clock_min_measured": 5.7
       }
     },
-    "wall_clock_hours_as_declared": [
-      1.4,
-      2.0
-    ],
     "dominant_arm": "h7_loose: 114 of 463 calls (25%) and 22-31 min. h4_edge_shapes was 256 of 567 before wave 17c bounded its pile with H4-9; it is now 56.",
     "uncapped_piles": "h4 bounded to 69 records by H4-9, a declared, digest-pinned criteria row — the only capping mechanism available, since the harness supports no subsampling (see F-232). h6 LEFT WHOLE deliberately: its measurement is the abstract-less records reaching EL, and only 32 of its 139 are abstract-less, so a trim to 60 records would leave ~14 and every tighter gate measured leaves 8 or fewer. h7 LEFT WHOLE at 189: its 24.9% off-topic proportion IS the measurement and a trim to 60 leaves ~15 off-topic, too thin for a discrimination claim.",
     "per_arm_ceilings": "Each arm carries `call_ceiling_arm` = 2x its own predicted spend, so a runaway is refused AT THE ARM rather than after it has eaten other arms' budget. That is wave 16b's lesson read the other way round: arm0's per-arm ceiling was too TIGHT (15, the no-re-ask arithmetic) and killed a healthy arm on one re-ask; a per-arm ceiling at 2x is loose enough to absorb every batch re-asking and still bounds the damage one arm can do. `--budget` is passed per arm by the operator; these are the values to pass.",
     "arm_order": "h0_baseline ALONE first, then STOP for inspection: 21 calls to prove the pipeline produces sane output before committing the other 442. Then ascending cost — h2 12, h5 18, h1 21, h8 21, h3 48, h4 56, h6 56, h9 96, h7 114 last.",
-    "total_check": "per-arm predicted sums to 463, which is predicted_spend_as_declared; ceilings sum to 926, which is call_ceiling_total."
+    "total_check": "per-arm predicted sums to 463, which is predicted_spend_as_declared; ceilings sum to 926, which is call_ceiling_total.",
+    "wall_clock_hours_measured": 0.9
   }
 }
