@@ -15,6 +15,8 @@ which makes LLM client construction raise).
 
 **All ten arms have now run.** `h6_no_abstract`, `h9_batch1` and `h7_loose` were run at wave 17e — 267 live calls, 3,221 s — and §10 reports them. Wave total: **472 live calls across ten arms.**
 
+**If you are reading this cold, start at §11** — it is the wave's result written for someone who has not followed the sessions. The one-page summary below was written after seven arms and is kept as it stood.
+
 ---
 
 ## The answer, in one page
@@ -1840,3 +1842,131 @@ negation result is the largest behavioural effect measured in this wave, and it
 rests on 36 verdicts over 12 Portuguese records that reached EL only through a
 translation defect. It has never been tested on an on-topic population where the
 answer is non-trivial. Nothing in `h6`, `h9` or `h7` touches it.
+
+---
+
+## 11. The wave result
+
+*Written for a reader starting here. Every figure is machine-derived from the
+committed artefacts; every n is named.*
+
+### What was actually done
+
+Ten arms, **472 live calls**, one model (`qwen2.5:7b` at temperature 0.0, local
+Ollama), one corpus (**463 records** on respiratory sinus arrhythmia), one set of
+eight criteria and nine deliberate variations on them. Each arm runs the same
+four-stage pipeline: two deterministic stages (EH, IH) that match strings, then
+two LLM stages — **EL**, which asks exclusion criteria, and **IL**, which asks
+inclusion criteria.
+
+The wave has a control most experiments of this kind lack. The baseline arm ran
+**twice**, 24 calls each, and the two runs produced **byte-identical** verdict
+tables: **0 differences in 96 record-criterion pairs** across decision, status,
+confidence, field, quote and quote-validity. Nothing below is run-to-run noise.
+
+### The result: the two LLM stages are not one thing
+
+This is the wave's finding, and it is architectural rather than a matter of
+tuning.
+
+| | **IL** (asks inclusion criteria) | **EL** (asks exclusion criteria) |
+|---|---|---|
+| what a wrong answer does | routes to a human queue; **cannot delete** | requests a deletion |
+| on the anchor arm's 32 records | flagged **8 of the 8** records three independent reviewers call wrong inclusions; admitted **0** of them to the 12 it cleared; agreed with reviewers on **15 of 18** decisive records | returned 16 excluding verdicts across three arms on **9 distinct (record, criterion) pairs** — judges found **8 unanimously wrong, 1 defensible, 0 correct** |
+| on 189 records with 47 off-topic **by construction** | flagged **47 of 47**; its cleared pile of 33 contains **0** off-topic records against 8.2 expected by chance | **19 records** passed its evidence gate as removable; **6 were off-topic, 13 were on-topic**. Precision **31.6%** |
+
+**The stage that cannot delete is the accurate one. The stage that can delete is
+the inaccurate one.** On the arm where correctness is knowable by construction
+rather than by judgement, IL is 47 for 47 and EL is 6 for 19.
+
+The sharpest single artefact is on records A187 and A275. For each, the model
+returned **one byte-identical quote, at the same character span**, as proof of
+IL's *"this paper reports HRV as an index of emotion regulation"* (include) and
+of EL's *"this paper's primary focus is clinical arrhythmia diagnosis rather
+than psychological function"* (exclude). Both were marked valid evidence, because
+the quoted text does appear in the record. Both were accepted. **The evidence
+check verifies that a quotation exists; nothing verifies that it supports the
+claim.**
+
+### What the guards prevented, and which guard did it
+
+**No record was deleted anywhere in the wave** — `OUT` is 0 in all twenty stage
+summaries. That zero has **two different causes with two different strengths**,
+and the distinction matters:
+
+| guard | what it held | can a setting switch it off? |
+|---|---|---|
+| **`exclusion_policy: flag_only`** | **49 verdicts** that passed the full evidence gate and reached `ACTION_EXCLUDE` | **Yes.** It is a provider setting |
+| **Gate rule (c)** — a removal justified by *absence* is never auto-acted | **576 verdicts** | **No.** Unconditional, whatever the setting |
+
+The 13 wrongly-removable on-topic papers on the off-topic arm sat behind
+**`flag_only`**, not rule (c) — they came through the *presence* path, where the
+model produced a quote that validated. **The weaker of the two guards is the one
+standing in front of the wrong deletions.** Rule (c) held far more (576), and
+holds unconditionally, but it holds a different population: verdicts justified by
+absence, which by construction have no evidence to check. Both were designed as
+conservatism. Both turned out load-bearing. Only one of them can be turned off,
+and it is the one doing the work in front of the worst cases.
+
+### What the deterministic half did — and what it destroyed
+
+The two string-matching criteria took 463 records to 32, and **not one of the 152
+records that are off-topic by construction reached the LLM stages**. That is the
+strongest number in the wave and no model was involved in producing it.
+
+Decomposed, it is less flattering. **One criterion does all of it**: the
+RSA/vagal/HRV vocabulary filter alone excludes **151 of the 152**. The second
+criterion — requiring the words *emotion*, *dysregulation*, *child*,
+*adolescent*, *youth* or *infant* — contributes essentially nothing to keeping
+junk out, and instead **removes 117 records that passed the first filter, 116 of
+them on-topic**. Among them is **the corpus's own seed paper [1]**, Berntson,
+Cacioppo and Quigley 1993, the article the entire corpus was built outward from.
+It has a 1,051-character abstract containing none of the six required words.
+
+**Nothing in the product tells the user this happened.** The funnel reports how
+many records each criterion failed; it never reports that those records satisfied
+every other criterion. Silent recall loss is the failure a systematic review
+cannot tolerate, and it is the one this pipeline does not measure.
+
+### The three things that move the result without anyone intending it
+
+Each was measured on the same 32 records against the 0-of-96 noise floor. The
+figure quoted is how many papers the system clears without asking a human —
+`PASS_CLEAN` at both LLM stages.
+
+| what changed | what stayed identical | effect |
+|---|---|---|
+| **Criterion wording** — the eight criteria restated in synonymous English | model, temperature, batch size, corpus, records, truncation, window, policy, cache | **10 of 32 → 5 of 32.** 9 of 32 records flipped at IL, 5 at EL. The review pile grew 19 → 25 |
+| **`batch_size`** — 5 → 1, a throughput setting | criteria digest, model, temperature, prompt version, truncation, window, policy, cache | **10 of 32 → 5 of 32.** The two sets of survivors share **2 records out of 13** |
+| **A `target` hint** — 18 characters inserted into one field of the criterion object | everything else, byte-for-byte, including the text sent to the model | Decisions barely moved (1 of 64, 2 of 32) but the model's self-reported evidence field swung **70.8 points**, and 3 records moved at EL. At IL the counts were **identical** while two records **swapped** |
+
+**Rewording the protocol and changing a performance setting have the same
+magnitude of effect.** One of those is a scientific decision; the other is a
+speed knob with no entry in any methods section. And the third shows that the
+outcome counts can be unchanged while the population behind them is not — a
+comparison drawn from summary totals alone would have reported "no effect".
+
+### What this does not say
+
+- **Not that the tool is useless.** IL's record on both populations is good: 8 of
+  8, and 47 of 47, with a clean cleared pile in each case.
+- **Not that EL is unreliable in general.** Its 0-of-9 rests on 9 distinct pairs
+  over 8 records and 2 criteria; its 31.6% rests on 19 records on one arm. Both
+  point the same way; neither is a population estimate.
+- **Not that the criteria were badly written.** Requiring a developmental
+  population is an ordinary protocol decision. The defect is that its cost — 117
+  papers, including the seed — is invisible.
+- **Not a mechanism for the batch-size effect.** The identity-dropping bug that
+  was predicted to explain it did not occur: zero verdicts were dropped on either
+  arm. Why the model answers differently in batches of five than singly is
+  **unknown**, and this analysis proposes no cause.
+
+### The one-line version
+
+**On this corpus, with this model: the deterministic stages decide who is
+considered and silently discard much of the target literature; the inclusion
+stage judges well; the exclusion stage judges badly and is the only stage that
+can act on its judgement; and three settings that a user would not think of as
+scientific — how the criteria are worded, how many records are sent per request,
+and one hint string — each change which papers a human ends up reading.**
+

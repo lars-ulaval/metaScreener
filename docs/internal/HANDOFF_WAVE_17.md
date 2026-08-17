@@ -357,6 +357,15 @@ persist per-criterion impact (F-228), the freeze must capture `crit_impacts`
 - **Detached runs with polled logs.** Never a foreground call that can hit a
   tool timeout mid-flight. Launch with `nohup … > log 2>&1 &`, then poll the log
   with an `until` loop.
+- **NEVER STAGE BY WILDCARD WHILE AN ARM IS IN FLIGHT.** Added at wave 17e after
+  a `git add -A` swept `h6_no_abstract`'s **half-written EL artefacts** into an
+  unrelated documentation commit — the arm was still running and its IL files did
+  not exist yet. Amended out immediately and the final tree is correct, but
+  nothing would have caught it: `live_v1` carries no digests, so a partially
+  written artefact commits silently. **Name the paths, or wait for
+  `{arm}_live_manifest.json` to exist** — the harness writes it last, so its
+  presence is the completion marker. Recorded against F-230, whose subject is
+  bytes that are not what the record claims.
 - **`--out` always explicit.** Its default now derives from the spec's directory
   (`default_out_for`), but pass it anyway — a wave-16-pinned default already
   wrote wave 17's artefacts into `wave16_arms/dryrun_v1` once.
