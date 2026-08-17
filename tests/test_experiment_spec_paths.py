@@ -227,3 +227,50 @@ def test_every_recorded_source_digest_matches_the_repository(spec_rel):
         % (spec_rel, wrong)
     )
 
+
+def _eol_attr(rel):
+    """The `eol` attribute git resolves for `rel`, or None if unspecified."""
+    out = subprocess.run(["git", "check-attr", "eol", "--", rel],
+                         cwd=str(ROOT), capture_output=True, text=True).stdout
+    # "<path>: eol: <value>"
+    value = out.strip().rsplit(": ", 1)[-1] if out.strip() else ""
+    return None if value in ("", "unspecified", "unset") else value
+
+
+@_NEEDS_GIT
+@pytest.mark.parametrize("spec_rel", SPECS or [""], ids=SPECS or ["<none>"])
+def test_every_pinned_source_has_an_explicit_eol_rule(spec_rel):
+    """F-230, second half — and the half that would have caught wave 17c's red CI
+    on the machine that authored it.
+
+    The digest check above compares against `git cat-file --filters`, which is
+    honest but PLATFORM-LOCAL: a file left on `* text=auto` is served CRLF on
+    Windows and LF everywhere else, so a CRLF-recorded digest passes on the
+    author's machine and fails on every other. That is exactly what happened —
+    two Windows fresh clones agreed, and CI went red on 12 of 16 jobs.
+
+    An explicit `eol=` rule removes the platform from the question. Asserting the
+    RULE rather than only the digest fails wherever it is run, including on the
+    machine that wrote the record, which is the difference between catching this
+    at authoring time and catching it in CI."""
+    spec = json.loads((ROOT / spec_rel).read_text(encoding="utf-8"))
+    pinned = sorted({a["source"] for a in (spec.get("arms") or [])
+                     if a.get("source_sha256")})
+    assert pinned, (
+        "%s pins no source by digest, so this check is vacuous." % spec_rel
+    )
+
+    unpinned = [rel for rel in pinned if _eol_attr(rel) is None]
+    assert not unpinned, (
+        "These files have a recorded `source_sha256` in %s but no explicit "
+        "`eol=` rule in .gitattributes, so what a checkout serves depends on "
+        "the platform while the recorded digest does not: %s. Add an `eol=` "
+        "rule matching the form the digest was measured in — `eol=crlf` if it "
+        "was recorded on Windows, `eol=lf` if on Linux or macOS. Do NOT edit "
+        "the digest: it is an output record (F-225), and the checkout form is "
+        "what is wrong. This assertion is deliberately platform-independent — "
+        "the digest check alone passes on the authoring machine and fails "
+        "everywhere else, which is how F-230 reached CI twice."
+        % (spec_rel, unpinned)
+    )
+

@@ -206,11 +206,31 @@ docs/data/wave17_arms/*.json text eol=crlf
 # GET PRESERVED: a recorded digest is an output record).
 docs/data/wave16_arms/** eol=lf
 
-# The eighth arm is the exception that the rule above cannot reach, and it is
-# the same defect pointing the other way. `arm0_baseline`'s source is not under
-# wave16_arms at all — it is the shipped sample, and its digest was computed
+# The eighth arm is the exception the rule above cannot reach, and it is the
+# same defect pointing the other way. `arm0_baseline`'s source is not under
+# wave16_arms at all — it is the shipped VR sample, and its digest was computed
 # from the CRLF form. Under `* text=auto` that is what Windows serves and what
-# Linux does not, so the arm validates here and fails there. Wave 17b's
-# `h0_baseline` names the same file and recorded the same CRLF digest, so one
-# rule settles both waves.
+# Linux does not, so the arm validated here and failed there.
+#
+# CORRECTION, wave 17c. The line this comment replaced claimed that "wave 17b's
+# `h0_baseline` names the same file, so one rule settles both waves." **It does
+# not.** Wave 17b's h0 names the RSA criteria file — 20260816_1841_ — not the VR
+# one; two similarly-named files under one directory, conflated while writing
+# the fix. The result was that wave 16 was repaired and wave 17 was left
+# unpinned, CI went red on 12 of 16 jobs, and every Windows job passed. The rule
+# below this one is the other half, and the pair is the whole of it. A fix that
+# names the file it repairs is not the same as a fix that covers the class.
 samples/20260122_1654_sampleIcEc.txt text eol=crlf
+
+# The RSA criteria file, wave 17b's `h0_baseline` — the half the correction
+# above was missing. Its digest 62e59ab8… is the CRLF form, and the index holds
+# LF, so a Linux or macOS checkout served 11c46ceb… and the F-230 guard failed
+# there on its first real outing, exactly as designed.
+#
+# `eol=crlf` and not `eol=lf`, for two reasons that agree. It matches the
+# already-recorded digest, so it repairs the record by changing how the record
+# is served rather than by rewriting a measurement (F-225: a recorded digest is
+# an output record). And it is the local convention — both sample aggregates and
+# the VR criteria file above are pinned `text eol=crlf`, so the whole of
+# samples/ that anything pins now serves CRLF everywhere.
+samples/20260816_1841_rsaSampleIcEc.txt text eol=crlf
