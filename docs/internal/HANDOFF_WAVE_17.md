@@ -1,456 +1,259 @@
-# HANDOFF — wave 17
+# HANDOFF — out of wave 17, into the next wave
 
-Written at the end of wave 17d for a session with **no memory of this one**.
-Everything needed to finish the wave is here or is pointed at by path.
+Written at the close of wave 17f for a coordinator with **no memory of wave 17**.
+Everything needed to pick up cold is here or is pointed at by path.
+
+**This supersedes the earlier version of this file**, which was written mid-wave
+at 17d and described seven arms as run and the analysis as not done. Both are
+finished. Where the two disagree, this one is right; §7 lists the corrections.
 
 ---
 
-## 1. State
+## 1. State, verified at the close
 
-| stage | what it was | status |
+| | |
+|---|---|
+| `main` | **`d4b08c5`** — `chore(wave17f): pack the object store, prune merged branches…` |
+| `origin/main` | `d4b08c5` — pushed, in sync |
+| tag | **`post-wave-17` → `91b13c9`**, the 17e freeze commit. `main` is **one commit ahead**: 17f is housekeeping and was deliberately left outside the tag |
+| working tree | clean |
+| suite, Windows | **2429 passed / 7 skipped** |
+| suite, Linux (WSL Ubuntu 24.04) | **2431 passed / 5 skipped** — same 2436 total, different platform skips |
+| four CI steps | `pytest`, `tools/audit_imports.py plugins/ tests/`, `tools/audit_decorators.py plugins/ tests/`, `tools/check_encoding.py` — green on both |
+| register | **244 rows**, next free **F-248**, 40 cells machine-derived and matching |
+| **open Criticals** | **0** |
+
+By tier: `Critical 9/9/0 open · High 72/40/32 · Medium 108/37/71 · Low 55/20/35
+· Total 244/106/138`.
+
+Shape after 17f: `.git` **5.5 MB** (was 43 MB, never packed), working tree
+**33 MB** (was 402 MB — `build/` and `dist/` removed, gitignored, never in
+history), **2 local branches** (was 42), the remote shows **`main` alone**,
+**41 tags untouched**.
+
+---
+
+## 2. What wave 17 did, in five lines
+
+1. Built a second corpus (463 RSA records from 8 seeds) and eight criteria for
+   it, then ten arms each varying one thing: wording, polarity, stage routing,
+   edge shapes, adversarial unicode, missing abstracts, a `target` hint, batch
+   size, and a deliberately loose gate.
+2. Ran all ten live against `qwen2.5:7b` at temperature 0 — **472 calls**, zero
+   removals, `request_shape: json_schema` on all twenty stages.
+3. Found that the anchor arm had been run **twice** with byte-identical verdict
+   tables — **a noise floor of 0 differences in 96 record-criterion pairs** — which
+   is what makes every comparison below attributable to its variable.
+4. Read the artefacts for content, which nothing had done: three independent
+   judgements of the surviving pile, registered intent against outcome per arm,
+   and the two LLM stages measured **separately**.
+5. Froze the evidence (113 digests, a guard test that re-derives, `crit_impacts`
+   recovered) and verified it in two fresh clones on two platforms.
+
+---
+
+## 3. The central result
+
+**The two LLM stages are not one thing, and the difference is architectural.**
+
+| | **IL** (asks inclusion criteria) | **EL** (asks exclusion criteria) |
 |---|---|---|
-| **17a** | land the `samples/` rename; commit the RSA corpus byte-stable; encoding hotfix | **done, on main** |
-| **17b** | author the RSA criteria file and the wave-17 arms | **done, on main** |
-| **17c** | derive the call budget from a dry run; preflight verification | **done, on main** |
-| **17d** | the live run, ten arms | **7 of 10 arms run**, halted |
-| **17e** | freeze the evidence | **not started** |
-| **analysis** | read the seven arms for CONTENT (§9) | **done** — `docs/data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md` |
+| what a wrong answer does | routes to a human queue; **cannot delete** | **requests a deletion** |
+| on 47 records off-topic *by construction* (`h7_loose`) | flagged **47 of 47**; its cleared pile of 33 holds **0** off-topic, against 8.2 expected by chance | 19 records reached `EXCLUSION_SUPPRESSED`; only **6** are off-topic — **precision 31.6%** |
+| on the anchor pile, judged by three reviewers | agreed on **15 of 18** decisive records | **0 correct of 9** distinct (record, criterion) pairs across three arms |
 
-**Arms that have run:** `h0_baseline` (twice), `h1_paraphrase`, `h2_polarity`,
-`h3_stage_stress`, `h4_edge_shapes`, `h5_adversarial`, `h8_pinned_target`.
+**The stage that cannot delete is the accurate one. The stage that can delete is
+the inaccurate one.**
 
-**Arms that have NOT run:** `h6_no_abstract`, `h9_batch1`, `h7_loose`.
+### The guard holding the wrong deletions is the switchable one
 
-**Spend so far: 230 live calls.** h0 twice (24 + 24), h2's aborted first attempt
-(1), and the six-arm sequence (181).
+`OUT` is 0 in all twenty stage summaries. That zero has **two causes of unequal
+strength**:
 
-### Git state — read this carefully, it contains a mistake of mine
+| guard | held | can a setting switch it off? |
+|---|---|---|
+| **`exclusion_policy: flag_only`** | **49 verdicts** that passed the full strict evidence gate and reached `ACTION_EXCLUDE` | **YES — it is a provider setting** |
+| **gate rule (c)** — a removal justified by *absence* | **576 verdicts** | No. Unconditional, whatever the setting |
 
-**CORRECTED at wave 17e: `main` is at `62a1049`**, this document's own commit,
-which was made after this section was written. `b95886b` is its parent. The
-working tree is clean. **Nothing has been pushed.** No tag exists for 17b, 17c or 17d
-(`post-wave-17a` exists and points at `980d339`, deliberately, even though that
-commit is CI-red — it records truthfully where the stage ended, including that
-it ended with an undetected defect, which is the evidence for F-226. **Do not
-move it.**)
+**The wrong deletions are all in the first population.** They arrive by the
+*presence* path, where the model produced a quote that validated — the one path
+rule (c) never touches. **A user who sets `exclusion_policy` to act gets 13
+wrongly deleted on-topic papers on `h7` alone, plus A187 and A275 on the anchor
+arm — two of the seven records all three reviewers unanimously call correct
+inclusions — each carrying evidence that renders as valid in every artefact.**
 
-**My error, stated because the reports were wrong:** the last two commits,
-`74bf295` (the calibration) and `b95886b` (the six arms), were committed
-**directly on `main`**. The maintainer's fast-forward merge of
-`fix/wave-17d-calibrate` left HEAD on `main` and I did not branch again before
-committing. My session reports said "nothing merged" both times. They were
-wrong; `git reflog show main` is the record. Everything before those two came to
-main by the maintainer's own fast-forward merges.
-
-Ten stale wave-17 branches exist and can be deleted once the maintainer is
-satisfied: `fix/wave-17a-encoding`, `fix/wave-17a-rename-and-rsa-corpus`,
-`fix/wave-17b-arms`, `fix/wave-17b-criteria`, `fix/wave-17c-budget`,
-`fix/wave-17c-dryrun`, `fix/wave-17c-preflight`, `fix/wave-17d-arms`,
-`fix/wave-17d-calibrate`, `fix/wave-17d-live`.
-
-**Suite: 2348 passed / 7 skipped.** All four CI steps green.
+Do not permit `allow_exclusion` for any provider while **F-238** and **F-244**
+are open.
 
 ---
 
-## 2. Where everything lives
+## 4. Three things move the result without a user intending it
+
+Each measured on the same 32 records against the 0-of-96 noise floor. The figure
+is how many papers emerge `PASS_CLEAN` at **both** LLM stages.
+
+| what changed | what stayed identical | effect | row |
+|---|---|---|---|
+| **Criterion wording** — the eight criteria restated in synonymous English | model, temperature, batch, corpus, records, truncation, window, policy, cache | **10 of 32 → 5** | **F-221** |
+| **`batch_size`** 5 → 1, a throughput setting | criteria digest, model, temperature, prompt version, truncation, window, policy, cache | **10 of 32 → 5**, and the two survivor sets share **2 records of 13** | **F-247** |
+| **A `target` hint** — 18 characters inside the criterion object | everything else byte-for-byte, including the text sent to the model | decisions barely move (1 of 64, 2 of 32); the model's self-reported evidence field swings **70.8 points**; at IL the counts are *identical* while two records swap | **F-227** |
+
+Rewriting the protocol and changing a performance knob have the same magnitude
+of effect. One is a scientific decision; the other appears in no methods section.
+
+---
+
+## 5. Findings
+
+**Filed this wave: F-225 … F-247, 23 rows.**
+
+| ID | Sev | Status | What |
+|---|---|---|---|
+| F-225 | Medium | **XS (done)** | An executable spec named a renamed `samples/` path; nothing checked that paths resolve |
+| F-226 | Medium | S (open) | "Green" meant pytest only — and two Windows clones are one observation twice |
+| F-227 | Medium | M (open) | **Retracted and downgraded** (§7). `target` is a *hint* on `llm` rows, and it moves gate outcomes |
+| F-228 | **High** | S (open) | Per-criterion impact is computed every run and persisted nowhere |
+| F-229 | Medium | S (open) | No operand is checked against its target column's actual vocabulary |
+| F-230 | Medium | **XS (done)** | Recorded `source_sha256` values were platform-dependent |
+| F-231 | Low | **XS (done)** | Measurement: on this corpus the deterministic stages remove essentially all off-topic mass |
+| F-232 | Medium | S (open) | A spec field that does not exist is accepted and silently ignored |
+| F-233 | Medium | **XS (done)** | The cross-arm TOTAL assumed one batch size for every arm |
+| F-234 | Medium | S (open) | A field can be accepted, computed or displayed and still be inert |
+| F-235 | Medium | XS (open) | At `batch_size` 1 the residue re-ask degenerates into a verbatim retry |
+| F-236 | **High** | M (open) | Estimator calibrated on one corpus, applied to another. **Mechanism retracted** (§7) |
+| F-237 | Low | **XS (done)** | Measurement with n stated; re-based at 17e against the right denominator |
+| F-238 | **High** | M (open) | **The evidence gate checks that a quote EXISTS, never that it SUPPORTS the verdict** |
+| F-239 | **High** | S (open) | A keyword criterion silently deleted 117 on-topic papers, including the corpus's seed [1] |
+| F-240 | **High** | M (open) | The free-text translator emitted the logical **complement** of its own sentence |
+| F-241 | **High** | S (open) | Negation-phrased criteria are answered as though the negation were absent |
+| F-242 | **High** | S (open) | Where checkable from a title: 1 of 10 paediatric populations, 1 of 18 reviews |
+| F-243 | Medium | S (open) | Record identity keyed on fields not unique per work, in both directions |
+| F-244 | Medium → **High** | XS (open) | **EL's excluding verdicts have no demonstrated precision** |
+| F-245 | Medium | S (open) | The gate is one-sided: a KEEP never has its quote examined |
+| F-246 | Medium | S (open) | Abstract-less records are screened and cleared on title/keywords; answered by `h6` |
+| F-247 | **High** | M (open) | **`batch_size` changes which papers a reviewer reads** |
+
+**Also this wave.** **F-212 CLOSED** — `LANG_MAP` extended, guarded by
+`tests/test_lang_map.py`. **F-129 CLOSED** at 17f — `secrets/README.md` named the
+wrong `.env` location. **F-215 measured at last** by `h9`; its documented
+identity-drop mechanism did **not** fire (zero dropped verdicts) while a larger
+effect did — see F-247. **F-218** marked NOT REPRODUCING, and its prescribed test
+is not executable: no log carries a timestamp.
+
+---
+
+## 6. Conventions this wave added
+
+- **Derive ceilings from the dry run; never declare them.** Wave 16b killed a
+  healthy arm with a per-arm ceiling set at the no-re-ask arithmetic. Every
+  wave-17 `--budget` is 2× the dry run's predicted count; no arm exceeded 57.1%.
+- **Verify on more than one line-ending configuration** — *two Windows clones are
+  one observation twice.* F-226 exists because two Windows clones agreed while CI
+  went red on 12 of 16 jobs. Wave 17 verified on Windows **and** a genuine Linux
+  host, asserting every digest before running anything.
+- **Wait for `{arm}_live_manifest.json` before `git add`.** It is the harness's
+  last write, so its presence is the completion marker. A wildcard `git add -A`
+  mid-run swept half-written artefacts into an unrelated commit, and `live_v1`
+  carries no digests, so nothing would have caught it.
+- **Allocate IDs past the maximum; reserve nothing.** The register counts *rows*,
+  never the maximum ID — it has a permanent three-ID gap at F-56/57/58. Take the
+  next number above the highest in use, then run
+  `python tools/derive_register_totals.py` and paste its block.
+- **Inputs get fixed; outputs get preserved.** A spec is an input: a stale path in
+  it is a break to repair (F-225). A run manifest is an output: it keeps the
+  string the run actually consumed, even when that string is now wrong. Never
+  "correct" a recorded digest — it is an output record, and the checkout form is
+  what is wrong (F-230).
+- **A frozen directory is `binary`, without exception**, including the
+  extensionless `SHA256SUMS`; its bijection is asserted against `git ls-files`,
+  never the filesystem (F-223); and its digests are of the **committed** bytes.
+
+---
+
+## 7. Premises corrected, so they are not re-inherited
+
+- **F-227 retracted and downgraded.** Filed High claiming an `llm` criterion
+  screens only the field its `target` names. False — `prompt.py:78-86` packs
+  `title`, `abstract` **and** `keywords` unconditionally. What survives: `target`
+  is a *filter* for deterministic operators and a *hint* for `llm` ones, rendered
+  identically, and the hint moves gate outcomes.
+- **F-236's mechanism retracted; the floor is empirical.** The row argued *small
+  prompts are denser* and named `h9` as the exposed arm. `h9` ran with the
+  smallest prompts in the wave (327–699 tokens) at density **4.11–4.97** — the
+  large-prompt band. **No size gradient exists, and h2's 3.55 is unexplained.**
+  `CHARS_PER_TOKEN = 3.3` now stands on 272 post-calibration RSA samples plus
+  wave 15b's 8, every ratio ≥ 1.109, zero drift aborts: **it is the value that
+  has never under-estimated, not one a tokeniser model predicts.**
+- **F-221's unidirectionality does not replicate.** *"None went the other way"* is
+  a wave-16 single-corpus observation; wave 17 found 2 of 9 counter-directional.
+  The corrected claim is **instability**, not a bias toward exclusion.
+- **The `span` field is decorative.** Of the 212 evidence cells carrying both a
+  quote and a span, **zero** have a span whose width equals the quote's length.
+  Nothing consults it.
+- **The stop condition "any `quote_valid=False`" was broken**: it fires on 828 of
+  931 cells, because an honest null quote records `false`. The operative form is
+  `quote_valid == False AND quote IS NOT null` (22 of 931); narrowed to the
+  *acting path* — an `exclude` criterion answered `meet` — it fires on 3.
+
+---
+
+## 8. The open backlog
+
+**What I would put first, and why.**
+
+1. **F-238 + F-244 as one decision.** They compound: the evidence check cannot
+   catch a wrong exclusion, and the exclusions are measured wrong. The cheapest
+   correct action is not code — it is to **keep `allow_exclusion` off for every
+   provider and say so in the user-facing docs.** That costs nothing and removes
+   the only path to an irreversible wrong outcome.
+2. **F-228** — persist `crit_impacts`. The tool already computes it; wave 17 had
+   to reconstruct it (`tools/extract_crit_impacts.py`) to freeze it at all. One
+   write closes it, and it is the precondition for F-239's fix.
+3. **F-239** — surface sole-cause removals. One pass over data the chain already
+   holds, no LLM, and it would have told the user that one criterion removed 117
+   on-topic papers before a single call was spent.
+4. **F-247 with F-101.** `batch_size` must be recorded where a reviewer reads it,
+   and F-101 — the cache key is blind to batch size — must be fixed *before* any
+   cache is enabled with a variable batch size. Together they turn a
+   reproducibility problem into a contamination one.
+5. **F-240 / F-241** — value-domain validation for enumerated columns, and a
+   linter warning on negated criteria. The translator and the model mishandle
+   negation independently, by different mechanisms, with no overlap in defences.
+
+**Cheap and unblocked:** F-235 (XS), F-232, F-234.
+
+**Reported at 17f, not acted on:** `docs/data/wave16_arms/` has no `SHA256SUMS`.
+Adding one is safe and cheap, with two conditions — the digests must come from
+the blob rather than this working tree (**38 of 514 tracked files diverge**, 16
+of them there), and it forces that directory from `eol=lf` to `binary`.
+
+### 8.1 What wave 17 makes newly urgent
+
+**PyPI users are on 3.1.0.** This wave documented **23 further findings against
+that release**, and two of them — **F-238** and **F-244** — mean that **a user
+who changes one setting gets wrong deletions carrying valid-looking evidence**:
+`quote_valid: true`, a quote clearing the substance floor, a confidence above
+threshold, and nothing in the bundle marking it unsupported.
+
+Nothing in 3.1.0 warns about this, and the README's provider-choice section
+describes unreleased behaviour that would make the setting easier to reach.
+
+Stated, not scheduled — **the maintainer schedules.**
+
+---
+
+## 9. Where everything is
 
 | what | path |
 |---|---|
-| corpus (463 records, 34 cols) | `samples/20260816_1841_rsaAggregate.csv` — sha256 `e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c` |
-| criteria file (8 criteria) | `samples/20260816_1841_rsaSampleIcEc.txt` — sha256 `62e59ab8…` |
-| the spec | `docs/data/wave17_arms/experiment_spec.json` — 10 arms |
-| prose arms | `docs/data/wave17_arms/h{1,2,3}_*.txt` |
-| columnar arms | `docs/data/wave17_arms/h{4,5,6,7,8}_*.csv` |
-| dry-run manifests | `docs/data/wave17_arms/dryrun_v1/` (11 files) |
-| **live artefacts** | `docs/data/wave17_arms/live_v1/` (63 files, 7 arms) |
+| the wave's result, for a cold reader | `docs/data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md` **§11** |
+| frozen evidence, 113 digests | `docs/data/wave17_arms/` + `SHA256SUMS` + `meta.txt` |
+| its guard, re-deriving every number | `tests/test_wave17_freeze.py`, 76 tests |
+| per-criterion impact, all ten arms | `docs/data/wave17_arms/live_v1/crit_impacts.json`, rebuilt by `tools/extract_crit_impacts.py --check` |
+| the register | `docs/internal/diagnostic/03_findings.md` — 244 rows, next free **F-248** |
 | the harness | `tools/run_criteria_experiment.py` |
-| register | `docs/internal/diagnostic/03_findings.md` — 234 rows, next free **F-238** |
-
-Per arm, `live_v1/` holds `{arm}_{EL,IL}_FULL.csv`, `_report.json`,
-`_summary.json`, `_log.txt`, and `{arm}_live_manifest.json`.
-
-Both `samples/` files and everything under `docs/data/wave17_arms/` are pinned
-`text eol=crlf` in `.gitattributes`. Keep disk and checkout byte-identical: if
-you regenerate anything, normalise to CRLF before committing (F-230).
-
----
-
-## 3. Findings filed this wave
-
-| ID | sev | category | status |
-|---|---|---|---|
-| F-225 | Medium | provenance / CI | **XS (done)** |
-| F-226 | Medium | process / testing | S (open) |
-| F-227 | Medium | correctness / scientific integrity | M (open) |
-| F-228 | **High** | provenance / scientific integrity | S (open) |
-| F-229 | Medium | correctness | S (open) |
-| F-230 | Medium | provenance / CI | **XS (done)** |
-| F-231 | Low | measurement / validation | **XS (done)** |
-| F-232 | Medium | provenance / correctness | S (open) |
-| F-233 | Medium | provenance / correctness | **XS (done)** |
-| F-234 | Medium | provenance / correctness | S (open) |
-| F-235 | Medium | correctness | XS (open) |
-| F-236 | **High** | correctness / instrument | M (open) |
-| F-237 | Low | measurement / validation | **XS (done)** |
-
-Also touched: **F-212 CLOSED** (`XS (done)`) — `LANG_MAP` extended so every name
-branch 1 can emit reaches a code, and every code a committed corpus stores is
-reachable by name; guarded by `tests/test_lang_map.py`, seen red first.
-**F-217** gained two re-ask rates. **F-218** is marked **NOT REPRODUCING** — three measurements, three relationships — with an untested candidate explanation recorded in the row; see §6.
-
-### F-227 carries a retraction — read the row, do not trust the headline
-
-F-227 was filed **High** claiming an `llm` criterion screens the single field
-its `target` cell names, and that the abstract is screened on neither corpus.
-**That is false and the row says so in place.** `plugins/06_el/prompt.py:78-86`
-and its IL twin pack `title`, `abstract` AND `keywords` for every item
-unconditionally; `target` is only a string inside the criterion object. Verified
-from a rendered prompt and corroborated live (`field=abstract` with
-`quote_valid=True`, impossible had only the title been sent).
-
-Also verified by sentinel: `_get_best_text_targets`'s value reaches the `target`
-cell **only where `operator == "llm"`** — all six deterministic branches
-overwrite it. So the corpus-dependent choice lands exclusively where it selects
-nothing.
-
-**What survives, and why the row is still open at Medium:** `target` is a
-*filter* for deterministic operators and a *hint* for `llm` ones, and
-`criteria_harmonized.csv` — which ships in the bundle — renders both
-identically. A reviewer sees `target: keywords` on an `llm` row and concludes
-the model saw keywords. It saw all three.
-
----
-
-## 4. The calibration (F-236) — the most load-bearing result
-
-**`CHARS_PER_TOKEN` was 4.5 and is now 3.3**, in
-`plugins/_common/llm_client.py`. The full reasoning is in that constant's
-docstring; the short version:
-
-4.5 was measured once, on wave 15b's **VR** corpus, and applied to the **RSA**
-corpus with nothing asking whether the new text tokenises the same way. It does
-not. `h2_polarity` aborted on its first live call — 885 actual prompt tokens
-against 741 estimated, 3.62 chars/token — and eight of nine arms could not run.
-
-**Small prompts are DENSER,** which inverts the intuition: JSON scaffolding,
-field names, record ids and punctuation tokenise badly and dominate a small
-payload, while long prose tokenises efficiently and dominates a large one. Wave
-15b's own probes show 5.03–5.23 chars/token on large payloads and 4.48–4.50 on
-small ones.
-
-3.3 is a **floor, not a mean** — a mean is what failed. It is also the *lowest*
-value causing no false refusal: the largest prompt in the wave is 11,551 chars,
-estimating 3,531 tokens, and 3,531 + the 400-token reserve is 3,931 inside a
-4,096 window. At 3.0 the same prompt would want 4,281 and the guard would refuse
-a prompt that fits.
-
-### Validation: 176 recorded samples, 0 drift aborts
-
-**CORRECTED at wave 17e. This section said 197. The artefacts hold 197
-`token_samples`, but 21 of them are `h0_baseline`'s and were recorded under the
-OLD divisor 4.5** — they are the observations 3.3 was fitted *from*, not
-observations that validate it. `token_samples` stores no divisor, so the mixture
-is invisible in the artefact; it is recoverable from the ratios, and h0 sits in a
-band no other arm touches.
-
-| arm | density (chars/token) | min margin | `estimate/actual` |
-|---|---|---|---|
-| h5_adversarial | 4.44 – 4.96 | +36% | 1.361 – 1.520 |
-| **h2_polarity** | **3.55 – 3.83** | **+11%** | 1.109 – 1.207 |
-| h1_paraphrase | 4.51 – 4.74 | +39% | 1.388 – 1.452 |
-| h8_pinned_target | 4.52 – 4.74 | +39% | 1.389 – 1.451 |
-| h3_stage_stress | 3.92 – 5.17 | +27% | 1.275 – 1.589 |
-| h4_edge_shapes | 4.41 – 5.16 | +35% | 1.355 – 1.580 |
-| **`h0_baseline` — PRE-CALIBRATION, divisor 4.5, n=21** | — | **+2.41%** | **1.024 – 1.070** |
-
-**h0's +2.41% is the closest approach to a drift abort anywhere in this wave**:
-`{estimate: 1490, actual: 1455}` at EL, a margin of **35 tokens**. It was not in
-this table, so the wave's narrowest margin was not in the record. It is a
-pre-calibration measurement — it is exactly the near-miss that motivated the
-recalibration — but "0 drift aborts" over "197 samples" reads as 197 samples
-validating 3.3, and 21 of them cannot.
-
-The clinching arithmetic is h0 against h1: same corpus, same records, prompts
-within ~14 characters of each other.
-
-```
-h0 EL sample 1: {estimate: 2031, actual: 1902}
-h1 EL sample 1: {estimate: 2759, actual: 1900}
-estimate ratio 2759 / 2031 = 1.3584        4.5 / 3.3 = 1.3636
-```
-
-Two prompts **2 tokens apart in reality, 728 tokens apart in estimate.**
-
-Among the 176 post-calibration samples, h2's 3.55–3.83 confirms the single 3.61
-observation the floor was fitted from, and nothing fell below 3.55.
-**`token_samples` should record the divisor in force**, the way each summary
-already records `prompt_version` and `context_window`; without it, any future
-recalibration that pools all 197 fits a mixed instrument.
-
-**The drift check is unchanged and still strict** — `llm_client.py:1662`,
-`actual > estimate` raises. Calibration made the estimate right; it did not make
-the check forgiving. `tests/test_context_guard.py` re-adjudicates the pin to 3.3
-with the evidence, and now also asserts conservatism against the eight RSA
-observations.
-
-**Instrumentation added:** `token_samples` records every
-`(estimate, actual, items, criterion)` tuple and the harness surfaces it into
-each stage summary. Before this, the drift check fetched `usage.prompt_tokens`,
-compared it once, and discarded it — so two waves of live running left exactly
-one usable observation. Any future recalibration now has data.
-
-**I6 measurement:** after calibration, **zero of ten `guard_ok_batch5` verdicts
-change.** All were True before and remain True; worst est+reserve rises to
-2,318–3,930, with h4 closest at 3,930 of 4,096 = 96%. The prompts did fit; only
-the assurance had been missing.
-
----
-
-## 5. The five stop conditions, as revised
-
-Halt the sequence immediately and report if any arm shows:
-
-1. **any removal or auto-act at any gate** — `OUT > 0` in a stage summary's
-   `counts`. Wave 16 and all seven wave-17 arms measured zero. A removal is
-   either a real behaviour change or a broken gate.
-2. **any F-107 unconstrained fallback** — `request_shape != "json_schema"`.
-3. **any arm reaching its per-arm ceiling.**
-4. **any `quote_valid=False` WITH A NON-NULL QUOTE.** *Corrected at wave 17e —
-   the version this document shipped, "any `quote_valid=False`", is broken and
-   is described below. Do not use it.*
-5. **any `TokenEstimateDrift`.**
-
-### Condition 4 was wrong as I wrote it — corrected at wave 17e
-
-I replaced the retired condition below with **"any `quote_valid=False`"**. That
-condition has never been exercised, because no arm has run since I wrote it, and
-it is unusable. Measured over all 931 record-criterion evidence cells in the
-seven arms that ran:
-
-| | n | of 931 |
-|---|---|---|
-| `quote_valid = false` | **828** | **88.9%** |
-| — of which the quote is **null/empty** | 806 | 86.6% |
-| — of which the quote is **non-null** | **22** | **2.4%** |
-| `quote_valid = true` (always non-null) | 103 | 11.1% |
-
-`quote_valid` is `_quote_in_text(quote, field_text)` and an empty string is found
-in nothing, so **every honest null quote records `quote_valid: false`** — and the
-v3 prompt asks for exactly that null on `not_meet`, which is the modal verdict.
-`quote_valid = true` never co-occurs with a null quote. The condition as I wrote
-it would have halted the very first arm on its first batch, on the behaviour
-`plugins/07_il/prompt.py:44` explicitly requests.
-
-**The operative condition is `quote_valid == False` AND `quote` IS NOT null:
-22 of 931, 2.4%.** That is the property I meant — the model naming a field it
-did not quote from.
-
-For scale, and it is not flattering: the condition I retired fires **4 times in
-931 (0.43%)**, all four on `h4`'s H4-7, which is precisely F-237's population.
-I replaced a 0.43% instrument with an 88.9% one and recorded the swap as a fix.
-The retirement's *contract* reasoning is still right — see below — but the
-replacement was not. F-237's row carries the same correction.
-
-### The retired condition, and why
-
-The fourth condition used to be *"any non-null quote on a `not_meet` verdict"*.
-**It was wrong and it halted the sequence on permitted behaviour.** The contract
-at `plugins/07_il/prompt.py:44` asks for *"null, **unless an exact substring
-genuinely supports the verdict**"*, and the schema at
-`llm_client.py:1143-1146` makes `quote` `anyOf [string, null]` — **nullable,
-never null-required**. F-195's comment says why: a schema requiring a string
-*"demands fabrication in grammar"*.
-
-The condition came from a session report of mine that described 80-of-80 null
-quotes on h0 as "the wave-15 null-quote fix holds", turning an observation into
-a guarantee. Do not reinstate it. The four verdicts that tripped it are filed
-as **F-237** (Low, measurement) with their n stated and their inertness proved.
-
-The driver that enforces these lives in the scratchpad, not the repo. Its logic
-is simple enough to rewrite: run each arm as a subprocess, then read the stage
-summaries and `FULL.csv` evidence before starting the next.
-
----
-
-## 6. Measurements to carry forward
-
-**Re-ask rate does not track prompt size.** 8 of 197 base batches = **4.1%**
-overall, against wave 16b's 1 of 324 = 0.31%.
-
-| arm | median chars | re-asks | rate |
-|---|---|---|---|
-| h2 | 3,151 | 0 of 12 | 0.0% |
-| h3 | 7,033 | 1 of 48 | 2.1% |
-| h4 | 7,049 (max 11,551) | 0 of 56 | 0.0% |
-| h0 | 9,010 | 3 of 21 | 14.3% |
-| h1 | 9,024 | 3 of 21 | 14.3% |
-| h8 | 9,028 | 1 of 21 | 4.8% |
-| h5 | 9,329 | 0 of 18 | 0.0% |
-
-No monotone relationship in either direction. The largest-prompt arm and
-largest-median arm both had zero. h0 and h1 are paraphrases and both hit exactly
-3; h8 is h0 with one hint string changed and hit 1. **It looks stochastic.** The
-calibrated ceiling of 486 derived from 0.31% was withdrawn in 17c; the
-**structural 926 stands**.
-
-**F-218 is NOT REPRODUCING.** Three measurements, three relationships:
-
-- wave 15e / F-218 as filed: IL 2.0–3.6× slower than EL
-- h0: IL 8.43 s/call against EL 7.77 → **1.08×**
-- h3: EL **28.00** s/call against IL 7.48 → EL nearly **4× slower than IL**
-
-Candidate explanation for h3's EL outlier, **untested**: Ollama unloads idle
-models, so an arm starting after a gap pays model-load time on its first calls.
-h3 began at 08:31:25 after h8 finished — check the gaps in
-`live_v1/*_log.txt` against the per-call timings. Every wall-clock figure in the
-spec is currently at h0's measured rates and should be treated as provisional.
-
-**The three `quote_valid=False` cases, as a measurement with n stated:** 3 of 68
-`not_meet` verdicts on `h4_edge_shapes` IL criterion H4-7 named
-`field=abstract` and quoted the **keywords** text instead; a fourth quoted the
-title with `quote_valid=True`. All four are `status=SUPPRESSED`, confidence 0.9,
-and `verdict_gate.py:147` does not consult the quote on the
-`RULE_REMOVES_BY_ABSENCE` path, so **all are inert for the decision. Nothing was
-removed.** H4-7 is the longest prompt in the wave, but **do not assert that
-prompt length causes this** — the re-ask data above shows no size relationship,
-so length-as-cause is a hypothesis at n=3. Evidence:
-`live_v1/h4_edge_shapes_IL_FULL.csv`, records A220, A221, A223 (invalid) and
-A228 (valid).
-
----
-
-## 7. Remaining work
-
-### 17d, to finish: 266 calls, ~35 min
-
-```
-h6_no_abstract   56 calls   --budget 112
-h9_batch1        96 calls   --budget 192
-h7_loose        114 calls   --budget 228
-```
-
-Command shape — **pass `--out` explicitly every time**:
-
-```
-python tools/run_criteria_experiment.py \
-    --spec docs/data/wave17_arms/experiment_spec.json \
-    --out  docs/data/wave17_arms/live_v1 \
-    --live --arm h6_no_abstract --budget 112 --yes-live
-```
-
-**`h9_batch1` is the remaining drift risk.** Its prompts are 1,296–3,004 chars,
-**all smaller than any density observation** (the densest measured is h2's 3.55
-at ~3,150 chars). If density keeps falling below that, h9 trips the drift check,
-costs one call, and yields the datum the fit is missing. That is the right trade
-— let it happen rather than loosening the check.
-
-### 17e, not started
-
-Freeze the evidence. **Note carried from 17c:** because the product does not
-persist per-criterion impact (F-228), the freeze must capture `crit_impacts`
-**explicitly from the harness**, or the frozen evidence inherits the same hole.
-
----
-
-## 8. Standing conventions
-
-- **Detached runs with polled logs.** Never a foreground call that can hit a
-  tool timeout mid-flight. Launch with `nohup … > log 2>&1 &`, then poll the log
-  with an `until` loop.
-- **NEVER STAGE BY WILDCARD WHILE AN ARM IS IN FLIGHT.** Added at wave 17e after
-  a `git add -A` swept `h6_no_abstract`'s **half-written EL artefacts** into an
-  unrelated documentation commit — the arm was still running and its IL files did
-  not exist yet. Amended out immediately and the final tree is correct, but
-  nothing would have caught it: `live_v1` carries no digests, so a partially
-  written artefact commits silently. **Name the paths, or wait for
-  `{arm}_live_manifest.json` to exist** — the harness writes it last, so its
-  presence is the completion marker. Recorded against F-230, whose subject is
-  bytes that are not what the record claims.
-- **`--out` always explicit.** Its default now derives from the spec's directory
-  (`default_out_for`), but pass it anyway — a wave-16-pinned default already
-  wrote wave 17's artefacts into `wave16_arms/dryrun_v1` once.
-- **Per-arm `--budget` from the spec's `call_ceiling_arm`** (2× that arm's
-  predicted). Not the total. Wave 16b killed a healthy arm with a per-arm ceiling
-  set at the no-re-ask arithmetic.
-- **Models explicit per stage.** `live_preflight` refuses unless
-  `live.model.{EL,IL}` are both set. The GUI path has a stage→app-level fallback
-  (`settings.py:411`, `effective()`) that the harness bypasses; keep it bypassed.
-- **Cache off.** `use_cache: false`, enforced in three places. h0 and h9 differ
-  only in batch size and the F-101 cache key is blind to batch size, so a live
-  cache would silently collapse them.
-- **Zero-tolerance drift check.** Do not add a tolerance. Recalibrate the
-  estimator instead; that debate is settled in F-236.
-- **The register's totals are machine-derived.** Run
-  `python tools/derive_register_totals.py` after any row change and paste its
-  block; `tests/test_register_totals.py` asserts it.
-- **All four CI steps, not just pytest** (F-226): `pytest`,
-  `tools/audit_imports.py plugins/ tests/`,
-  `tools/audit_decorators.py plugins/ tests/`, `tools/check_encoding.py`. And
-  verify on more than one line-ending configuration — two Windows clones agreed
-  once while CI went red on 12 of 16 jobs.
-
----
-
-## 9. THE GAP THIS SECTION NAMED IS NOW CLOSED
-
-**DONE at wave 17e — see `docs/data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md`.**
-Zero LLM calls were spent on it; every figure is derived from the committed
-artefacts. Read that document before re-deriving anything here.
-
-Headline answers to the questions this section listed: **h0 vs h1** moved 9 of 32
-records at IL and halved the both-stages-clean pile (10 to 5) — F-221's magnitude
-replicates, its unidirectionality does not (F-221's row now says so). **h0 vs h8**
-moved 1 decision of 64 at EL and 2 of 32 at IL, but relocated 71% of the model's
-self-reported evidence field and changed gate outcomes through `quote_valid`.
-**h2's mirror pairs cannot be compared to h0** — IC-26 mistranslated and left the
-arm with zero record overlap — but the arm yields a negation result instead:
-three of four negation-phrased criteria were answered as if un-negated. **h3, h4
-and h5's shapes all landed**, and four registered *behaviour* predictions were
-falsified. **Two new findings were filed from it: F-238 and F-239.**
-
-The rest of this section is left as written, as the record of what was unknown
-before the analysis ran:
-
-Originally unknown:
-
-- **h0 vs h1 is F-221's replication** — does rewording a criterion change which
-  records survive? Both arms ran on the same 32 records with paraphrased
-  criteria. Compare the verdicts in
-  `live_v1/h0_baseline_{EL,IL}_FULL.csv` against
-  `live_v1/h1_paraphrase_{EL,IL}_FULL.csv`, per record per criterion. **The
-  result is unknown to me.** Their operational profiles are near-identical
-  (21 base calls, 3 re-asks each), which says nothing about agreement.
-- **h0 vs h8 is F-227's only surviving claim** — does the `target` hint string
-  move the model? Same prompts, same records, one string different in the
-  criterion object. h8's summaries show a different suppression split
-  (EL SUPPRESSED 4 against h0's 2), so **something moved**, and nobody has
-  looked at what. `live_v1/h8_pinned_target_*` versus `h0_baseline_*`.
-- **h2's polarity mirrors** — do the inverted criteria produce inverted
-  verdicts? `mirror_pairs` is not declared in the wave-17 spec the way wave 16
-  declared it; the pairing has to be read from
-  `docs/data/wave17_arms/h2_polarity.txt`.
-- **h4 and h5's edge shapes** — did the thin `what`, the absence phrasing, the
-  long prose, the threshold 1.00, the Cyrillic criterion and the
-  comma-in-operand behave as their `source_text` cells predicted? Each row's
-  intent is registered in the spec under that arm's `intents`.
-- **h3's stage routing** — its registered intents include deliberate traps
-  (branch 2 both ways, the DOI branch, a German language rule now mapped
-  post-F-212). Did the landings match?
-
-The dry manifests already contain `landings_vs_intent` per arm, which is the
-right starting point for the deterministic half. The LLM half has to be read out
-of the `FULL.csv` evidence columns.
-
----
-
-## 10. Open questions
-
-1. **h3's EL 28 s/call outlier.** Candidate: Ollama model unloading between
-   arms. Untested. Check log timestamps against per-call timing.
-2. **Does density vary enough *within* the RSA corpus to make a single divisor
-   unsafe?** Observed 3.55–5.18 across six arms. 3.3 held for all 197 samples,
-   but h9's prompt range is unobserved.
-3. **h9's small prompts** — the remaining drift risk, deliberately unmitigated.
-4. **Is the `quote_valid=False` behaviour worth a finding?** 3 of 68, inert,
-   n too small to attribute a cause.
-5. **Ten stale wave-17 branches** to delete once the maintainer is satisfied.
+| corpus and criteria | `samples/20260816_1841_rsaAggregate.csv` · `samples/20260816_1841_rsaSampleIcEc.txt` |
+
+**The criteria in `samples/` are a realistic example, not a recommended
+instrument** — F-239 measures one of them removing 117 on-topic papers,
+including the paper the corpus was built around. `samples/README.md` says so.
