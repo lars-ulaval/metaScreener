@@ -56,6 +56,13 @@ the human-vs-LLM agreement study:
   for spot-checking.
 - [`data/eval_summary_v1.txt`](data/eval_summary_v1.txt) —
   human-readable summary with kappa values and 3x3 confusion matrices.
+- [`data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md`](data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md)
+  — what the seven wave-17 criteria-experiment arms measured: the
+  paraphrase-sensitivity replication, the `target`-hint comparison,
+  registered intent against outcome per arm, and a record-by-record
+  judgement of the pile the baseline arm produces. Derived entirely from
+  the committed artefacts under
+  [`data/wave17_arms/`](data/wave17_arms/); no run was made to produce it.
 
 Re-running [`tools/eval_ingest.py`](../tools/eval_ingest.py) against
 the committed grids and manifest reproduces all four evidence files
