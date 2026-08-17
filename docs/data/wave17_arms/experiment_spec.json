@@ -132,7 +132,8 @@
             "failed": 28
           }
         }
-      }
+      },
+      "call_ceiling_arm": 42
     },
     {
       "key": "h1_paraphrase",
@@ -215,7 +216,8 @@
         "eh_surv": 423,
         "ih_out": 391,
         "ih_surv": 32
-      }
+      },
+      "call_ceiling_arm": 42
     },
     {
       "key": "h2_polarity",
@@ -284,7 +286,8 @@
         "eh_surv": 461,
         "ih_out": 449,
         "ih_surv": 12
-      }
+      },
+      "call_ceiling_arm": 24
     },
     {
       "key": "h3_stage_stress",
@@ -367,7 +370,8 @@
         "eh_surv": 398,
         "ih_out": 282,
         "ih_surv": 116
-      }
+      },
+      "call_ceiling_arm": 96
     },
     {
       "key": "h4_edge_shapes",
@@ -457,7 +461,8 @@
         "eh_surv": 451,
         "ih_out": 382,
         "ih_surv": 69
-      }
+      },
+      "call_ceiling_arm": 112
     },
     {
       "key": "h5_adversarial",
@@ -519,7 +524,8 @@
         "eh_surv": 440,
         "ih_out": 411,
         "ih_surv": 29
-      }
+      },
+      "call_ceiling_arm": 36
     },
     {
       "key": "h6_no_abstract",
@@ -567,7 +573,8 @@
         "eh_surv": 463,
         "ih_out": 324,
         "ih_surv": 139
-      }
+      },
+      "call_ceiling_arm": 112
     },
     {
       "key": "h7_loose",
@@ -644,7 +651,8 @@
         "eh_surv": 423,
         "ih_out": 234,
         "ih_surv": 189
-      }
+      },
+      "call_ceiling_arm": 228
     },
     {
       "key": "h8_pinned_target",
@@ -728,7 +736,8 @@
         "eh_surv": 423,
         "ih_out": 391,
         "ih_surv": 32
-      }
+      },
+      "call_ceiling_arm": 42
     },
     {
       "key": "h9_batch1",
@@ -812,7 +821,8 @@
         "eh_surv": 423,
         "ih_out": 391,
         "ih_surv": 32
-      }
+      },
+      "call_ceiling_arm": 192
     }
   ],
   "call_budget": {
@@ -846,7 +856,9 @@
         "wall_clock_min": [
           4.1,
           5.7
-        ]
+        ],
+        "predicted": 21,
+        "structural_ceiling_arm": 42
       },
       "h1_paraphrase": {
         "batch_size": 5,
@@ -859,7 +871,9 @@
         "wall_clock_min": [
           4.1,
           5.7
-        ]
+        ],
+        "predicted": 21,
+        "structural_ceiling_arm": 42
       },
       "h2_polarity": {
         "batch_size": 5,
@@ -872,7 +886,9 @@
         "wall_clock_min": [
           2.6,
           4.0
-        ]
+        ],
+        "predicted": 12,
+        "structural_ceiling_arm": 24
       },
       "h3_stage_stress": {
         "batch_size": 5,
@@ -885,7 +901,9 @@
         "wall_clock_min": [
           10.6,
           16.2
-        ]
+        ],
+        "predicted": 48,
+        "structural_ceiling_arm": 96
       },
       "h4_edge_shapes": {
         "batch_size": 5,
@@ -898,7 +916,9 @@
         "wall_clock_min": [
           12.3,
           18.9
-        ]
+        ],
+        "predicted": 56,
+        "structural_ceiling_arm": 112
       },
       "h5_adversarial": {
         "batch_size": 5,
@@ -911,7 +931,9 @@
         "wall_clock_min": [
           3.5,
           4.9
-        ]
+        ],
+        "predicted": 18,
+        "structural_ceiling_arm": 36
       },
       "h6_no_abstract": {
         "batch_size": 5,
@@ -924,7 +946,9 @@
         "wall_clock_min": [
           12.3,
           18.9
-        ]
+        ],
+        "predicted": 56,
+        "structural_ceiling_arm": 112
       },
       "h7_loose": {
         "batch_size": 5,
@@ -937,7 +961,9 @@
         "wall_clock_min": [
           22.3,
           31.2
-        ]
+        ],
+        "predicted": 114,
+        "structural_ceiling_arm": 228
       },
       "h8_pinned_target": {
         "batch_size": 5,
@@ -950,7 +976,9 @@
         "wall_clock_min": [
           4.1,
           5.7
-        ]
+        ],
+        "predicted": 21,
+        "structural_ceiling_arm": 42
       },
       "h9_batch1": {
         "batch_size": 1,
@@ -963,7 +991,9 @@
         "wall_clock_min": [
           7.4,
           10.4
-        ]
+        ],
+        "predicted": 96,
+        "structural_ceiling_arm": 192
       }
     },
     "wall_clock_hours_as_declared": [
@@ -971,6 +1001,9 @@
       2.0
     ],
     "dominant_arm": "h7_loose: 114 of 463 calls (25%) and 22-31 min. h4_edge_shapes was 256 of 567 before wave 17c bounded its pile with H4-9; it is now 56.",
-    "uncapped_piles": "h4 bounded to 69 records by H4-9, a declared, digest-pinned criteria row — the only capping mechanism available, since the harness supports no subsampling (see F-232). h6 LEFT WHOLE deliberately: its measurement is the abstract-less records reaching EL, and only 32 of its 139 are abstract-less, so a trim to 60 records would leave ~14 and every tighter gate measured leaves 8 or fewer. h7 LEFT WHOLE at 189: its 24.9% off-topic proportion IS the measurement and a trim to 60 leaves ~15 off-topic, too thin for a discrimination claim."
+    "uncapped_piles": "h4 bounded to 69 records by H4-9, a declared, digest-pinned criteria row — the only capping mechanism available, since the harness supports no subsampling (see F-232). h6 LEFT WHOLE deliberately: its measurement is the abstract-less records reaching EL, and only 32 of its 139 are abstract-less, so a trim to 60 records would leave ~14 and every tighter gate measured leaves 8 or fewer. h7 LEFT WHOLE at 189: its 24.9% off-topic proportion IS the measurement and a trim to 60 leaves ~15 off-topic, too thin for a discrimination claim.",
+    "per_arm_ceilings": "Each arm carries `call_ceiling_arm` = 2x its own predicted spend, so a runaway is refused AT THE ARM rather than after it has eaten other arms' budget. That is wave 16b's lesson read the other way round: arm0's per-arm ceiling was too TIGHT (15, the no-re-ask arithmetic) and killed a healthy arm on one re-ask; a per-arm ceiling at 2x is loose enough to absorb every batch re-asking and still bounds the damage one arm can do. `--budget` is passed per arm by the operator; these are the values to pass.",
+    "arm_order": "h0_baseline ALONE first, then STOP for inspection: 21 calls to prove the pipeline produces sane output before committing the other 442. Then ascending cost — h2 12, h5 18, h1 21, h8 21, h3 48, h4 56, h6 56, h9 96, h7 114 last.",
+    "total_check": "per-arm predicted sums to 463, which is predicted_spend_as_declared; ceilings sum to 926, which is call_ceiling_total."
   }
 }

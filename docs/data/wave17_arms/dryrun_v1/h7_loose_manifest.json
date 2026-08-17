@@ -9,6 +9,10 @@
   "window": 4096,
   "trunc_chars": 1500,
   "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+  "declared_batch_size": {
+    "EL": 5,
+    "IL": 5
+  },
   "harmonized_rows": [
     {
       "stage": "EH",

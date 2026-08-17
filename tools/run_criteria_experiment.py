@@ -631,6 +631,13 @@ def run_arm_dry(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
         "window": window,
         "trunc_chars": trunc,
         "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+        # F-233: the batch size this arm will ACTUALLY run at, from its own
+        # `live` block. Recorded because `summarize` cannot otherwise know it,
+        # and a cross-arm total that assumed one batch size for every arm
+        # under-reported a mixed-batch spec by the difference.
+        "declared_batch_size": {
+            s: int((arm.get("live") or spec["live_defaults"])["batch_size"][s])
+            for s in ("EL", "IL")},
         "harmonized_rows": [{
             "stage": r.get("stage"), "id": r.get("id"), "type": r.get("type"),
             "operator": r.get("operator"), "target": r.get("target"),
@@ -726,6 +733,13 @@ def _run_derived_arm_dry(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
         "window": window,
         "trunc_chars": trunc,
         "generated_by": "tools/run_criteria_experiment.py (dry mode, zero calls)",
+        # F-233: the batch size this arm will ACTUALLY run at, from its own
+        # `live` block. Recorded because `summarize` cannot otherwise know it,
+        # and a cross-arm total that assumed one batch size for every arm
+        # under-reported a mixed-batch spec by the difference.
+        "declared_batch_size": {
+            s: int((arm.get("live") or spec["live_defaults"])["batch_size"][s])
+            for s in ("EL", "IL")},
         "harmonized_rows": [{
             "stage": r.get("stage"), "id": r.get("id"), "type": r.get("type"),
             "operator": r.get("operator"), "target": r.get("target"),
@@ -757,6 +771,13 @@ def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[D
         b5 = m["call_arithmetic"].get("batch5", {})
         b1 = m["call_arithmetic"].get("batch1", {})
         guard5 = m["budget_guard"]
+        # F-233: what this arm actually costs, at its own declared batch size.
+        # `calls_batch5` is a comparison column and is NOT the spend for an arm
+        # declared at any other batch size.
+        declared = m.get("declared_batch_size") or {}
+        declared_el = int(declared.get("EL", 5))
+        declared_total = m["call_arithmetic"].get(
+            "batch%d" % declared_el, b5).get("total", 0)
         worst5 = 0
         for stage in ("EL", "IL"):
             for v in guard5[stage]["batches"].get("5", {}).get("per_criterion", {}).values():
@@ -777,12 +798,15 @@ def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[D
             "guard_ok_batch5": all(
                 guard5[s]["batches"].get("5", {}).get("ok", True) for s in ("EL", "IL")),
             "guard_worst_est_plus_reserve_batch5": worst5,
+            "declared_batch_size_el": declared_el,
+            "calls_as_declared": declared_total,
             "calls_batch5": b5.get("total", 0),
             "calls_batch1": b1.get("total", 0),
             "wall_clock_min_batch5": round(b5.get("wall_clock_s_est", 0.0) / 60.0, 1),
         })
     total5 = sum(r["calls_batch5"] for r in rows)
     total1 = sum(r["calls_batch1"] for r in rows)
+    total_declared = sum(r["calls_as_declared"] for r in rows)
     rows.append({
         "arm": "TOTAL", "kind": "", "criteria": "", "validator_errors": "",
         "linter_findings": "", "landings_match": "", "landings_total": "",
@@ -790,15 +814,17 @@ def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[D
         "el_llm_criteria": "", "il_llm_criteria": "",
         "guard_ok_batch5": "",
         "guard_worst_est_plus_reserve_batch5": "",
+        "declared_batch_size_el": "",
+        "calls_as_declared": total_declared,
         "calls_batch5": total5, "calls_batch1": total1,
         "wall_clock_min_batch5": round(
             sum(float(r["wall_clock_min_batch5"] or 0) for r in rows[:-1]
                 if isinstance(r["wall_clock_min_batch5"], float)), 1)
         if rows else 0,
     })
-    if ceiling is not None and total5 > ceiling:
-        print(f"WARNING: batch-5 cross-arm total {total5} EXCEEDS the "
-              f"{ceiling}-call ceiling — do not tighten unilaterally; "
+    if ceiling is not None and total_declared > ceiling:
+        print(f"WARNING: cross-arm total AS DECLARED {total_declared} EXCEEDS "
+              f"the {ceiling}-call ceiling — do not tighten unilaterally; "
               f"propose a reduction to the maintainer.")
     return rows
 
@@ -1161,7 +1187,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         w.writerows(rows)
     print(f"[dry] wrote {len(manifests)} manifests + {summary_path}")
     for r in rows:
-        print("  ", {k: r[k] for k in ("arm", "calls_batch5", "calls_batch1",
+        print("  ", {k: r[k] for k in ("arm", "calls_as_declared",
+                                       "declared_batch_size_el",
+                                       "calls_batch5", "calls_batch1",
                                        "records_at_el", "guard_ok_batch5")})
     return 0
 
