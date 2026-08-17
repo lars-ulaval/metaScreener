@@ -1,0 +1,39 @@
+{
+  "arm": "h0_baseline_EL",
+  "arm_key": "h0_baseline",
+  "stage": "EL",
+  "base_calls_no_reask": 14,
+  "batch_size": 5,
+  "cancelled": false,
+  "wall_seconds": 124.3,
+  "counts": {
+    "OUT": 0,
+    "PASS_CLEAN": 27,
+    "PASS_FLAGGED": 3,
+    "EXCLUSION_SUPPRESSED": 2,
+    "NOT_SCREENED": 0
+  },
+  "records": 64,
+  "answered": 64,
+  "no_answer": 0,
+  "calls_made": 16,
+  "calls_counted_by_enforcer": 16,
+  "reasks_made": 2,
+  "no_answer_after_reask": 0,
+  "exclusion_policy": "flag_only",
+  "request_shape": "json_schema",
+  "provenance": {
+    "model": "qwen2.5:7b",
+    "endpoint": "http://localhost:11434/v1",
+    "temperature": 0.0,
+    "prompt_version": "EL_v3_nullquote",
+    "trunc_chars": 1500,
+    "batch_size": 5,
+    "context_window": 4096
+  },
+  "absence_suppressed_key_present": false,
+  "llm_criteria": 2,
+  "records_in": 32,
+  "full_rows": 32,
+  "survivors": 32
+}

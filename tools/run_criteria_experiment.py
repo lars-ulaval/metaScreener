@@ -834,12 +834,19 @@ def summarize(manifests: List[Dict[str, Any]], ceiling: Optional[int]) -> List[D
 # before the first call on any mismatch; the budget enforcer is a hard stop.
 # ---------------------------------------------------------------------------
 
-DRY_MANIFEST_DIR = PROJECT_ROOT / "docs" / "data" / "wave16_arms" / "dryrun_v1"
+#: Where the dry manifests for the spec being run live. Resolved from the
+#: SPEC's own directory rather than hardcoded, because the live preflight
+#: compares this arm's criteria digest against the dry run that measured
+#: it — and a path pinned to one wave refuses every later one. Wave 17d hit
+#: exactly that: the preflight looked for wave17's h0 manifest inside
+#: wave16_arms/dryrun_v1, found nothing, and refused before any call.
+def dry_manifest_dir_for(spec_path: Path) -> Path:
+    return Path(spec_path).resolve().parent / "dryrun_v1"
 
 
 def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
                    parse: Any, harmonized_text: str,
-                   dry_manifest_dir: Path = DRY_MANIFEST_DIR) -> Dict[str, Any]:
+                   dry_manifest_dir: Optional[Path] = None) -> Dict[str, Any]:
     """15e pattern: assert everything, spend nothing. Models and batch sizes
     come EXPLICITLY from the arm's live config — never store-resolved. Every
     assertion here REFUSES the run rather than spending a call on a
@@ -894,7 +901,17 @@ def live_preflight(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
     # The criteria this arm will actually screen with must be the criteria the
     # dry run measured, byte for byte.
     crit_sha = _sha256_bytes(harmonized_text.encode("utf-8"))
+    if dry_manifest_dir is None:
+        raise SystemExit(
+            "live: dry_manifest_dir not supplied — REFUSING. The preflight "
+            "compares this arm's criteria against the dry run that measured "
+            "it, so it must be told which wave's dry run to read.")
     dry_path = dry_manifest_dir / f"{arm['key']}_manifest.json"
+    if not dry_path.exists():
+        raise SystemExit(
+            f"live: no dry manifest at {dry_path} — REFUSING. Run the dry mode "
+            f"for this spec first; the preflight will not spend a call against "
+            f"criteria no dry run has measured.")
     dry = json.loads(dry_path.read_text(encoding="utf-8"))
     assert crit_sha == dry["harmonized_sha256"], (
         f"criteria digest {crit_sha[:12]} != dry manifest "
@@ -976,12 +993,13 @@ def _check_anomalies(stage: str, counts: Dict[str, int], report: Dict[str, Any],
 
 def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
                  parse: Any, harmonized_text: str, budget: int,
-                 out_dir: Path) -> Dict[str, Any]:
+                 out_dir: Path, dry_manifest_dir: Path) -> Dict[str, Any]:
     """Run one arm live, writing 15e-shaped artifacts per stage. Artifacts are
     written BEFORE any anomaly is raised, so a stop never loses evidence."""
     import time
     live = arm.get("live") or spec["live_defaults"]
-    facts = live_preflight(mods, spec, arm, parse, harmonized_text)
+    facts = live_preflight(mods, spec, arm, parse, harmonized_text,
+                           dry_manifest_dir=dry_manifest_dir)
     lc = mods.llm_client
     counter = {"n": 0}
     real_builder = lc._openai_client_for
@@ -1116,6 +1134,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--arm", help="run a single arm by key")
+    ap.add_argument("--dry-manifests", type=Path, default=None,
+                    help="directory holding this spec's dry manifests; "
+                         "defaults to <spec dir>/dryrun_v1")
     ap.add_argument("--live", action="store_true",
                     help="wave 16b live mode; requires --arm, --budget, --yes-live")
     ap.add_argument("--budget", type=int,
@@ -1159,7 +1180,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             harmonized_text = src_text
         try:
             run_arm_live(mods, spec, arm, parse, harmonized_text, args.budget,
-                         args.out)
+                         args.out,
+                         args.dry_manifests or dry_manifest_dir_for(args.spec))
         except AnomalyStop as e:
             print(f"WAVE16B-ANOMALY-STOP: {e}", flush=True)
             return 3
