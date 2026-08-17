@@ -1089,6 +1089,9 @@ def run_arm_live(mods: _Mods, spec: Dict[str, Any], arm: Dict[str, Any],
                 "no_answer_after_reask": report.get("no_answer_after_reask"),
                 "exclusion_policy": report.get("exclusion_policy"),
                 "request_shape": report.get("request_shape"),
+                # F-236: every (estimate, actual) prompt-token pair this stage
+                # observed, so a recalibration has data instead of one anecdote.
+                "token_samples": report.get("token_samples"),
                 "provenance": report.get("provenance"),
                 "absence_suppressed_key_present": "absence_suppressed" in report,
                 "llm_criteria": n_llm,

@@ -1589,6 +1589,25 @@ def run_m1_llm_for_criterion(
 
                     resp = _call_once(cur_batch, cur_trunc)
 
+                    # F-236 (wave 17d): keep every (estimate, actual) pair,
+                    # not just the first. The drift check below has fetched
+                    # `usage.prompt_tokens` since wave 15b and thrown it away
+                    # after one comparison — which is F-228's shape exactly:
+                    # computed, used once, discarded. Two waves of live runs
+                    # therefore left NO calibration data behind, and wave 17d
+                    # had to reason about the estimator from a single failing
+                    # observation. Recording is free; the samples are what a
+                    # future recalibration needs.
+                    _pt_obs = getattr(getattr(resp, "usage", None),
+                                      "prompt_tokens", None)
+                    if stats is not None and _pt_obs is not None:
+                        stats.setdefault("token_samples", []).append({
+                            "estimate": int(_last_estimate["v"]),
+                            "actual": int(_pt_obs),
+                            "items": len(cur_batch),
+                            "criterion": cid,
+                        })
+
                     # F-154 / wave 15b: the drift check, usage's first
                     # consumer (F-122's family). Once per RUN via the shared
                     # stats dict; with no stats dict the scope degrades to
