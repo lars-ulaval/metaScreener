@@ -55,9 +55,10 @@ IC-22 10/12 wrong; only "something other than" survived. It cleared everything
 at EL and flagged everything at IL. (§5.2)
 
 **Where the LLM can be checked against a title, it is poor.** `h3`'s IC-33 found
-1 of 10 explicitly paediatric populations; EC-38 found 1 of 16 explicit
+1 of 10 explicitly paediatric populations; EC-38 found 1 of 18 explicit
 reviews and flagged 4 papers that are neither. 115 of 116 records went to a
-human. (§5.6)
+human, and the review denominator is 18, not the 16 an earlier draft used.
+(§5.6, filed as F-242)
 
 **"Zero removals" needs a second sentence.** `OUT` is 0 in all 14 stage
 summaries, as reported. But **24 verdicts across six arms passed the strict
@@ -732,10 +733,15 @@ records became `EXCLUSION_SUPPRESSED` and 1 more `UNCERTAIN`. The arm sent 115 o
 **EC-38 — "The paper is primarily a review or meta-analysis rather than an
 empirical study" (EL, `exclude`).**
 
-Sixteen of the 116 titles carry `review`, `meta-analys*`, `systematic` or
-`overview`. EC-38 flagged **one** of the sixteen. It flagged four records whose
-titles carry none of those terms, and all four are X012 nonlinear-dynamics
-papers:
+**Eighteen** of the 116 titles match
+`\b(review|meta-analys\w*|metaanalys\w*|systematic|overview)\b`,
+case-insensitive. EC-38 flagged **one** of the eighteen (A438). *(An earlier
+draft of this section said sixteen; that regex ended `meta-analys\b`, which
+does not match "meta-analysis". The corrected matcher adds A284 and A285 — both
+titled "…: A meta-analysis" — which makes the result worse, not better.)*
+
+It flagged four records whose titles carry none of those terms, and all four are
+X012 nonlinear-dynamics papers:
 
 ```
 A302  Dissection of the radical reactions linked to fetal hemoglobin...
@@ -746,8 +752,14 @@ A389  Experimental and numerical investigation of backscattered signal...
 
 A title keyword is a proxy for ground truth, not ground truth — a paper can be a
 review without saying so, and "Systematic" in a title is not proof. The proxy is
-stated so the number can be argued with. But 1 of 16 caught, against 4 flagged
-from outside the set, is not a margin that a better proxy rescues.
+stated so the number can be argued with, and two of the eighteen are arguably
+not reviews (A110 *"…Subject Overview"*, A291 *"Toward a Taxonomy…"*). It does
+not matter: **at least eight of the seventeen misses say "review" or
+"meta-analysis" outright**, including *"Resting respiratory sinus arrhythmia and
+posttraumatic stress disorder: A meta-analysis"* (A284), *"…A Systematic Review
+and Meta-Analysis"* (A285) and *"…An updated systematic review and
+meta-analysis"* (A425). 1 caught against 4 flagged from outside the set is not a
+margin a better proxy rescues. Filed as **F-242**.
 
 **These two are the strongest evidence in the wave that the LLM stages are not
 doing the work they appear to do**, and they are visible only because `h3`'s
@@ -1078,8 +1090,30 @@ distinction, and IC-1 is the LLM one — which is why §7.4 matters.
 rate variability (vagal tone) in children with recurrent abdominal pain*), same
 year, same venue (*Acta Paediatrica*), abstracts **98.95%** identical — under two
 different DOIs, `10.1111/j.1651-2227.2001.tb02425.x` and
-`10.1080/080352501750258685`. Deduplication keyed on DOI cannot see it. **The
-pile of 32 is 31 distinct works,** and a reviewer notices in seconds.
+`10.1080/080352501750258685`, and two different `source_key`s. Deduplication
+keyed on either cannot see it. **The pile of 32 is 31 distinct works,** and a
+reviewer notices in seconds.
+
+**It is not the only collision, and the corpus fails in both directions.** Ten
+title-collision groups exist in the 463 records. Four are certain duplicates; the
+other six are generic titles (*"Heart rate variability"*, *"Diagnostic and
+statistical manual of mental disorders"*) that may legitimately name distinct
+documents, and are not asserted either way. The four split by mechanism:
+
+| pair | title | `source_key` | DOI | reached a stage? |
+|---|---|---|---|---|
+| A223 / A229 | identical | **differs** | differs | **yes — h0, h1, h4, h8** |
+| A172 / A173 | identical | **identical** | differs by `//` | no |
+| A174 / A175 | identical | **identical** | differs by `//` | no |
+| A176 / A177 | identical | **identical** | differs by `//` | no |
+
+The three `10.1037//` pairs differ only by a doubled slash, which `source_key`
+normalisation strips — so `source_key` catches them and the DOI does not, the
+exact inverse of A223/A229. **Only A223/A229 reached an LLM stage, and both
+members reached, together, on four arms.** So `h0`/`h1`/`h8`'s 32 records are
+**31 works** and `h4`'s 69 are **68**; `h2`, `h3` and `h5` are unaffected. Every
+rate in this document over those four arms is therefore computed on a
+denominator that counts one work twice. Filed as **F-243**.
 
 It also yields a free determinism datum. The two landed in **different batches**
 (A223 in batch 3, A229 in batch 4) and received the **same decision, confidence
@@ -1185,6 +1219,10 @@ A444  Understanding heterogeneity in conduct disorder: psychophysiology review
 
 Every one passes IC-4 and fails IC-5, because none happens to contain the literal
 strings `emotion`, `dysregulation`, `child`, `adolescent`, `youth` or `infant`.
+**Each was checked individually by evaluating both criteria over the record's own
+title, abstract and keywords, and the author names are read from the corpus's
+`first_author` column. These are removal measurements and canon judgements —
+none of them except A044 is claimed to be a seed.**
 
 **A044 is not merely canonical — it is entry [1] of the corpus's own seed
 bibliography.** `samples/README.md` names
@@ -1263,6 +1301,13 @@ the only two records in the pile where an arrhythmia-focus exclusion would have
 been correct. All four of EL's `meet` decisions in this arm are wrong; the two
 that were refused (A199, A455) were refused on quote validity, not on merit.
 
+**That sits directly against §7.4's positive result, and the contrast is the
+point.** The same model, run, records and settings produced a stage that got all
+four of its committed decisions wrong (EL) and a stage that flagged 8 of 8 wrong
+inclusions (IL). **No single statement about "the LLM stage" survives both**, and
+any framing that says errors get caught at the LLM stage flattens exactly this.
+Filed as **F-244** at Medium, with n=4 stated and no generalisation drawn.
+
 **With `allow_exclusion` enabled, this run removes A187 and A275 and the human
 never sees them.** Precisely two records, not three: A219 — the third correct
 inclusion the pipeline wanted out — was suppressed at IL by
@@ -1290,7 +1335,7 @@ branch. A reviewer sorting the pile by model confidence would be sorting noise.
 
 1. **It is one arm on one corpus.** `h3` shows the same model, on criteria
    checkable from a title, getting **1 of 10** paediatric-population calls right
-   and **1 of 16** review/meta-analysis calls right (§5.6). The 83% is not a
+   and **1 of 18** review/meta-analysis calls right (§5.6). The 83% is not a
    property of the product.
 2. **Wording moves it more than the signal is wide.** `h1` is the same eight
    criteria in synonymous English, and it cut the auto-accept pile from **10 of
@@ -1308,10 +1353,16 @@ branch. A reviewer sorting the pile by model confidence would be sorting noise.
 ## 8. Candidate findings — list only
 
 Following wave 16c's convention: observed, then adjudicated by the maintainer.
-**Two have since been filed — #1 as `F-238` (High) and #2 as `F-239` (High)** —
-and the F-221 and F-237 rows were corrected in place. The register now reads
-**236 rows**, next free **F-240**, 40 machine cells verifying. **The remaining
-22 are unfiled**; adjudication and severity are the maintainer's.
+**Adjudication is complete for 12 of the 24.**
+
+| outcome | candidates | rows |
+|---|---|---|
+| **filed as their own row** | #1, #2, #3, #5, #6, #7, #12 | `F-238` … `F-244` |
+| **folded into an existing row** | #8 → F-238 · #10, #20 → F-237 · #19 → F-236 · #23 → F-221 | — |
+| **unfiled, still candidates** | #4, #9, #11, #13, #14, #15, #16, #17, #18, #21, #22, #24 | — |
+
+The register now reads **241 rows**, next free **F-245**, 40 machine cells
+verifying. Severity for the twelve that remain is the maintainer's.
 
 Ordered by what they would change, not by discovery order.
 
@@ -1365,7 +1416,7 @@ Ordered by what they would change, not by discovery order.
 
 7. **The LLM stages' substantive accuracy is poor where it can be checked.**
    `h3`'s IC-33 identified 1 of 10 records whose title explicitly names a
-   paediatric population; EC-38 identified 1 of 16 whose title explicitly says
+   paediatric population; EC-38 identified 1 of 18 whose title explicitly says
    review/meta-analysis, while flagging 4 that say neither. Consequence: 115 of
    116 records routed to human review. (§5.6)
 
