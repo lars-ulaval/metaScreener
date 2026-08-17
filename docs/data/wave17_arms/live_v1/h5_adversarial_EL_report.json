@@ -1,0 +1,103 @@
+{
+  "answered": 58,
+  "batches_failed": 0,
+  "calls_failed": 0,
+  "calls_made": 12,
+  "decisions_rejected": 0,
+  "drift_checked": true,
+  "exclusion_policy": "flag_only",
+  "failed": 0,
+  "fields_rejected": 0,
+  "no_answer": 0,
+  "no_answer_after_reask": 0,
+  "no_answer_max_completion_tokens": null,
+  "no_answer_replies": {},
+  "no_answer_replies_absent": 0,
+  "no_answer_replies_dropped": 0,
+  "provenance": {
+    "batch_size": 5,
+    "context_window": 4096,
+    "endpoint": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b",
+    "prompt_version": "EL_v3_nullquote",
+    "temperature": 0.0,
+    "trunc_chars": 1500
+  },
+  "reasks_made": 0,
+  "records": 58,
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 1844,
+      "criterion": "H5-1",
+      "estimate": 2744,
+      "items": 5
+    },
+    {
+      "actual": 2221,
+      "criterion": "H5-1",
+      "estimate": 3096,
+      "items": 5
+    },
+    {
+      "actual": 2121,
+      "criterion": "H5-1",
+      "estimate": 2958,
+      "items": 5
+    },
+    {
+      "actual": 2108,
+      "criterion": "H5-1",
+      "estimate": 2898,
+      "items": 5
+    },
+    {
+      "actual": 2031,
+      "criterion": "H5-1",
+      "estimate": 2976,
+      "items": 5
+    },
+    {
+      "actual": 1679,
+      "criterion": "H5-1",
+      "estimate": 2537,
+      "items": 4
+    },
+    {
+      "actual": 1786,
+      "criterion": "H5-4",
+      "estimate": 2638,
+      "items": 5
+    },
+    {
+      "actual": 2163,
+      "criterion": "H5-4",
+      "estimate": 2989,
+      "items": 5
+    },
+    {
+      "actual": 2063,
+      "criterion": "H5-4",
+      "estimate": 2852,
+      "items": 5
+    },
+    {
+      "actual": 2050,
+      "criterion": "H5-4",
+      "estimate": 2791,
+      "items": 5
+    },
+    {
+      "actual": 1973,
+      "criterion": "H5-4",
+      "estimate": 2869,
+      "items": 5
+    },
+    {
+      "actual": 1621,
+      "criterion": "H5-4",
+      "estimate": 2430,
+      "items": 4
+    }
+  ]
+}

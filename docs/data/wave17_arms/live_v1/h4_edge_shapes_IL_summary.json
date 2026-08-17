@@ -1,0 +1,209 @@
+{
+  "arm": "h4_edge_shapes_IL",
+  "arm_key": "h4_edge_shapes",
+  "stage": "IL",
+  "base_calls_no_reask": 28,
+  "batch_size": 5,
+  "cancelled": false,
+  "wall_seconds": 262.9,
+  "counts": {
+    "OUT": 0,
+    "PASS_CLEAN": 0,
+    "REVIEW": 4,
+    "EXCLUSION_SUPPRESSED": 65,
+    "NOT_SCREENED": 0
+  },
+  "records": 138,
+  "answered": 138,
+  "no_answer": 0,
+  "calls_made": 28,
+  "calls_counted_by_enforcer": 28,
+  "reasks_made": 0,
+  "no_answer_after_reask": 0,
+  "exclusion_policy": "flag_only",
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "estimate": 2557,
+      "actual": 1706,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2930,
+      "actual": 2039,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2877,
+      "actual": 1966,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 3530,
+      "actual": 2256,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2596,
+      "actual": 1675,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 3060,
+      "actual": 2043,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2863,
+      "actual": 1812,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2157,
+      "actual": 1388,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2742,
+      "actual": 1880,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 3047,
+      "actual": 2115,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 3438,
+      "actual": 2267,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 3401,
+      "actual": 2166,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2682,
+      "actual": 1783,
+      "items": 5,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 2721,
+      "actual": 1760,
+      "items": 4,
+      "criterion": "H4-7"
+    },
+    {
+      "estimate": 1708,
+      "actual": 1196,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2081,
+      "actual": 1529,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2029,
+      "actual": 1456,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2681,
+      "actual": 1746,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 1747,
+      "actual": 1165,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2211,
+      "actual": 1533,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2015,
+      "actual": 1302,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 1308,
+      "actual": 878,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 1893,
+      "actual": 1370,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2198,
+      "actual": 1605,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2590,
+      "actual": 1757,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 2553,
+      "actual": 1656,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 1834,
+      "actual": 1273,
+      "items": 5,
+      "criterion": "H4-8"
+    },
+    {
+      "estimate": 1873,
+      "actual": 1250,
+      "items": 4,
+      "criterion": "H4-8"
+    }
+  ],
+  "provenance": {
+    "model": "qwen2.5:7b",
+    "endpoint": "http://localhost:11434/v1",
+    "temperature": 0.0,
+    "prompt_version": "IL_v3_nullquote",
+    "trunc_chars": 1500,
+    "batch_size": 5,
+    "context_window": 4096
+  },
+  "absence_suppressed_key_present": true,
+  "llm_criteria": 2,
+  "records_in": 69,
+  "full_rows": 69,
+  "survivors": 69
+}

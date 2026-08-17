@@ -1,0 +1,115 @@
+{
+  "answered": 64,
+  "batches_failed": 0,
+  "calls_failed": 0,
+  "calls_made": 16,
+  "decisions_rejected": 0,
+  "drift_checked": true,
+  "exclusion_policy": "flag_only",
+  "failed": 0,
+  "fields_rejected": 0,
+  "no_answer": 0,
+  "no_answer_after_reask": 0,
+  "no_answer_max_completion_tokens": null,
+  "no_answer_replies": {},
+  "no_answer_replies_absent": 0,
+  "no_answer_replies_dropped": 0,
+  "provenance": {
+    "batch_size": 5,
+    "context_window": 4096,
+    "endpoint": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b",
+    "prompt_version": "EL_v3_nullquote",
+    "temperature": 0.0,
+    "trunc_chars": 1500
+  },
+  "reasks_made": 2,
+  "records": 64,
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 1900,
+      "criterion": "EC-2",
+      "estimate": 2759,
+      "items": 5
+    },
+    {
+      "actual": 2083,
+      "criterion": "EC-2",
+      "estimate": 2946,
+      "items": 5
+    },
+    {
+      "actual": 1911,
+      "criterion": "EC-2",
+      "estimate": 2771,
+      "items": 5
+    },
+    {
+      "actual": 2115,
+      "criterion": "EC-2",
+      "estimate": 3015,
+      "items": 5
+    },
+    {
+      "actual": 1453,
+      "criterion": "EC-2",
+      "estimate": 2021,
+      "items": 5
+    },
+    {
+      "actual": 1769,
+      "criterion": "EC-2",
+      "estimate": 2504,
+      "items": 5
+    },
+    {
+      "actual": 865,
+      "criterion": "EC-2",
+      "estimate": 1253,
+      "items": 2
+    },
+    {
+      "actual": 1904,
+      "criterion": "EC-3",
+      "estimate": 2764,
+      "items": 5
+    },
+    {
+      "actual": 2087,
+      "criterion": "EC-3",
+      "estimate": 2951,
+      "items": 5
+    },
+    {
+      "actual": 1915,
+      "criterion": "EC-3",
+      "estimate": 2776,
+      "items": 5
+    },
+    {
+      "actual": 2119,
+      "criterion": "EC-3",
+      "estimate": 3021,
+      "items": 5
+    },
+    {
+      "actual": 1457,
+      "criterion": "EC-3",
+      "estimate": 2027,
+      "items": 5
+    },
+    {
+      "actual": 1773,
+      "criterion": "EC-3",
+      "estimate": 2510,
+      "items": 5
+    },
+    {
+      "actual": 869,
+      "criterion": "EC-3",
+      "estimate": 1258,
+      "items": 2
+    }
+  ]
+}

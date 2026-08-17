@@ -1,0 +1,461 @@
+{
+  "arm": "h4_edge_shapes",
+  "declared_budget": 112,
+  "calls_made_total": 56,
+  "wall_seconds_total": 485.5,
+  "preflight": {
+    "EL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "IL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "corpus": {
+      "kind": "aggregate",
+      "sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+      "records": 463
+    },
+    "criteria_sha256": "2437b1eba29188cc328a5048fa7598d40bede1f97969c0b6c35124211f099911",
+    "dry_manifest_sha256": "2437b1eba29188cc328a5048fa7598d40bede1f97969c0b6c35124211f099911",
+    "prompt_versions": {
+      "EL": "EL_v3_nullquote",
+      "IL": "IL_v3_nullquote"
+    },
+    "cache": {
+      "use_cache": false,
+      "cache_in": "{}"
+    }
+  },
+  "stages": [
+    {
+      "arm": "h4_edge_shapes_EL",
+      "arm_key": "h4_edge_shapes",
+      "stage": "EL",
+      "base_calls_no_reask": 28,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 222.6,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 57,
+        "PASS_FLAGGED": 6,
+        "EXCLUSION_SUPPRESSED": 6,
+        "NOT_SCREENED": 0
+      },
+      "records": 138,
+      "answered": 138,
+      "no_answer": 0,
+      "calls_made": 28,
+      "calls_counted_by_enforcer": 28,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 1685,
+          "actual": 1186,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2058,
+          "actual": 1519,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2005,
+          "actual": 1446,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2658,
+          "actual": 1736,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1724,
+          "actual": 1155,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2188,
+          "actual": 1523,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1991,
+          "actual": 1292,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1284,
+          "actual": 868,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1870,
+          "actual": 1360,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2175,
+          "actual": 1595,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2566,
+          "actual": 1747,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 2529,
+          "actual": 1646,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1810,
+          "actual": 1263,
+          "items": 5,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1849,
+          "actual": 1240,
+          "items": 4,
+          "criterion": "H4-5"
+        },
+        {
+          "estimate": 1720,
+          "actual": 1208,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2093,
+          "actual": 1541,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2040,
+          "actual": 1468,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2693,
+          "actual": 1758,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 1759,
+          "actual": 1177,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2223,
+          "actual": 1545,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2026,
+          "actual": 1314,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 1320,
+          "actual": 890,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 1905,
+          "actual": 1382,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2210,
+          "actual": 1617,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2601,
+          "actual": 1769,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 2564,
+          "actual": 1668,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 1845,
+          "actual": 1285,
+          "items": 5,
+          "criterion": "H4-6"
+        },
+        {
+          "estimate": 1884,
+          "actual": 1262,
+          "items": 4,
+          "criterion": "H4-6"
+        }
+      ],
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "EL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": false,
+      "llm_criteria": 2,
+      "records_in": 69,
+      "full_rows": 69,
+      "survivors": 69
+    },
+    {
+      "arm": "h4_edge_shapes_IL",
+      "arm_key": "h4_edge_shapes",
+      "stage": "IL",
+      "base_calls_no_reask": 28,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 262.9,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 0,
+        "REVIEW": 4,
+        "EXCLUSION_SUPPRESSED": 65,
+        "NOT_SCREENED": 0
+      },
+      "records": 138,
+      "answered": 138,
+      "no_answer": 0,
+      "calls_made": 28,
+      "calls_counted_by_enforcer": 28,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 2557,
+          "actual": 1706,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2930,
+          "actual": 2039,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2877,
+          "actual": 1966,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 3530,
+          "actual": 2256,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2596,
+          "actual": 1675,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 3060,
+          "actual": 2043,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2863,
+          "actual": 1812,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2157,
+          "actual": 1388,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2742,
+          "actual": 1880,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 3047,
+          "actual": 2115,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 3438,
+          "actual": 2267,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 3401,
+          "actual": 2166,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2682,
+          "actual": 1783,
+          "items": 5,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 2721,
+          "actual": 1760,
+          "items": 4,
+          "criterion": "H4-7"
+        },
+        {
+          "estimate": 1708,
+          "actual": 1196,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2081,
+          "actual": 1529,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2029,
+          "actual": 1456,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2681,
+          "actual": 1746,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 1747,
+          "actual": 1165,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2211,
+          "actual": 1533,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2015,
+          "actual": 1302,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 1308,
+          "actual": 878,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 1893,
+          "actual": 1370,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2198,
+          "actual": 1605,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2590,
+          "actual": 1757,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 2553,
+          "actual": 1656,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 1834,
+          "actual": 1273,
+          "items": 5,
+          "criterion": "H4-8"
+        },
+        {
+          "estimate": 1873,
+          "actual": 1250,
+          "items": 4,
+          "criterion": "H4-8"
+        }
+      ],
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "IL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": true,
+      "llm_criteria": 2,
+      "records_in": 69,
+      "full_rows": 69,
+      "survivors": 69
+    }
+  ],
+  "anomaly_stops": [],
+  "generated_by": "tools/run_criteria_experiment.py --live"
+}

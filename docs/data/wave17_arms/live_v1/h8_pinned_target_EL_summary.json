@@ -1,0 +1,125 @@
+{
+  "arm": "h8_pinned_target_EL",
+  "arm_key": "h8_pinned_target",
+  "stage": "EL",
+  "base_calls_no_reask": 14,
+  "batch_size": 5,
+  "cancelled": false,
+  "wall_seconds": 114.4,
+  "counts": {
+    "OUT": 0,
+    "PASS_CLEAN": 27,
+    "PASS_FLAGGED": 1,
+    "EXCLUSION_SUPPRESSED": 4,
+    "NOT_SCREENED": 0
+  },
+  "records": 64,
+  "answered": 64,
+  "no_answer": 0,
+  "calls_made": 15,
+  "calls_counted_by_enforcer": 15,
+  "reasks_made": 1,
+  "no_answer_after_reask": 0,
+  "exclusion_policy": "flag_only",
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "estimate": 2764,
+      "actual": 1906,
+      "items": 5,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 2951,
+      "actual": 2089,
+      "items": 5,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 2776,
+      "actual": 1917,
+      "items": 5,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 3021,
+      "actual": 2121,
+      "items": 5,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 2027,
+      "actual": 1459,
+      "items": 5,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 2510,
+      "actual": 1775,
+      "items": 5,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 1258,
+      "actual": 871,
+      "items": 2,
+      "criterion": "EC-2"
+    },
+    {
+      "estimate": 2765,
+      "actual": 1906,
+      "items": 5,
+      "criterion": "EC-3"
+    },
+    {
+      "estimate": 2953,
+      "actual": 2089,
+      "items": 5,
+      "criterion": "EC-3"
+    },
+    {
+      "estimate": 2777,
+      "actual": 1917,
+      "items": 5,
+      "criterion": "EC-3"
+    },
+    {
+      "estimate": 3022,
+      "actual": 2121,
+      "items": 5,
+      "criterion": "EC-3"
+    },
+    {
+      "estimate": 2028,
+      "actual": 1459,
+      "items": 5,
+      "criterion": "EC-3"
+    },
+    {
+      "estimate": 2511,
+      "actual": 1775,
+      "items": 5,
+      "criterion": "EC-3"
+    },
+    {
+      "estimate": 1259,
+      "actual": 871,
+      "items": 2,
+      "criterion": "EC-3"
+    }
+  ],
+  "provenance": {
+    "model": "qwen2.5:7b",
+    "endpoint": "http://localhost:11434/v1",
+    "temperature": 0.0,
+    "prompt_version": "EL_v3_nullquote",
+    "trunc_chars": 1500,
+    "batch_size": 5,
+    "context_window": 4096
+  },
+  "absence_suppressed_key_present": false,
+  "llm_criteria": 2,
+  "records_in": 32,
+  "full_rows": 32,
+  "survivors": 32
+}

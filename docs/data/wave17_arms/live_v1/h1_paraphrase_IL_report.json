@@ -1,0 +1,74 @@
+{
+  "absence_suppressed": 25,
+  "answered": 32,
+  "batches_failed": 0,
+  "calls_failed": 0,
+  "calls_made": 8,
+  "decisions_rejected": 0,
+  "drift_checked": true,
+  "exclusion_policy": "flag_only",
+  "failed": 0,
+  "fields_rejected": 0,
+  "no_answer": 0,
+  "no_answer_after_reask": 0,
+  "no_answer_max_completion_tokens": null,
+  "no_answer_replies": {},
+  "no_answer_replies_absent": 0,
+  "no_answer_replies_dropped": 0,
+  "provenance": {
+    "batch_size": 5,
+    "context_window": 4096,
+    "endpoint": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b",
+    "prompt_version": "IL_v3_nullquote",
+    "temperature": 0.0,
+    "trunc_chars": 1500
+  },
+  "reasks_made": 1,
+  "records": 32,
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 1926,
+      "criterion": "IC-1",
+      "estimate": 2791,
+      "items": 5
+    },
+    {
+      "actual": 2109,
+      "criterion": "IC-1",
+      "estimate": 2978,
+      "items": 5
+    },
+    {
+      "actual": 1937,
+      "criterion": "IC-1",
+      "estimate": 2803,
+      "items": 5
+    },
+    {
+      "actual": 2141,
+      "criterion": "IC-1",
+      "estimate": 3047,
+      "items": 5
+    },
+    {
+      "actual": 1479,
+      "criterion": "IC-1",
+      "estimate": 2053,
+      "items": 5
+    },
+    {
+      "actual": 1795,
+      "criterion": "IC-1",
+      "estimate": 2536,
+      "items": 5
+    },
+    {
+      "actual": 891,
+      "criterion": "IC-1",
+      "estimate": 1285,
+      "items": 2
+    }
+  ]
+}

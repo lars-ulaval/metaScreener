@@ -1,0 +1,67 @@
+{
+  "answered": 24,
+  "batches_failed": 0,
+  "calls_failed": 0,
+  "calls_made": 6,
+  "decisions_rejected": 0,
+  "drift_checked": true,
+  "exclusion_policy": "flag_only",
+  "failed": 0,
+  "fields_rejected": 0,
+  "no_answer": 0,
+  "no_answer_after_reask": 0,
+  "no_answer_max_completion_tokens": null,
+  "no_answer_replies": {},
+  "no_answer_replies_absent": 0,
+  "no_answer_replies_dropped": 0,
+  "provenance": {
+    "batch_size": 5,
+    "context_window": 4096,
+    "endpoint": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b",
+    "prompt_version": "EL_v3_nullquote",
+    "temperature": 0.0,
+    "trunc_chars": 1500
+  },
+  "reasks_made": 0,
+  "records": 24,
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 885,
+      "criterion": "EC-23",
+      "estimate": 1000,
+      "items": 5
+    },
+    {
+      "actual": 1668,
+      "criterion": "EC-23",
+      "estimate": 1916,
+      "items": 5
+    },
+    {
+      "actual": 667,
+      "criterion": "EC-23",
+      "estimate": 799,
+      "items": 2
+    },
+    {
+      "actual": 873,
+      "criterion": "EC-28",
+      "estimate": 968,
+      "items": 5
+    },
+    {
+      "actual": 1656,
+      "criterion": "EC-28",
+      "estimate": 1884,
+      "items": 5
+    },
+    {
+      "actual": 655,
+      "criterion": "EC-28",
+      "estimate": 767,
+      "items": 2
+    }
+  ]
+}

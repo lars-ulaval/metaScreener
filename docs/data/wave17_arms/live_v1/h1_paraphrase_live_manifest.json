@@ -1,0 +1,251 @@
+{
+  "arm": "h1_paraphrase",
+  "declared_budget": 42,
+  "calls_made_total": 24,
+  "wall_seconds_total": 177.3,
+  "preflight": {
+    "EL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "IL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "corpus": {
+      "kind": "aggregate",
+      "sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+      "records": 463
+    },
+    "criteria_sha256": "b6794a9a4f6050d4ffe62fc24bc3b65334f79f11c824d6460881be14109a1b10",
+    "dry_manifest_sha256": "b6794a9a4f6050d4ffe62fc24bc3b65334f79f11c824d6460881be14109a1b10",
+    "prompt_versions": {
+      "EL": "EL_v3_nullquote",
+      "IL": "IL_v3_nullquote"
+    },
+    "cache": {
+      "use_cache": false,
+      "cache_in": "{}"
+    }
+  },
+  "stages": [
+    {
+      "arm": "h1_paraphrase_EL",
+      "arm_key": "h1_paraphrase",
+      "stage": "EL",
+      "base_calls_no_reask": 14,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 116.5,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 25,
+        "PASS_FLAGGED": 1,
+        "EXCLUSION_SUPPRESSED": 6,
+        "NOT_SCREENED": 0
+      },
+      "records": 64,
+      "answered": 64,
+      "no_answer": 0,
+      "calls_made": 16,
+      "calls_counted_by_enforcer": 16,
+      "reasks_made": 2,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 2759,
+          "actual": 1900,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2946,
+          "actual": 2083,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2771,
+          "actual": 1911,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 3015,
+          "actual": 2115,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2021,
+          "actual": 1453,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2504,
+          "actual": 1769,
+          "items": 5,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 1253,
+          "actual": 865,
+          "items": 2,
+          "criterion": "EC-2"
+        },
+        {
+          "estimate": 2764,
+          "actual": 1904,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2951,
+          "actual": 2087,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2776,
+          "actual": 1915,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 3021,
+          "actual": 2119,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2027,
+          "actual": 1457,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 2510,
+          "actual": 1773,
+          "items": 5,
+          "criterion": "EC-3"
+        },
+        {
+          "estimate": 1258,
+          "actual": 869,
+          "items": 2,
+          "criterion": "EC-3"
+        }
+      ],
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "EL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": false,
+      "llm_criteria": 2,
+      "records_in": 32,
+      "full_rows": 32,
+      "survivors": 32
+    },
+    {
+      "arm": "h1_paraphrase_IL",
+      "arm_key": "h1_paraphrase",
+      "stage": "IL",
+      "base_calls_no_reask": 7,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 60.6,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 7,
+        "REVIEW": 0,
+        "EXCLUSION_SUPPRESSED": 25,
+        "NOT_SCREENED": 0
+      },
+      "records": 32,
+      "answered": 32,
+      "no_answer": 0,
+      "calls_made": 8,
+      "calls_counted_by_enforcer": 8,
+      "reasks_made": 1,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 2791,
+          "actual": 1926,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2978,
+          "actual": 2109,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2803,
+          "actual": 1937,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 3047,
+          "actual": 2141,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2053,
+          "actual": 1479,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 2536,
+          "actual": 1795,
+          "items": 5,
+          "criterion": "IC-1"
+        },
+        {
+          "estimate": 1285,
+          "actual": 891,
+          "items": 2,
+          "criterion": "IC-1"
+        }
+      ],
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "IL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": true,
+      "llm_criteria": 1,
+      "records_in": 32,
+      "full_rows": 32,
+      "survivors": 32
+    }
+  ],
+  "anomaly_stops": [],
+  "generated_by": "tools/run_criteria_experiment.py --live"
+}

@@ -1,0 +1,197 @@
+{
+  "arm": "h2_polarity",
+  "declared_budget": 24,
+  "calls_made_total": 12,
+  "wall_seconds_total": 91.4,
+  "preflight": {
+    "EL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "IL": {
+      "endpoint": "http://localhost:11434/v1",
+      "window": 4096,
+      "allow_exclusion": false,
+      "key_gate_passes": true,
+      "model_explicit": "qwen2.5:7b",
+      "batch_size_explicit": 5
+    },
+    "corpus": {
+      "kind": "aggregate",
+      "sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
+      "records": 463
+    },
+    "criteria_sha256": "6eb0b093b4d901adfef32cae61b09942fa75f5461764bb32a67d8ec34d232a52",
+    "dry_manifest_sha256": "6eb0b093b4d901adfef32cae61b09942fa75f5461764bb32a67d8ec34d232a52",
+    "prompt_versions": {
+      "EL": "EL_v3_nullquote",
+      "IL": "IL_v3_nullquote"
+    },
+    "cache": {
+      "use_cache": false,
+      "cache_in": "{}"
+    }
+  },
+  "stages": [
+    {
+      "arm": "h2_polarity_EL",
+      "arm_key": "h2_polarity",
+      "stage": "EL",
+      "base_calls_no_reask": 6,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 41.6,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 12,
+        "PASS_FLAGGED": 0,
+        "EXCLUSION_SUPPRESSED": 0,
+        "NOT_SCREENED": 0
+      },
+      "records": 24,
+      "answered": 24,
+      "no_answer": 0,
+      "calls_made": 6,
+      "calls_counted_by_enforcer": 6,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 1000,
+          "actual": 885,
+          "items": 5,
+          "criterion": "EC-23"
+        },
+        {
+          "estimate": 1916,
+          "actual": 1668,
+          "items": 5,
+          "criterion": "EC-23"
+        },
+        {
+          "estimate": 799,
+          "actual": 667,
+          "items": 2,
+          "criterion": "EC-23"
+        },
+        {
+          "estimate": 968,
+          "actual": 873,
+          "items": 5,
+          "criterion": "EC-28"
+        },
+        {
+          "estimate": 1884,
+          "actual": 1656,
+          "items": 5,
+          "criterion": "EC-28"
+        },
+        {
+          "estimate": 767,
+          "actual": 655,
+          "items": 2,
+          "criterion": "EC-28"
+        }
+      ],
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "EL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": false,
+      "llm_criteria": 2,
+      "records_in": 12,
+      "full_rows": 12,
+      "survivors": 12
+    },
+    {
+      "arm": "h2_polarity_IL",
+      "arm_key": "h2_polarity",
+      "stage": "IL",
+      "base_calls_no_reask": 6,
+      "batch_size": 5,
+      "cancelled": false,
+      "wall_seconds": 49.5,
+      "counts": {
+        "OUT": 0,
+        "PASS_CLEAN": 1,
+        "REVIEW": 0,
+        "EXCLUSION_SUPPRESSED": 11,
+        "NOT_SCREENED": 0
+      },
+      "records": 24,
+      "answered": 24,
+      "no_answer": 0,
+      "calls_made": 6,
+      "calls_counted_by_enforcer": 6,
+      "reasks_made": 0,
+      "no_answer_after_reask": 0,
+      "exclusion_policy": "flag_only",
+      "request_shape": "json_schema",
+      "token_samples": [
+        {
+          "estimate": 1001,
+          "actual": 881,
+          "items": 5,
+          "criterion": "IC-21"
+        },
+        {
+          "estimate": 1918,
+          "actual": 1664,
+          "items": 5,
+          "criterion": "IC-21"
+        },
+        {
+          "estimate": 800,
+          "actual": 663,
+          "items": 2,
+          "criterion": "IC-21"
+        },
+        {
+          "estimate": 969,
+          "actual": 871,
+          "items": 5,
+          "criterion": "IC-22"
+        },
+        {
+          "estimate": 1886,
+          "actual": 1654,
+          "items": 5,
+          "criterion": "IC-22"
+        },
+        {
+          "estimate": 768,
+          "actual": 653,
+          "items": 2,
+          "criterion": "IC-22"
+        }
+      ],
+      "provenance": {
+        "model": "qwen2.5:7b",
+        "endpoint": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "prompt_version": "IL_v3_nullquote",
+        "trunc_chars": 1500,
+        "batch_size": 5,
+        "context_window": 4096
+      },
+      "absence_suppressed_key_present": true,
+      "llm_criteria": 2,
+      "records_in": 12,
+      "full_rows": 12,
+      "survivors": 12
+    }
+  ],
+  "anomaly_stops": [],
+  "generated_by": "tools/run_criteria_experiment.py --live"
+}
