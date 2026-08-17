@@ -13,7 +13,7 @@ own deterministic translator/loader/prompt-builder invoked in-process with the
 dry guard installed (`tools/run_criteria_experiment.py::_install_dry_guard`,
 which makes LLM client construction raise).
 
-`h6_no_abstract`, `h9_batch1` and `h7_loose` remain unrun.
+**All ten arms have now run.** `h6_no_abstract`, `h9_batch1` and `h7_loose` were run at wave 17e — 267 live calls, 3,221 s — and §10 reports them. Wave total: **472 live calls across ten arms.**
 
 ---
 
@@ -397,7 +397,7 @@ records into or out of a human's queue.
 
 ---
 
-## 4. K3 — `h0` vs `h9` is not available
+## 4. K3 — `h0` vs `h9`: unavailable when this was written, MEASURED at §9.1
 
 `h9_batch1` is unrun. It is h0's criteria, h0's records and h0's source digest
 with `batch_size` 1 at both LLM stages, and it is **the outstanding F-215
@@ -407,7 +407,11 @@ the schema pins cardinality but leaves `a_id` an unconstrained string at `:1089`
 exists only when batch > 1, because at cardinality 1 there is nothing to drop or
 conflate. F-215 was argued to High at wave 16c and has never been measured.
 
-Noted and carried forward. See §8 for what §1–§3 change about how to read it.
+**Run at wave 17e. See §9.1** — and the result is not the one F-215 predicted:
+the identity gap this arm was built to expose produced nothing to count, while
+batch size alone moved the both-stages-clean pile from 10 of 32 to 5 of 32, the
+same magnitude as rewording all eight criteria. §1's zero noise floor is what
+makes that attributable to batch size and nothing else.
 
 ---
 
@@ -1619,7 +1623,147 @@ Ordered by what they would change, not by discovery order.
 
 ---
 
-## 9. What this changes for `h6`, `h9` and `h7`
+## 9. The last three arms
+
+Run at wave 17e after §7.8's analysis, detached, `--out` explicit, models
+explicit per stage, cache off. **267 calls, 3,221 s, zero removals.**
+
+| arm | calls / budget | wall | EL counts | IL counts | stop conditions |
+|---|---|---|---|---|---|
+| `h6_no_abstract` | 56 / 112 | 493 s | 135 clean · 1 flagged · 3 suppressed | 19 clean · 5 review · 115 suppressed | **all clear** |
+| `h9_batch1` | 96 / 192 | 821 s | 32 clean · 0 · 0 | 5 clean · 0 · 27 suppressed | **all clear** |
+| `h7_loose` | 115 / 228 | 1,908 s | 155 clean · 15 flagged · 19 suppressed | 33 clean · 5 review · 151 suppressed | **condition 4 tripped** (§10.4) |
+
+`OUT` is 0 on all six stages, `request_shape` is `json_schema` on all six, no arm
+passed 51% of its ceiling, and no `TokenEstimateDrift` fired anywhere.
+
+### 9.1 `h9` — batch size moves the result as much as rewriting every criterion
+
+`h9` is `h0`'s criteria and `h0`'s 32 records at `batch_size: 1`. Everything else
+is byte-identical — same `criteria_sha256` (`e4640ac4…`), model, endpoint,
+temperature 0.0, `prompt_version`, `trunc_chars`, `context_window`.
+
+| | h0 (batch 5) | h9 (batch 1) |
+|---|---|---|
+| EL outcomes | 27 clean · 3 flagged · 2 suppressed | **32 clean · 0 · 0** |
+| IL outcomes | 12 clean · 1 review · 19 suppressed | **5 clean · 0 · 27 suppressed** |
+| criterion pairs differing | — | **5 of 64 (EL), 11 of 32 (IL)** |
+| **cleared at BOTH stages** | **10 of 32** | **5 of 32** |
+
+**A performance setting moved the unaided-clearance pile by exactly as much as
+rewording all eight criteria did** (`h1`, §2.4: also 10 → 5). And the two sets of
+survivors barely overlap — `h0` clears
+{A216, A223, A229, A265, A276, A281, A284, A285, A292, A431}, `h9` clears
+{A187, A265, A273, A281, A406}: **two records in common out of thirteen.**
+
+At EL every one of the five flips runs toward `PASS_CLEAN`, and **that includes
+A187 and A275** — the two records §7.6 shows the pipeline trying to auto-remove.
+Whether the product attempts to delete the corpus's seed [6] paper depends on the
+batch size.
+
+**What this does NOT show is F-215's mechanism.** F-215 is about `_absorb`
+silently dropping verdicts whose `a_id` is out-of-batch or duplicated. Nothing
+was dropped on either arm: `answered` 64/64 and 32/32, `no_answer` 0, `failed` 0,
+`decisions_rejected` 0, `fields_rejected` 0. **The bookkeeping was clean and the
+judgements differed anyway** — the model answers differently when it sees five
+records at once than when it sees one. F-215's fix is still worth doing and would
+not have caught this. Recorded in F-215's row.
+
+### 9.2 `h9` — and the density gradient F-236 was fitted on is not there
+
+`h9` was named as the wave's remaining drift risk: its prompts are the smallest
+anywhere, and F-236's reasoning is that **small prompts are denser**.
+
+**Measured: 64 EL samples, actual prompt tokens 327–699, implied density
+4.11–4.97, median 4.57.** That is the band of the *large*-prompt arms (h1
+4.51–4.74, h8 4.52–4.74) and far above h2's 3.55, the single densest point the
+3.3 floor was fitted from. Worst margin **+24.67%**. **Zero drift aborts.**
+
+So the predicted gradient does not exist at the small end, and **h2's 3.55 is not
+a size effect** — h9's prompts are smaller and markedly less dense. The
+calibration is unaffected and still safe; the mechanism it was chosen on is
+wrong, and whatever makes h2 dense remains unidentified. Recorded in F-236.
+
+### 9.3 `h6` — absence of evidence is read as evidence of absence
+
+32 of h6's 139 records have no abstract at all, and both its LLM criteria ask
+about abstract content.
+
+- **The registered intent is falsified in the half it was written about.** H6-3's
+  rationale says absence *"should route to UNCERTAIN, never to a removal"*. The
+  second half held — nothing was removed. **The first did not: 30 of the 32 went
+  to `EXCLUSION_SUPPRESSED`, 1 to `REVIEW`, and 1 was cleared.** Abstract-less
+  records were suppressed *more* often than records with an abstract — **93.8%
+  against 79.4%**.
+- **56 of the 64 cells on abstract-less records report `field=abstract`** (29 of
+  32 at EL, 27 of 32 at IL), every one of the IL cells with an empty quote.
+- **Confidence does not know.** EL mean 0.803 empty against 0.814 present; IL
+  0.819 against 0.820. The model gives no signal that its evidence is missing.
+
+Recorded in F-246, which was filed as an open question one commit earlier
+specifically so this would land in it.
+
+### 9.4 `h7` — the discrimination result at n=47, and why condition 4 fired
+
+h7 admits 189 records, **47 off-topic by construction** (`parents` X002/X012).
+This is the only population in the wave where a correct verdict is knowable
+rather than judged.
+
+**IL (`include`, H7-7) — the answer to "does it do something": yes.**
+
+- **47 of 47 off-topic records flagged. 100%.** None reached `PASS_CLEAN`.
+- Its cleared pile of **33 contains zero off-topic records**, against **8.2
+  expected by chance**.
+- End to end, **23 records cleared both stages and not one is off-topic**.
+
+**EL (`exclude`, H7-5/H7-6) — the answer on the other side: no.**
+
+- **19 records reached `EXCLUSION_SUPPRESSED`** — they passed the presence gate
+  and are auto-actable. **Only 6 of the 19 are off-topic. 13 are on-topic records
+  EL asked to delete. Precision 31.6%.**
+- H7-5 was authored as *"the criterion that should reject the X012 computational
+  mass"*. It returned `not_meet` on **32 of the 47** it was written for, while
+  returning `meet` on 9 on-topic records.
+
+**So the stage that cannot delete is 100% precise on what it clears, and the
+stage that can delete is 31.6% precise on what it would remove.** That is §7.8's
+finding at n=47 with ground truth by construction instead of 9 judged pairs, and
+it is why F-244 is High.
+
+**Condition 4 fired, correctly, and h7 is the last arm so nothing was left
+unrun.** Ten excluding verdicts reached the presence gate carrying a non-null
+quote that does not validate, and **all ten were refused to `UNCERTAIN`** — among
+them three more prompt-echo fabrications (A090, A104, A379) quoting the
+criterion's own sentence back as evidence. The gate did exactly its job against
+quotes that do not exist in the record. It remains blind to the case §7.6
+documents, where the quote does exist and does not support the verdict.
+
+> **On the stop condition itself.** As written — *any `quote_valid=False`* — it
+> fires on 828 of 931 cells and would have halted h6 immediately. Narrowed to the
+> acting path (an `exclude` criterion answered `meet`, i.e. a verdict that
+> reached `RULE_REMOVES_BY_PRESENCE`) it fires on 3 of the wave's first 931 cells
+> and on 10 of h7's — a real tripwire rather than base-rate noise. h6 and h9
+> cleared it; h7 did not, on its last arm, after completing.
+
+
+---
+
+## 10. What the analysis predicted for the three arms, and what they did
+
+*Written before they ran, kept unedited as the record of a prediction, with the
+outcome appended. §9 is the measurement.*
+
+**Scorecard.** `h9` — **held and then some**: the noise floor made it a clean
+batch-size experiment, and it produced a larger effect than F-215 anticipated
+(§9.1), while the density risk it was named for did not materialise (§9.2).
+`h6` — **the re-aim was right**: the keep side was where the action was, and
+the registered "route to UNCERTAIN" expectation was falsified 30 times of 32
+(§9.3). `h7` — **right about the question, wrong about which stage would
+answer it**: the prediction was that h7 would test discrimination, and it did,
+but the split fell between IL (100% on 47) and EL (31.6% on 19) rather than
+being a property of "the LLM stage" (§9.4).
+
+### 10.1 The original pre-run notes
 
 The brief's premise — that analysing the free half first might change what the
 last three arms should measure — holds for all three.

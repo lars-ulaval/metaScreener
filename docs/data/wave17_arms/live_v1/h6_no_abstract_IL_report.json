@@ -1,0 +1,200 @@
+{
+  "absence_suppressed": 115,
+  "answered": 139,
+  "batches_failed": 0,
+  "calls_failed": 0,
+  "calls_made": 28,
+  "decisions_rejected": 0,
+  "drift_checked": true,
+  "exclusion_policy": "flag_only",
+  "failed": 0,
+  "fields_rejected": 0,
+  "no_answer": 0,
+  "no_answer_after_reask": 0,
+  "no_answer_max_completion_tokens": null,
+  "no_answer_replies": {},
+  "no_answer_replies_absent": 0,
+  "no_answer_replies_dropped": 0,
+  "provenance": {
+    "batch_size": 5,
+    "context_window": 4096,
+    "endpoint": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b",
+    "prompt_version": "IL_v3_nullquote",
+    "temperature": 0.0,
+    "trunc_chars": 1500
+  },
+  "reasks_made": 0,
+  "records": 139,
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 2300,
+      "criterion": "H6-3",
+      "estimate": 2862,
+      "items": 5
+    },
+    {
+      "actual": 1716,
+      "criterion": "H6-3",
+      "estimate": 2483,
+      "items": 5
+    },
+    {
+      "actual": 1671,
+      "criterion": "H6-3",
+      "estimate": 2464,
+      "items": 5
+    },
+    {
+      "actual": 1441,
+      "criterion": "H6-3",
+      "estimate": 1979,
+      "items": 5
+    },
+    {
+      "actual": 1994,
+      "criterion": "H6-3",
+      "estimate": 2584,
+      "items": 5
+    },
+    {
+      "actual": 1431,
+      "criterion": "H6-3",
+      "estimate": 2098,
+      "items": 5
+    },
+    {
+      "actual": 1208,
+      "criterion": "H6-3",
+      "estimate": 1714,
+      "items": 5
+    },
+    {
+      "actual": 2132,
+      "criterion": "H6-3",
+      "estimate": 2983,
+      "items": 5
+    },
+    {
+      "actual": 2206,
+      "criterion": "H6-3",
+      "estimate": 2988,
+      "items": 5
+    },
+    {
+      "actual": 1588,
+      "criterion": "H6-3",
+      "estimate": 2255,
+      "items": 5
+    },
+    {
+      "actual": 2055,
+      "criterion": "H6-3",
+      "estimate": 2877,
+      "items": 5
+    },
+    {
+      "actual": 2043,
+      "criterion": "H6-3",
+      "estimate": 2756,
+      "items": 5
+    },
+    {
+      "actual": 1983,
+      "criterion": "H6-3",
+      "estimate": 2539,
+      "items": 5
+    },
+    {
+      "actual": 1843,
+      "criterion": "H6-3",
+      "estimate": 2380,
+      "items": 5
+    },
+    {
+      "actual": 1792,
+      "criterion": "H6-3",
+      "estimate": 2538,
+      "items": 5
+    },
+    {
+      "actual": 1403,
+      "criterion": "H6-3",
+      "estimate": 1874,
+      "items": 5
+    },
+    {
+      "actual": 1352,
+      "criterion": "H6-3",
+      "estimate": 1944,
+      "items": 5
+    },
+    {
+      "actual": 1858,
+      "criterion": "H6-3",
+      "estimate": 2600,
+      "items": 5
+    },
+    {
+      "actual": 1469,
+      "criterion": "H6-3",
+      "estimate": 2025,
+      "items": 5
+    },
+    {
+      "actual": 1340,
+      "criterion": "H6-3",
+      "estimate": 1698,
+      "items": 5
+    },
+    {
+      "actual": 1870,
+      "criterion": "H6-3",
+      "estimate": 2740,
+      "items": 5
+    },
+    {
+      "actual": 2198,
+      "criterion": "H6-3",
+      "estimate": 2775,
+      "items": 5
+    },
+    {
+      "actual": 926,
+      "criterion": "H6-3",
+      "estimate": 1274,
+      "items": 5
+    },
+    {
+      "actual": 1250,
+      "criterion": "H6-3",
+      "estimate": 1763,
+      "items": 5
+    },
+    {
+      "actual": 1647,
+      "criterion": "H6-3",
+      "estimate": 2480,
+      "items": 5
+    },
+    {
+      "actual": 1875,
+      "criterion": "H6-3",
+      "estimate": 2601,
+      "items": 5
+    },
+    {
+      "actual": 1651,
+      "criterion": "H6-3",
+      "estimate": 2484,
+      "items": 5
+    },
+    {
+      "actual": 1431,
+      "criterion": "H6-3",
+      "estimate": 1926,
+      "items": 4
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[IL] [IL] flag-only: an LLM verdict may flag a record for review but may not exclude it. The provider dialog can permit exclusion for removals justified by presence, once the model has been validated on this corpus; a removal justified by absence (not_meet on an include-type criterion) is never auto-acted, whatever the setting (wave 15e).
+
+[IL] [IL] endpoint=http://localhost:11434/v1 (OPENAI_BASE_URL not set; using the default)
+
+[IL] 
+[IL] Criterion 1/1 H7-7 (llm)
+
+[IL] [IL] cache_hits=0 | to_call=189
+

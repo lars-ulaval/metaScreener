@@ -1,0 +1,260 @@
+{
+  "absence_suppressed": 151,
+  "answered": 189,
+  "batches_failed": 0,
+  "calls_failed": 0,
+  "calls_made": 38,
+  "decisions_rejected": 0,
+  "drift_checked": true,
+  "exclusion_policy": "flag_only",
+  "failed": 0,
+  "fields_rejected": 0,
+  "no_answer": 0,
+  "no_answer_after_reask": 0,
+  "no_answer_max_completion_tokens": null,
+  "no_answer_replies": {},
+  "no_answer_replies_absent": 0,
+  "no_answer_replies_dropped": 0,
+  "provenance": {
+    "batch_size": 5,
+    "context_window": 4096,
+    "endpoint": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b",
+    "prompt_version": "IL_v3_nullquote",
+    "temperature": 0.0,
+    "trunc_chars": 1500
+  },
+  "reasks_made": 0,
+  "records": 189,
+  "request_shape": "json_schema",
+  "token_samples": [
+    {
+      "actual": 2428,
+      "criterion": "H7-7",
+      "estimate": 3002,
+      "items": 5
+    },
+    {
+      "actual": 1742,
+      "criterion": "H7-7",
+      "estimate": 2526,
+      "items": 5
+    },
+    {
+      "actual": 1697,
+      "criterion": "H7-7",
+      "estimate": 2507,
+      "items": 5
+    },
+    {
+      "actual": 1467,
+      "criterion": "H7-7",
+      "estimate": 2022,
+      "items": 5
+    },
+    {
+      "actual": 1838,
+      "criterion": "H7-7",
+      "estimate": 2614,
+      "items": 5
+    },
+    {
+      "actual": 2017,
+      "criterion": "H7-7",
+      "estimate": 2753,
+      "items": 5
+    },
+    {
+      "actual": 1157,
+      "criterion": "H7-7",
+      "estimate": 1662,
+      "items": 5
+    },
+    {
+      "actual": 1706,
+      "criterion": "H7-7",
+      "estimate": 2561,
+      "items": 5
+    },
+    {
+      "actual": 2259,
+      "criterion": "H7-7",
+      "estimate": 3039,
+      "items": 5
+    },
+    {
+      "actual": 1936,
+      "criterion": "H7-7",
+      "estimate": 2626,
+      "items": 5
+    },
+    {
+      "actual": 1370,
+      "criterion": "H7-7",
+      "estimate": 2023,
+      "items": 5
+    },
+    {
+      "actual": 1452,
+      "criterion": "H7-7",
+      "estimate": 2281,
+      "items": 5
+    },
+    {
+      "actual": 1572,
+      "criterion": "H7-7",
+      "estimate": 2377,
+      "items": 5
+    },
+    {
+      "actual": 1484,
+      "criterion": "H7-7",
+      "estimate": 2236,
+      "items": 5
+    },
+    {
+      "actual": 2112,
+      "criterion": "H7-7",
+      "estimate": 2914,
+      "items": 5
+    },
+    {
+      "actual": 2281,
+      "criterion": "H7-7",
+      "estimate": 3040,
+      "items": 5
+    },
+    {
+      "actual": 1721,
+      "criterion": "H7-7",
+      "estimate": 2162,
+      "items": 5
+    },
+    {
+      "actual": 1899,
+      "criterion": "H7-7",
+      "estimate": 2684,
+      "items": 5
+    },
+    {
+      "actual": 1111,
+      "criterion": "H7-7",
+      "estimate": 1605,
+      "items": 5
+    },
+    {
+      "actual": 1686,
+      "criterion": "H7-7",
+      "estimate": 2367,
+      "items": 5
+    },
+    {
+      "actual": 1779,
+      "criterion": "H7-7",
+      "estimate": 2626,
+      "items": 5
+    },
+    {
+      "actual": 1828,
+      "criterion": "H7-7",
+      "estimate": 2537,
+      "items": 5
+    },
+    {
+      "actual": 1101,
+      "criterion": "H7-7",
+      "estimate": 1349,
+      "items": 5
+    },
+    {
+      "actual": 1878,
+      "criterion": "H7-7",
+      "estimate": 2762,
+      "items": 5
+    },
+    {
+      "actual": 1923,
+      "criterion": "H7-7",
+      "estimate": 2619,
+      "items": 5
+    },
+    {
+      "actual": 1413,
+      "criterion": "H7-7",
+      "estimate": 1686,
+      "items": 5
+    },
+    {
+      "actual": 1171,
+      "criterion": "H7-7",
+      "estimate": 1548,
+      "items": 5
+    },
+    {
+      "actual": 1851,
+      "criterion": "H7-7",
+      "estimate": 2692,
+      "items": 5
+    },
+    {
+      "actual": 1405,
+      "criterion": "H7-7",
+      "estimate": 2091,
+      "items": 5
+    },
+    {
+      "actual": 2146,
+      "criterion": "H7-7",
+      "estimate": 3100,
+      "items": 5
+    },
+    {
+      "actual": 1298,
+      "criterion": "H7-7",
+      "estimate": 1939,
+      "items": 5
+    },
+    {
+      "actual": 1518,
+      "criterion": "H7-7",
+      "estimate": 2153,
+      "items": 5
+    },
+    {
+      "actual": 1743,
+      "criterion": "H7-7",
+      "estimate": 2625,
+      "items": 5
+    },
+    {
+      "actual": 1463,
+      "criterion": "H7-7",
+      "estimate": 2156,
+      "items": 5
+    },
+    {
+      "actual": 1728,
+      "criterion": "H7-7",
+      "estimate": 2630,
+      "items": 5
+    },
+    {
+      "actual": 1613,
+      "criterion": "H7-7",
+      "estimate": 2223,
+      "items": 5
+    },
+    {
+      "actual": 1910,
+      "criterion": "H7-7",
+      "estimate": 2776,
+      "items": 5
+    },
+    {
+      "actual": 1381,
+      "criterion": "H7-7",
+      "estimate": 1959,
+      "items": 4
+    }
+  ]
+}
