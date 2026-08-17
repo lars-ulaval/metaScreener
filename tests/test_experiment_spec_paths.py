@@ -25,6 +25,13 @@ This is F-223's family, and it inherits F-223's rule:
    present locally but never committed is broken for everyone else, and
    `Path.exists()` would call it fine — which is exactly how wave 16b's
    SHA256SUMS passed locally and failed on the first fresh clone.
+  1b. A digest a spec records must match the bytes the repository SERVES, not
+     the bytes that happen to be on this disk. `git cat-file --filters` applies
+     the checkout conversion, so the comparison is the one a fresh clone on any
+     platform would make (F-230). Wave 16a recorded seven of its eight
+     `source_sha256` values from the LF form while `* text=auto` served them as
+     CRLF on Windows; nothing read them, so it was silent for two waves.
+
 2. **Discovery is repository-side too, and automatic.** The spec set comes from
    `git ls-files docs/data`, so a `wave17_arms/experiment_spec.json` is covered
    the day it is committed with no edit here. This deliberately does NOT copy
@@ -42,6 +49,7 @@ prose (`rationale`, `comparison`, `population_banner` — all contain spaces),
 the `http://` endpoint, and `corpus_bundle.dir`, an absolute path to an archive
 that lives outside the repository by design.
 """
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -166,3 +174,56 @@ def test_every_path_a_spec_names_is_in_the_repository(spec_rel):
         "they record what a past run consumed."
         % (spec_rel, missing)
     )
+
+
+def _served(rel):
+    """The bytes a checkout of `rel` produces — index content with the file's
+    eol/filter attributes applied. This is what a fresh clone gets on THIS
+    platform, and it is the only form a recorded digest can honestly name."""
+    proc = subprocess.run(["git", "cat-file", "--filters", ":%s" % rel],
+                          cwd=str(ROOT), capture_output=True)
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+@_NEEDS_GIT
+@pytest.mark.parametrize("spec_rel", SPECS or [""], ids=SPECS or ["<none>"])
+def test_every_recorded_source_digest_matches_the_repository(spec_rel):
+    """F-230. A spec that records `source_sha256` is making a promise about
+    bytes, and a promise that only holds on the author's platform is not one.
+
+    Compared against `git cat-file --filters`, never against the working tree:
+    the disk copy can be right here and wrong in CI, which is exactly how wave
+    16a's seven wrong digests survived two waves without anything noticing."""
+    spec = json.loads((ROOT / spec_rel).read_text(encoding="utf-8"))
+    arms = spec.get("arms") or []
+
+    recorded = [(a.get("key"), a.get("source"), a.get("source_sha256"))
+                for a in arms if a.get("source_sha256")]
+    assert recorded, (
+        "%s records no source_sha256 on any arm. If that is deliberate this "
+        "check is vacuous and should say so; if it is not, the digests were "
+        "dropped." % spec_rel
+    )
+
+    wrong = []
+    for key, src, want in recorded:
+        blob = _served(src)
+        if blob is None:
+            wrong.append("%s -> %s (not in the repository)" % (key, src))
+            continue
+        got = hashlib.sha256(blob).hexdigest()
+        if got != want:
+            wrong.append("%s -> %s: recorded %s, repository serves %s"
+                         % (key, src, want[:12], got[:12]))
+
+    assert not wrong, (
+        "%s records digests that do not match the bytes the repository serves: "
+        "%s. The digests are measurements and are usually RIGHT — what is "
+        "normally wrong is the checkout form, so reach for a .gitattributes "
+        "`eol=` rule before editing a recorded number. A recorded digest is an "
+        "output record (F-225): fix how it is served, do not rewrite it."
+        % (spec_rel, wrong)
+    )
+

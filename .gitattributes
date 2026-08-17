@@ -192,3 +192,25 @@ samples/20260816_1841_rsaAggregate.csv text eol=crlf
 docs/data/wave17_arms/*.txt text eol=crlf
 docs/data/wave17_arms/*.csv text eol=crlf
 docs/data/wave17_arms/*.json text eol=crlf
+# Wave 16a's experiment arms (F-230, repaired at wave 17b). `experiment_spec.json`
+# records a `source_sha256` for every arm, and seven of the eight were computed
+# from the LF form — so on Windows, where `* text=auto` checks these out as CRLF,
+# the recorded digests did not match the files they name. Nothing read them at
+# test time, so it was silent for two waves.
+#
+# `eol=lf` rather than `eol=crlf`, and the direction is the whole point: the
+# digests are correct AS MEASUREMENTS of what wave 16a consumed. Only the
+# checkout form was wrong. Pinning LF makes every platform serve the bytes the
+# spec already names, so this repairs seven records by editing none of them —
+# which is the rule for an output artefact (F-225's INPUTS GET FIXED, OUTPUTS
+# GET PRESERVED: a recorded digest is an output record).
+docs/data/wave16_arms/** eol=lf
+
+# The eighth arm is the exception that the rule above cannot reach, and it is
+# the same defect pointing the other way. `arm0_baseline`'s source is not under
+# wave16_arms at all — it is the shipped sample, and its digest was computed
+# from the CRLF form. Under `* text=auto` that is what Windows serves and what
+# Linux does not, so the arm validates here and fails there. Wave 17b's
+# `h0_baseline` names the same file and recorded the same CRLF digest, so one
+# rule settles both waves.
+samples/20260122_1654_sampleIcEc.txt text eol=crlf

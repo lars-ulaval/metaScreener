@@ -566,42 +566,42 @@
       "key": "h7_loose",
       "kind": "harmonized_csv",
       "source": "docs/data/wave17_arms/h7_loose.csv",
-      "source_sha256": "893b66e9c4194ad2b3b9e894487a1dd1283973a708e1b8f86176e34343a1fee5",
+      "source_sha256": "75b303baf2ed7cd230da89c39248574213f1969564611da2d9644d4aeb07288e",
       "intents": [
         {
           "id": "H7-1",
           "intended_stage": "EH",
           "intended_operator": "equals",
           "intended_target": "lang",
-          "rationale": "h0's EC-1 unchanged"
+          "rationale": "h0's EC-1 unchanged; removes its 12 pt records at EH"
         },
         {
           "id": "H7-2",
           "intended_stage": "EH",
           "intended_operator": "contains",
           "intended_target": "venue",
-          "rationale": "h0's EC-4 unchanged"
+          "rationale": "h0's EC-4 unchanged; removes 28 off-topic records at EH"
         },
         {
           "id": "H7-3",
           "intended_stage": "IH",
           "intended_operator": "equals",
           "intended_target": "lang",
-          "rationale": "h0's IC-3 unchanged"
+          "rationale": "h0's IC-3 unchanged; removes 0 further, the pt records having already gone at EH"
         },
         {
           "id": "H7-4",
           "intended_stage": "IH",
           "intended_operator": "contains",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's IC-4 unchanged — IC-5 is the ONLY relaxation, so every admitted record is attributable to it"
+          "rationale": "REPLACES h0's IC-4 rather than relaxing IC-5. Measured: relaxing IC-5 admits 117 records of which exactly ONE is off-topic, because IC-4 is the gate doing the topical work and cannot be bypassed from the other side (F-231). A methodological gate — signal OR dynamics OR variability — is the only thing that admits the X002/X012 mass: 189 survivors, 47 off-topic, 24.9%."
         },
         {
           "id": "H7-5",
           "intended_stage": "EL",
           "intended_operator": "llm",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's EC-2, target pinned to the full evidence set"
+          "rationale": "h0's EC-2, target pinned; the criterion that should reject the X012 computational-methods mass"
         },
         {
           "id": "H7-6",
@@ -615,7 +615,7 @@
           "intended_stage": "IL",
           "intended_operator": "llm",
           "intended_target": "title,abstract,keywords",
-          "rationale": "h0's IC-1, target pinned; the criterion the admitted noise must be screened by"
+          "rationale": "h0's IC-1, target pinned; the criterion that must reject what H7-4 deliberately let in"
         }
       ],
       "live": {
@@ -630,12 +630,97 @@
           "IL": 5
         }
       },
+      "purpose": "DELIBERATELY UNREALISTIC. This arm does NOT model a user. Its IH gate is methodological rather than topical, chosen only to push off-topic records into EL/IL so the LLM stages can be tested on material they should reject. A realistic loosening cannot do this — see F-231. Its EL pile is 189, ~6x h0's 32; the dry run must price that.",
       "expected_chain": {
         "input": 463,
         "eh_out": 40,
         "eh_surv": 423,
-        "ih_out": 274,
-        "ih_surv": 149
+        "ih_out": 234,
+        "ih_surv": 189
+      }
+    },
+    {
+      "key": "h8_pinned_target",
+      "kind": "harmonized_csv",
+      "source": "docs/data/wave17_arms/h8_pinned_target.csv",
+      "source_sha256": "f942251d8e5b086e5aa8831084b6628b58718e60e4443be64e73010d49c1007d",
+      "intents": [
+        {
+          "id": "IC-1",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-1 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+        },
+        {
+          "id": "IC-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "h0's IC-3, byte-identical"
+        },
+        {
+          "id": "IC-4",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-4, byte-identical"
+        },
+        {
+          "id": "IC-5",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-5, byte-identical"
+        },
+        {
+          "id": "EC-1",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "h0's EC-1, byte-identical"
+        },
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's EC-2 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's EC-3 with target title -> title,abstract,keywords. THE ONLY VARIABLE IN THIS ARM."
+        },
+        {
+          "id": "EC-4",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "venue",
+          "rationale": "h0's EC-4, byte-identical"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 5,
+          "IL": 5
+        }
+      },
+      "purpose": "h0 with exactly one variable changed: the three llm rows target title,abstract,keywords instead of title. Every other cell is the translator's own output, unmodified. h0 vs h8 isolates F-227's cost. Its deterministic chain is asserted identical to h0's, ids and order included.",
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 40,
+        "eh_surv": 423,
+        "ih_out": 391,
+        "ih_surv": 32
       }
     }
   ]
