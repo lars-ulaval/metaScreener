@@ -14,6 +14,7 @@ Everything needed to finish the wave is here or is pointed at by path.
 | **17c** | derive the call budget from a dry run; preflight verification | **done, on main** |
 | **17d** | the live run, ten arms | **7 of 10 arms run**, halted |
 | **17e** | freeze the evidence | **not started** |
+| **analysis** | read the seven arms for CONTENT (§9) | **done** — `docs/data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md` |
 
 **Arms that have run:** `h0_baseline` (twice), `h1_paraphrase`, `h2_polarity`,
 `h3_stage_stress`, `h4_edge_shapes`, `h5_adversarial`, `h8_pinned_target`.
@@ -25,8 +26,9 @@ Everything needed to finish the wave is here or is pointed at by path.
 
 ### Git state — read this carefully, it contains a mistake of mine
 
-`main` is at **`b95886b`** and contains **everything**. The working tree is
-clean. **Nothing has been pushed.** No tag exists for 17b, 17c or 17d
+**CORRECTED at wave 17e: `main` is at `62a1049`**, this document's own commit,
+which was made after this section was written. `b95886b` is its parent. The
+working tree is clean. **Nothing has been pushed.** No tag exists for 17b, 17c or 17d
 (`post-wave-17a` exists and points at `980d339`, deliberately, even though that
 commit is CI-red — it records truthfully where the stage ended, including that
 it ended with an undetected defect, which is the evidence for F-226. **Do not
@@ -142,19 +144,48 @@ estimating 3,531 tokens, and 3,531 + the 400-token reserve is 3,931 inside a
 4,096 window. At 3.0 the same prompt would want 4,281 and the guard would refuse
 a prompt that fits.
 
-### Validation: 197 recorded samples, 0 drift aborts
+### Validation: 176 recorded samples, 0 drift aborts
 
-| arm | density (chars/token) | min margin |
-|---|---|---|
-| h5_adversarial | 4.44 – 4.96 | +36% |
-| **h2_polarity** | **3.55 – 3.83** | **+11%** |
-| h1_paraphrase | 4.51 – 4.74 | +39% |
-| h8_pinned_target | 4.52 – 4.74 | +39% |
-| h3_stage_stress | 3.92 – 5.17 | +27% |
-| h4_edge_shapes | 4.41 – 5.16 | +35% |
+**CORRECTED at wave 17e. This section said 197. The artefacts hold 197
+`token_samples`, but 21 of them are `h0_baseline`'s and were recorded under the
+OLD divisor 4.5** — they are the observations 3.3 was fitted *from*, not
+observations that validate it. `token_samples` stores no divisor, so the mixture
+is invisible in the artefact; it is recoverable from the ratios, and h0 sits in a
+band no other arm touches.
 
-h2's 3.55–3.83 confirms the single 3.61 observation the floor was fitted from.
-Nothing anywhere fell below 3.55.
+| arm | density (chars/token) | min margin | `estimate/actual` |
+|---|---|---|---|
+| h5_adversarial | 4.44 – 4.96 | +36% | 1.361 – 1.520 |
+| **h2_polarity** | **3.55 – 3.83** | **+11%** | 1.109 – 1.207 |
+| h1_paraphrase | 4.51 – 4.74 | +39% | 1.388 – 1.452 |
+| h8_pinned_target | 4.52 – 4.74 | +39% | 1.389 – 1.451 |
+| h3_stage_stress | 3.92 – 5.17 | +27% | 1.275 – 1.589 |
+| h4_edge_shapes | 4.41 – 5.16 | +35% | 1.355 – 1.580 |
+| **`h0_baseline` — PRE-CALIBRATION, divisor 4.5, n=21** | — | **+2.41%** | **1.024 – 1.070** |
+
+**h0's +2.41% is the closest approach to a drift abort anywhere in this wave**:
+`{estimate: 1490, actual: 1455}` at EL, a margin of **35 tokens**. It was not in
+this table, so the wave's narrowest margin was not in the record. It is a
+pre-calibration measurement — it is exactly the near-miss that motivated the
+recalibration — but "0 drift aborts" over "197 samples" reads as 197 samples
+validating 3.3, and 21 of them cannot.
+
+The clinching arithmetic is h0 against h1: same corpus, same records, prompts
+within ~14 characters of each other.
+
+```
+h0 EL sample 1: {estimate: 2031, actual: 1902}
+h1 EL sample 1: {estimate: 2759, actual: 1900}
+estimate ratio 2759 / 2031 = 1.3584        4.5 / 3.3 = 1.3636
+```
+
+Two prompts **2 tokens apart in reality, 728 tokens apart in estimate.**
+
+Among the 176 post-calibration samples, h2's 3.55–3.83 confirms the single 3.61
+observation the floor was fitted from, and nothing fell below 3.55.
+**`token_samples` should record the divisor in force**, the way each summary
+already records `prompt_version` and `context_window`; without it, any future
+recalibration that pools all 197 fits a mixed instrument.
 
 **The drift check is unchanged and still strict** — `llm_client.py:1662`,
 `actual > estimate` raises. Calibration made the estimate right; it did not make
@@ -184,8 +215,41 @@ Halt the sequence immediately and report if any arm shows:
    either a real behaviour change or a broken gate.
 2. **any F-107 unconstrained fallback** — `request_shape != "json_schema"`.
 3. **any arm reaching its per-arm ceiling.**
-4. **any `quote_valid=False`** — *this replaces the retired condition below.*
+4. **any `quote_valid=False` WITH A NON-NULL QUOTE.** *Corrected at wave 17e —
+   the version this document shipped, "any `quote_valid=False`", is broken and
+   is described below. Do not use it.*
 5. **any `TokenEstimateDrift`.**
+
+### Condition 4 was wrong as I wrote it — corrected at wave 17e
+
+I replaced the retired condition below with **"any `quote_valid=False`"**. That
+condition has never been exercised, because no arm has run since I wrote it, and
+it is unusable. Measured over all 931 record-criterion evidence cells in the
+seven arms that ran:
+
+| | n | of 931 |
+|---|---|---|
+| `quote_valid = false` | **828** | **88.9%** |
+| — of which the quote is **null/empty** | 806 | 86.6% |
+| — of which the quote is **non-null** | **22** | **2.4%** |
+| `quote_valid = true` (always non-null) | 103 | 11.1% |
+
+`quote_valid` is `_quote_in_text(quote, field_text)` and an empty string is found
+in nothing, so **every honest null quote records `quote_valid: false`** — and the
+v3 prompt asks for exactly that null on `not_meet`, which is the modal verdict.
+`quote_valid = true` never co-occurs with a null quote. The condition as I wrote
+it would have halted the very first arm on its first batch, on the behaviour
+`plugins/07_il/prompt.py:44` explicitly requests.
+
+**The operative condition is `quote_valid == False` AND `quote` IS NOT null:
+22 of 931, 2.4%.** That is the property I meant — the model naming a field it
+did not quote from.
+
+For scale, and it is not flattering: the condition I retired fires **4 times in
+931 (0.43%)**, all four on `h4`'s H4-7, which is precisely F-237's population.
+I replaced a 0.43% instrument with an 88.9% one and recorded the swap as a fix.
+The retirement's *contract* reasoning is still right — see below — but the
+replacement was not. F-237's row carries the same correction.
 
 ### The retired condition, and why
 
@@ -318,16 +382,27 @@ persist per-criterion impact (F-228), the freeze must capture `crit_impacts`
 
 ---
 
-## 9. NOT ANALYSED — the biggest gap in this handoff
+## 9. THE GAP THIS SECTION NAMED IS NOW CLOSED
 
-**Seven arms have run and no report anywhere says what any of them MEASURED.**
+**DONE at wave 17e — see `docs/data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md`.**
+Zero LLM calls were spent on it; every figure is derived from the committed
+artefacts. Read that document before re-deriving anything here.
 
-Everything reported so far is operational: call counts, re-ask rates, gate
-outcomes, request shapes, wall clock, token densities. Those establish that the
-instrument worked. **They say nothing about the experiment's results.** The
-artefacts hold the answers and nobody has read them for content.
+Headline answers to the questions this section listed: **h0 vs h1** moved 9 of 32
+records at IL and halved the both-stages-clean pile (10 to 5) — F-221's magnitude
+replicates, its unidirectionality does not (F-221's row now says so). **h0 vs h8**
+moved 1 decision of 64 at EL and 2 of 32 at IL, but relocated 71% of the model's
+self-reported evidence field and changed gate outcomes through `quote_valid`.
+**h2's mirror pairs cannot be compared to h0** — IC-26 mistranslated and left the
+arm with zero record overlap — but the arm yields a negation result instead:
+three of four negation-phrased criteria were answered as if un-negated. **h3, h4
+and h5's shapes all landed**, and four registered *behaviour* predictions were
+falsified. **Two new findings were filed from it: F-238 and F-239.**
 
-Specifically unknown to me:
+The rest of this section is left as written, as the record of what was unknown
+before the analysis ran:
+
+Originally unknown:
 
 - **h0 vs h1 is F-221's replication** — does rewording a criterion change which
   records survive? Both arms ran on the same 32 records with paraphrased

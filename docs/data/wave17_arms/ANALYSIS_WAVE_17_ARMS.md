@@ -1186,6 +1186,34 @@ A444  Understanding heterogeneity in conduct disorder: psychophysiology review
 Every one passes IC-4 and fails IC-5, because none happens to contain the literal
 strings `emotion`, `dysregulation`, `child`, `adolescent`, `youth` or `infant`.
 
+**A044 is not merely canonical — it is entry [1] of the corpus's own seed
+bibliography.** `samples/README.md` names
+`samples/20260122_1654_rsaSampleReferences.txt` as *"the RSA seed
+bibliography"*, and its first entry reads:
+
+```
+[1] Berntson GG, Cacioppo JT, Quigley KS. Respiratory sinus arrhythmia:
+    autonomic origins, physiological mechanisms, and psychophysiological
+    implications. Psychophysiology. 1993;30(2):183-196.
+```
+
+A044's record: `first_author` **Gary G. Berntson**, `year` **1993**, `venue`
+**Psychophysiology**, title exactly that. It has a 1,051-character abstract
+containing none of IC-5's six words. **The corpus was built outward from this
+paper, and the criteria deleted it at IH.**
+
+**A full seed-to-record mapping is not attempted, and the reason is worth
+recording.** The corpus carries no seed identifier, so the mapping has to come
+from titles — and title matching is unsafe here: **A117**, *"Respiratory Sinus
+Arrhythmia"* (Hayano 1996, *Circulation*), is a substring of **five different
+seed references**, and two different fuzzy-matching passes produced two
+contradictory seed tallies before this was noticed. Only two identifications are
+made, both by hand and both agreeing on first author, year, venue and exact
+title: **seed [1] = A044** (cut by IC-5) and **seed [6] = A187**, Appelhans and
+Luecken 2006, *"Heart rate variability as an index of regulated emotional
+responding"* — which reached EL/IL and is one of the two records the pipeline
+then tried to remove (§7.6).
+
 And the symmetric failure exists too: **A208, *"A model of neurovisceral
 integration in emotion regulation and dysregulation"*, is invisible to IC-4** —
 its abstract is empty and no keyword carries a vagal token — so a paper whose
@@ -1214,9 +1242,10 @@ A275  EC-3  meet 0.9  quote_valid=TRUE  -> SUPPRESSED
 ```
 
 **A187 and A275 are two of the seven records all three reviewers unanimously call
-CORRECT_INCLUSION.** The model asserted that each is primarily about clinical
-arrhythmia diagnosis, at confidence 0.9, and offered as proof a verbatim quote of
-a title that says the opposite.
+CORRECT_INCLUSION, and A187 is entry [6] of the corpus's own seed bibliography**
+(Appelhans and Luecken 2006; see §7.5). The model asserted that each is primarily
+about clinical arrhythmia diagnosis, at confidence 0.9, and offered as proof a
+verbatim quote of a title that says the opposite.
 
 Both quotes are `quote_valid: true` — they *are* exact substrings of the record.
 So the strict presence gate accepted both and returned `ACTION_EXCLUDE`. **The
@@ -1278,9 +1307,11 @@ branch. A reviewer sorting the pile by model confidence would be sorting noise.
 
 ## 8. Candidate findings — list only
 
-Following wave 16c's convention: observed here, **not filed**. The register is
-untouched by this session and still reads 234 rows, next free **F-238**, 40
-machine cells verifying. Adjudication and severity are the maintainer's.
+Following wave 16c's convention: observed, then adjudicated by the maintainer.
+**Two have since been filed — #1 as `F-238` (High) and #2 as `F-239` (High)** —
+and the F-221 and F-237 rows were corrected in place. The register now reads
+**236 rows**, next free **F-240**, 40 machine cells verifying. **The remaining
+22 are unfiled**; adjudication and severity are the maintainer's.
 
 Ordered by what they would change, not by discovery order.
 
@@ -1477,9 +1508,14 @@ it: `RULE_KEEPS` does not consult evidence, and `RULE_REMOVES_BY_ABSENCE` does
 not either. h6 should be aimed at the keep side and at field-attribution honesty,
 with these 122 instances as its control.
 
-**`h7_loose` — its question has been half-answered, badly.** `h7` exists to push
-off-topic mass into the LLM stages (189 records, 47 of them off-topic = 24.9%)
-because `h0` delivers none. **`h3` already did it, at 116 records and 55.2%
+**`h7_loose` — its question has been half-answered, badly, and it is now the most
+valuable unrun arm.** `h7` exists to push off-topic mass into the LLM stages.
+**Confirmed from the artefacts rather than from the spec's prose:** replaying
+h7's deterministic chain in-process (dry guard installed, zero calls) gives 463
+to EH 423 to IH **189 survivors, of which 47 carry `parents` X002 or X012 =
+24.9%** — X002 17, X012 30 — matching its `expected_chain` and the manifest
+funnel number for number. For comparison the same replay gives `h6` 139
+survivors with **1** off-topic, and `h9` h0's 32 with **0**. **`h3` already did it, at 116 records and 55.2%
 off-topic** — and taking the union over all seven run arms, **211 of the 463
 records (45.6%) have already reached an LLM stage, 79 of them off-topic**,
 against h7's projected 47.
@@ -1492,6 +1528,15 @@ answerable and `h7` would answer at higher power. If `h7` runs, its analysis
 should be a discrimination measure (off-topic rejected vs on-topic retained),
 not a rejection count. Its 228-call budget buys that; it does not buy anything
 if the reported outcome is "the LLM rejected the off-topic records".
+
+**That is what makes it the most valuable of the three unrun arms.** §7.4's
+strongest positive result — the IL stage flagged **8 of 8** records the reviewers
+call wrong inclusions and let none into the pile it cleared — rests on **n=8**,
+on one arm, on a population containing no off-topic material at all. h7 admits
+**47 deliberately off-topic records** into the LLM stages, which tests that same
+discrimination at nearly six times the n and against material whose ground truth
+is known by construction rather than by reviewer judgement. Neither `h6` (1
+off-topic) nor `h9` (0) can do that.
 
 **And one question the wave has not been designed to answer at all.** §5.2's
 negation result is the largest behavioural effect measured in this wave, and it
