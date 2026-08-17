@@ -9,7 +9,7 @@
     5,
     1
   ],
-  "call_ceiling_total": 1134,
+  "call_ceiling_total": 926,
   "expected_endpoint": "http://localhost:11434/v1",
   "llm_target_policy": "Every `harmonized_csv` arm pins its llm rows to `title,abstract,keywords`. The four `free_text` arms CANNOT: `tools/run_criteria_experiment.py::translate_free_text` computes the target from `_get_best_text_targets` and accepts no override, and `load_spec` reads no such field, so a spec key would be inert without a code change. Their llm rows therefore target `title` alone on this corpus (F-227), which is recorded in each intent's `intended_target` as a registered variable rather than a hidden one. h0 must stay free_text and unmodified to be an anchor at all.",
   "live_defaults": {
@@ -373,7 +373,7 @@
       "key": "h4_edge_shapes",
       "kind": "harmonized_csv",
       "source": "docs/data/wave17_arms/h4_edge_shapes.csv",
-      "source_sha256": "d8f8d481cc3171440cf8cb02873e281b98fcb9985d24a240050ef091e46d2f8a",
+      "source_sha256": "1ae4b034aafc1048d7bdfdec6680d5c9180b4ef999d52729217d519f1edab9fb",
       "intents": [
         {
           "id": "H4-1",
@@ -430,6 +430,13 @@
           "intended_operator": "llm",
           "intended_target": "title,abstract,keywords",
           "rationale": "threshold 1.00, the upper bound"
+        },
+        {
+          "id": "H4-9",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,keywords",
+          "rationale": ""
         }
       ],
       "live": {
@@ -448,8 +455,8 @@
         "input": 463,
         "eh_out": 12,
         "eh_surv": 451,
-        "ih_out": 131,
-        "ih_surv": 320
+        "ih_out": 382,
+        "ih_surv": 69
       }
     },
     {
@@ -722,170 +729,248 @@
         "ih_out": 391,
         "ih_surv": 32
       }
+    },
+    {
+      "key": "h9_batch1",
+      "kind": "free_text",
+      "source": "samples/20260816_1841_rsaSampleIcEc.txt",
+      "source_sha256": "62e59ab8d8f25a430c85135ff643fce54e483eef565e9f4bcac1cd207ef5c9cc",
+      "intents": [
+        {
+          "id": "IC-1",
+          "intended_stage": "IL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "h0's IC-1 verbatim. The arm's ONLY variable is batch_size 1."
+        },
+        {
+          "id": "IC-3",
+          "intended_stage": "IH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "h0's IC-3 verbatim"
+        },
+        {
+          "id": "IC-4",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-4 verbatim"
+        },
+        {
+          "id": "IC-5",
+          "intended_stage": "IH",
+          "intended_operator": "contains",
+          "intended_target": "title,abstract,keywords",
+          "rationale": "h0's IC-5 verbatim"
+        },
+        {
+          "id": "EC-1",
+          "intended_stage": "EH",
+          "intended_operator": "equals",
+          "intended_target": "lang",
+          "rationale": "h0's EC-1 verbatim"
+        },
+        {
+          "id": "EC-2",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "h0's EC-2 verbatim"
+        },
+        {
+          "id": "EC-3",
+          "intended_stage": "EL",
+          "intended_operator": "llm",
+          "intended_target": "title",
+          "rationale": "h0's EC-3 verbatim"
+        },
+        {
+          "id": "EC-4",
+          "intended_stage": "EH",
+          "intended_operator": "contains",
+          "intended_target": "venue",
+          "rationale": "h0's EC-4 verbatim"
+        }
+      ],
+      "live": {
+        "temperature": 0.0,
+        "use_cache": false,
+        "model": {
+          "EL": "qwen2.5:7b",
+          "IL": "qwen2.5:7b"
+        },
+        "batch_size": {
+          "EL": 1,
+          "IL": 1
+        }
+      },
+      "purpose": "h0's criteria and h0's records, batch_size 1 for both LLM stages, everything else identical — including the source file, so h0 and h9 share a digest. Measures F-215 directly: the identity gap it documents exists only when batch > 1, because at cardinality 1 there is nothing for _absorb to drop or conflate. A High finding that has been documented and never measured. batch_size IS read per arm — live_preflight resolves `arm.get(\"live\") or spec[\"live_defaults\"]` and REFUSES the run unless batch_size is explicit per stage — so unlike llm_target and subsample this field is not inert.",
+      "expected_chain": {
+        "input": 463,
+        "eh_out": 40,
+        "eh_surv": 423,
+        "ih_out": 391,
+        "ih_surv": 32
+      }
     }
   ],
   "call_budget": {
-    "derived_by": "tools/run_criteria_experiment.py dry run, wave 17c, zero calls; docs/data/wave17_arms/dryrun_v1/",
-    "batching_model": "calls = ceil(records / batch_size) * criteria, PER STAGE, summed. Records are batched within a criterion; criteria are never mixed in one call. tools/run_criteria_experiment.py::calls_for asserts equality with the product's own plugins/_common/run_estimate.py::RunPlan.requests, so the estimate and the engine cannot disagree.",
-    "residue_reask": "F-197: a reply short of its batch gets exactly ONE re-ask of the omitted subset — a different item list, so a different request, not a retry. Worst case is therefore one extra call per batch, i.e. 2x the base. The tool's own `reasks_expected` is 0, which is a declared expectation (temperature 0, constrained decoding) and not a model. Beneath this the SDK retries the transport at max_retries=2 (llm_client.py:1213); those are HTTP attempts, not logical calls, and the ceiling counts logical calls.",
-    "predicted_spend_batch5": 567,
-    "structural_maximum_batch5": 1134,
-    "reference_batch1_predicted": 2780,
-    "reference_batch1_structural_maximum": 5560,
-    "ceiling_is": "structural_maximum_batch5 — the number a run cannot exceed without something being wrong, NOT the number it is expected to spend. summarize() compares the batch-5 cross-arm total against this.",
-    "vs_wave16": "wave 16 measured 324 @batch5 / 1560 @batch1. Wave 17 is 1.75x / 1.78x — NOT the 5.1x its record-arm-unit ratio (901 vs 176) suggests, because calls scale with ceil(records/5)*criteria and wave 16's largest arms had many criteria over small piles.",
-    "wall_clock_estimate_hours_batch5": [
-      2.0,
-      3.0
-    ],
-    "wall_clock_basis": "F-218 / wave 15e: EL 8.8 s/call at batch 5 (runJ, the slower of the J/K pair); IL 2.0-3.6x that. Same-machine assumption.",
-    "dominant_arm": "h4_edge_shapes: 256 of 567 calls (45%) and 56-86 min of the 2-3 h. Its 320-record pile is an ACCIDENT of moving its regex row from IH/include to EH/exclude during authoring, not an intent. See uncapped_piles below.",
-    "uncapped_piles": "NOT CAPPED, and the reason is a failed premise rather than a decision: the harness supports no subsampling of any kind. It reads no subsample/seed/limit field, and no random, shuffle, sample or slice path exists in run_criteria_experiment.py, 06_el/screen.py, 07_il/screen.py or _common/runner.py. Worse, load_spec ACCEPTS an unknown `subsample` key and silently ignores it, so writing one would look pinned and do nothing — the same inert-field trap as the llm_target idea. Capping therefore requires either a code change or tighter IH gates, and the latter is a criteria change that must be adjudicated, not applied quietly. See the wave 17c report.",
+    "derived_by": "tools/run_criteria_experiment.py dry run, waves 17c; zero calls; docs/data/wave17_arms/dryrun_v1/",
+    "batching_model": "calls = ceil(records / batch_size) * criteria, PER STAGE, summed. Records batch within a criterion; criteria never mix in one call. run_criteria_experiment.py::calls_for asserts equality with the product's own run_estimate.py::RunPlan.requests, so estimate and engine cannot disagree.",
+    "residue_reask": "F-197: a reply short of its batch gets exactly ONE re-ask of the omitted subset - a different item list, so a different request, not a retry. Worst case is one extra call per batch, i.e. 2x base. Beneath that the SDK retries transport at max_retries=2 (llm_client.py:1213); those are HTTP attempts, not logical calls.",
+    "ceiling_is": "structural_maximum - the number a run cannot exceed without something being wrong, NOT the number it is expected to spend.",
+    "vs_wave16": "wave 16b spent 325 in-ledger (324 base + 1 re-ask) across 8 arms.",
+    "wall_clock_basis": "F-218 / wave 15e: EL 8.80 s/call at batch 5 (runJ, the slower of the J/K pair), 3.47 s/call at batch 1 (runL); IL 2.0-3.6x. Same-machine assumption.",
+    "predicted_spend_as_declared": 463,
+    "mixed_batch_note": "The dry run's cross_arm_summary TOTAL row sums calls_batch5 over every arm and reports 388, which is NOT this run's spend: h9_batch1 is declared batch_size 1 and costs 96, not 21. The figure above is the mixed total — each arm at the batch size its own `live` block declares. Anyone reading the summary CSV's TOTAL for a mixed-batch spec will under-count.",
+    "reask_rate_calibrated": {
+      "source": "wave 16b live: 324 base calls in-ledger, 1 re-ask (arm0_baseline, IL stage). docs/data/wave16_live_runs/meta.txt:57-58, FIX_WAVE_16B_LIVE_RUNS.md:184-187.",
+      "rate": "1 / 324 = 0.31% of calls",
+      "expected_reasks_this_wave": 1.4,
+      "the_340_figure": "340 is the GRAND NETWORK total and is not 324+16 re-asks. It is 325 in-ledger (324 base + 1 re-ask) plus 15 calls sunk in an aborted first attempt of arm0_baseline, which meta.txt:101 states are 'NOT part of any experimental figure: the arm was rerun in full'. Two re-asks exist in the whole session counting the sunk attempt's one.",
+      "why_the_ceiling_is_still_structural": "The aborted attempt IS the argument. arm0's per-arm ceiling was declared at 15, the no-re-ask arithmetic; it needed 16, and the budget enforcer refused attempt 16 before it reached the network, killing the arm and sinking 15 calls. A ceiling set at or near the predicted spend fails on the FIRST re-ask. The calibrated figure is for planning; the enforced ceiling is the structural maximum."
+    },
+    "calibrated_ceiling_1_05x": 486,
+    "structural_maximum": 926,
+    "il_input_assumption": "IL calls are derived from the EL INPUT count, i.e. this arithmetic assumes EL removes nothing and hands its whole pile to IL. That makes every total here an UPPER BOUND on spend, not a prediction: any EL removal reduces IL's population and therefore IL's calls. The assumption is well-founded rather than convenient — wave 16b measured `removals: 0` on every one of eight arms across 325 in-ledger calls, because gate rule (c) never auto-acts a removal-by-absence and no presence-removal cleared the strict gate. It is still an assumption, and if wave 17's EL does remove, the IL half of every figure above is too high.",
     "per_arm": {
       "h0_baseline": {
+        "batch_size": 5,
         "records_at_el": 32,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 14,
           "IL": 7,
           "total": 21
         },
-        "calls_batch1_reference_only": 96,
-        "structural_max_batch5": 42,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           4.1,
           5.7
         ]
       },
       "h1_paraphrase": {
+        "batch_size": 5,
         "records_at_el": 32,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 14,
           "IL": 7,
           "total": 21
         },
-        "calls_batch1_reference_only": 96,
-        "structural_max_batch5": 42,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           4.1,
           5.7
         ]
       },
       "h2_polarity": {
+        "batch_size": 5,
         "records_at_el": 12,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 2,
-        "calls_batch5": {
+        "calls": {
           "EL": 6,
           "IL": 6,
           "total": 12
         },
-        "calls_batch1_reference_only": 48,
-        "structural_max_batch5": 24,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           2.6,
           4.0
         ]
       },
       "h3_stage_stress": {
+        "batch_size": 5,
         "records_at_el": 116,
-        "el_llm_criteria": 1,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 24,
           "IL": 24,
           "total": 48
         },
-        "calls_batch1_reference_only": 232,
-        "structural_max_batch5": 96,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           10.6,
           16.2
         ]
       },
       "h4_edge_shapes": {
-        "records_at_el": 320,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 2,
-        "calls_batch5": {
-          "EL": 128,
-          "IL": 128,
-          "total": 256
+        "batch_size": 5,
+        "records_at_el": 69,
+        "calls": {
+          "EL": 28,
+          "IL": 28,
+          "total": 56
         },
-        "calls_batch1_reference_only": 1280,
-        "structural_max_batch5": 512,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
-          56.3,
-          86.4
+        "wall_clock_min": [
+          12.3,
+          18.9
         ]
       },
       "h5_adversarial": {
+        "batch_size": 5,
         "records_at_el": 29,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 12,
           "IL": 6,
           "total": 18
         },
-        "calls_batch1_reference_only": 87,
-        "structural_max_batch5": 36,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           3.5,
           4.9
         ]
       },
       "h6_no_abstract": {
+        "batch_size": 5,
         "records_at_el": 139,
-        "el_llm_criteria": 1,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 28,
           "IL": 28,
           "total": 56
         },
-        "calls_batch1_reference_only": 278,
-        "structural_max_batch5": 112,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           12.3,
           18.9
         ]
       },
       "h7_loose": {
+        "batch_size": 5,
         "records_at_el": 189,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 76,
           "IL": 38,
           "total": 114
         },
-        "calls_batch1_reference_only": 567,
-        "structural_max_batch5": 228,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           22.3,
           31.2
         ]
       },
       "h8_pinned_target": {
+        "batch_size": 5,
         "records_at_el": 32,
-        "el_llm_criteria": 2,
-        "il_llm_criteria": 1,
-        "calls_batch5": {
+        "calls": {
           "EL": 14,
           "IL": 7,
           "total": 21
         },
-        "calls_batch1_reference_only": 96,
-        "structural_max_batch5": 42,
-        "wall_clock_min_batch5_el_rate_to_il_worst": [
+        "wall_clock_min": [
           4.1,
           5.7
         ]
+      },
+      "h9_batch1": {
+        "batch_size": 1,
+        "records_at_el": 32,
+        "calls": {
+          "EL": 64,
+          "IL": 32,
+          "total": 96
+        },
+        "wall_clock_min": [
+          7.4,
+          10.4
+        ]
       }
-    }
+    },
+    "wall_clock_hours_as_declared": [
+      1.4,
+      2.0
+    ],
+    "dominant_arm": "h7_loose: 114 of 463 calls (25%) and 22-31 min. h4_edge_shapes was 256 of 567 before wave 17c bounded its pile with H4-9; it is now 56.",
+    "uncapped_piles": "h4 bounded to 69 records by H4-9, a declared, digest-pinned criteria row — the only capping mechanism available, since the harness supports no subsampling (see F-232). h6 LEFT WHOLE deliberately: its measurement is the abstract-less records reaching EL, and only 32 of its 139 are abstract-less, so a trim to 60 records would leave ~14 and every tighter gate measured leaves 8 or fewer. h7 LEFT WHOLE at 189: its 24.9% off-topic proportion IS the measurement and a trim to 60 leaves ~15 off-topic, too thin for a discrimination claim."
   }
 }

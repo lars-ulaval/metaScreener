@@ -2,8 +2,8 @@
   "arm": "h4_edge_shapes",
   "kind": "harmonized_csv",
   "source": "docs/data/wave17_arms/h4_edge_shapes.csv",
-  "source_sha256": "d8f8d481cc3171440cf8cb02873e281b98fcb9985d24a240050ef091e46d2f8a",
-  "harmonized_sha256": "155557f44eb53869cc2d3cae9aa7ad14c541179db20f49468f7a3cf9c776966a",
+  "source_sha256": "1ae4b034aafc1048d7bdfdec6680d5c9180b4ef999d52729217d519f1edab9fb",
+  "harmonized_sha256": "2437b1eba29188cc328a5048fa7598d40bede1f97969c0b6c35124211f099911",
   "corpus": "samples/20260816_1841_rsaAggregate.csv",
   "corpus_sha256": "e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c",
   "window": 4096,
@@ -105,6 +105,19 @@
       ],
       "threshold": "1.00",
       "enabled": true
+    },
+    {
+      "stage": "IH",
+      "id": "H4-9",
+      "type": "include",
+      "operator": "contains",
+      "target": "title,keywords",
+      "what": [
+        "emotion",
+        "child"
+      ],
+      "threshold": "",
+      "enabled": true
     }
   ],
   "validator": {
@@ -137,6 +150,10 @@
       "warnings": []
     },
     "H4-8": {
+      "errors": [],
+      "warnings": []
+    },
+    "H4-9": {
       "errors": [],
       "warnings": []
     }
@@ -175,6 +192,12 @@
         {
           "id": "H4-3",
           "operator": "not_in",
+          "type": "include",
+          "enabled": true
+        },
+        {
+          "id": "H4-9",
+          "operator": "contains",
           "type": "include",
           "enabled": true
         }
@@ -319,6 +342,19 @@
       ],
       "match": true,
       "rationale": "threshold 1.00, the upper bound"
+    },
+    {
+      "id": "H4-9",
+      "intended_stage": "IH",
+      "intended_operator": "contains",
+      "landed_stages": [
+        "IH"
+      ],
+      "landed_operators": [
+        "contains"
+      ],
+      "match": true,
+      "rationale": ""
     }
   ],
   "funnel": {
@@ -343,9 +379,9 @@
       }
     },
     "ih": {
-      "out": 131,
-      "survivors": 320,
-      "pass_flagged": 320,
+      "out": 382,
+      "survivors": 69,
+      "pass_flagged": 69,
       "impacts": {
         "H4-1": {
           "failed": 131,
@@ -358,11 +394,17 @@
           "missing": 0,
           "met": 0,
           "unknown": 451
+        },
+        "H4-9": {
+          "failed": 377,
+          "missing": 0,
+          "met": 74,
+          "unknown": 0
         }
       }
     },
-    "records_at_el": 320,
-    "records_at_il": 320,
+    "records_at_el": 69,
+    "records_at_il": 69,
     "il_input_assumption": "flag_only: EL removes no records; IL input = EL input"
   },
   "budget_guard": {
@@ -377,17 +419,17 @@
           "per_criterion": {
             "H4-5": {
               "ok": true,
-              "worst_estimate": 2142,
+              "worst_estimate": 1957,
               "reserve": 400,
-              "n_batches": 64,
+              "n_batches": 14,
               "max_safe_batch": 5,
               "message": ""
             },
             "H4-6": {
               "ok": true,
-              "worst_estimate": 2168,
+              "worst_estimate": 1983,
               "reserve": 400,
-              "n_batches": 64,
+              "n_batches": 14,
               "max_safe_batch": 5,
               "message": ""
             }
@@ -400,7 +442,7 @@
               "ok": true,
               "worst_estimate": 645,
               "reserve": 80,
-              "n_batches": 320,
+              "n_batches": 69,
               "max_safe_batch": 1,
               "message": ""
             },
@@ -408,7 +450,7 @@
               "ok": true,
               "worst_estimate": 671,
               "reserve": 80,
-              "n_batches": 320,
+              "n_batches": 69,
               "max_safe_batch": 1,
               "message": ""
             }
@@ -427,17 +469,17 @@
           "per_criterion": {
             "H4-7": {
               "ok": true,
-              "worst_estimate": 2782,
+              "worst_estimate": 2597,
               "reserve": 400,
-              "n_batches": 64,
+              "n_batches": 14,
               "max_safe_batch": 5,
               "message": ""
             },
             "H4-8": {
               "ok": true,
-              "worst_estimate": 2159,
+              "worst_estimate": 1974,
               "reserve": 400,
-              "n_batches": 64,
+              "n_batches": 14,
               "max_safe_batch": 5,
               "message": ""
             }
@@ -450,7 +492,7 @@
               "ok": true,
               "worst_estimate": 1285,
               "reserve": 80,
-              "n_batches": 320,
+              "n_batches": 69,
               "max_safe_batch": 1,
               "message": ""
             },
@@ -458,7 +500,7 @@
               "ok": true,
               "worst_estimate": 663,
               "reserve": 80,
-              "n_batches": 320,
+              "n_batches": 69,
               "max_safe_batch": 1,
               "message": ""
             }
@@ -470,16 +512,16 @@
   "call_arithmetic": {
     "reasks_expected": 0,
     "batch5": {
-      "EL": 128,
-      "IL": 128,
-      "total": 256,
-      "wall_clock_s_est": 2252.8
+      "EL": 28,
+      "IL": 28,
+      "total": 56,
+      "wall_clock_s_est": 492.8
     },
     "batch1": {
-      "EL": 640,
-      "IL": 640,
-      "total": 1280,
-      "wall_clock_s_est": 4440.8
+      "EL": 138,
+      "IL": 138,
+      "total": 276,
+      "wall_clock_s_est": 957.6
     }
   }
 }
