@@ -4,6 +4,16 @@ This directory contains the project's user and methodological
 documentation. For the high-level project description, badges, and
 quickstart pointers, see the [project README](../README.md).
 
+**Where things are.** To *use the software*, read
+[`installation.md`](installation.md) and [`usage.md`](usage.md), and take the
+sample inputs from [`samples/`](../samples/). For the *evidence* behind any
+claim the project makes, see [`data/`](data/) — frozen run artefacts, each
+directory pinned by its own `SHA256SUMS` and re-derived by a test on every
+suite run. For the *process record* — how each defect was found, argued and
+closed — see [`internal/`](internal/), whose register
+[`internal/diagnostic/03_findings.md`](internal/diagnostic/03_findings.md) is
+the project's single index of known problems.
+
 ## Available documents
 
 - **[Installation guide](installation.md)** — detailed setup

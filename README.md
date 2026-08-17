@@ -239,7 +239,12 @@ The repository's `samples/` directory contains minimal sample inputs for testing
 | `20260122_1654_aggregate.csv` | Sample aggregate citation corpus (776 records) with structured metadata fields |
 | `20260816_1841_rsaAggregate.csv` | A second aggregate corpus (463 records, respiratory sinus arrhythmia) in the same 34-column schema |
 | `20260122_1654_sampleReferences.txt` | Sample free-text reference list for Plugin 02 |
+| `20260816_1841_rsaSampleIcEc.txt` | Inclusion/exclusion criteria (4 IC + 4 EC) for the RSA corpus |
 | `20260122_1654_rsaSampleReferences.txt` | The seed bibliography the RSA corpus was harvested from |
+
+Both criteria files are **realistic examples, not recommended screening
+instruments** — see `samples/README.md`, which records what the RSA set
+measurably does to that corpus.
 
 ---
 
@@ -345,7 +350,9 @@ Tested on Windows 10 and Ubuntu 24.04 (headless, via WSL/Docker).
 The EL and IL stages are configured independently: setting `SCREENA_EL_MODEL` does not
 change the model used by IL.
 
-These variables are still read, and a `.env` file in the project root still works for a source-tree setup. **They are no longer the route.** From v3.2 the application asks which provider you want on first launch and remembers the answer in `settings.json` (see `docs/installation.md`); a stored choice takes precedence over `OPENAI_BASE_URL`, so a leftover shell export cannot silently override a choice made in the interface. The launch dialog no longer demands a key before the application will start, and dismissing it leaves the deterministic stages (03–05) fully usable.
+These variables are read, and a `.env` file in the project root works for a source-tree setup. **In the current release (3.1.0) they are the route**: the application resolves its provider and key from the environment, and the launch dialog asks for a key before the interface becomes fully usable.
+
+> **Unreleased — not in 3.1.0.** The provider-choice work described in `CHANGELOG.md` under `[Unreleased]` changes this: the application will ask which provider you want on first launch and remember the answer in `settings.json` (see `docs/installation.md`), a stored choice will take precedence over `OPENAI_BASE_URL` so a leftover shell export cannot silently override a choice made in the interface, and the launch dialog will no longer demand a key before the application starts — dismissing it will leave the deterministic stages (03–05) fully usable. **If you installed 3.1.0 from PyPI, that behaviour is not there yet.**
 
 ## Using local LLM providers
 
