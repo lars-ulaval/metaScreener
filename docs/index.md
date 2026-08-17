@@ -57,12 +57,22 @@ the human-vs-LLM agreement study:
 - [`data/eval_summary_v1.txt`](data/eval_summary_v1.txt) —
   human-readable summary with kappa values and 3x3 confusion matrices.
 - [`data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md`](data/wave17_arms/ANALYSIS_WAVE_17_ARMS.md)
-  — what the seven wave-17 criteria-experiment arms measured: the
-  paraphrase-sensitivity replication, the `target`-hint comparison,
-  registered intent against outcome per arm, and a record-by-record
-  judgement of the pile the baseline arm produces. Derived entirely from
-  the committed artefacts under
-  [`data/wave17_arms/`](data/wave17_arms/); no run was made to produce it.
+  — what the ten wave-17 criteria-experiment arms measured. Start at §11 for
+  the result stated plainly; the sections before it carry the derivations.
+  Covers the paraphrase-sensitivity replication, the batch-size effect, the
+  `target`-hint comparison, registered intent against outcome per arm, and a
+  record-by-record judgement of the pile the baseline arm produces.
+- [`data/wave17_arms/meta.txt`](data/wave17_arms/meta.txt) — provenance for
+  the frozen wave-17 evidence: model, window, batch, policy, per-arm spend,
+  and why the cache had to be off. Integrity is held by
+  [`SHA256SUMS`](data/wave17_arms/SHA256SUMS) beside it and re-derived on
+  every suite run by `tests/test_wave17_freeze.py`.
+- [`data/wave17_arms/live_v1/crit_impacts.json`](data/wave17_arms/live_v1/crit_impacts.json)
+  — the per-criterion impact table for all ten arms. The product computes this
+  on every run and persists it nowhere (F-228), so it is reconstructed from
+  the committed evidence by
+  [`tools/extract_crit_impacts.py`](../tools/extract_crit_impacts.py), which
+  the freeze test re-runs and compares.
 
 Re-running [`tools/eval_ingest.py`](../tools/eval_ingest.py) against
 the committed grids and manifest reproduces all four evidence files

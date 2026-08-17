@@ -237,6 +237,30 @@ def _eol_attr(rel):
     return None if value in ("", "unspecified", "unset") else value
 
 
+def _is_binary(rel):
+    """Whether `rel` resolves to `binary` in .gitattributes.
+
+    Widened at wave 17e, and the reason is a collision between two of this
+    repository's own rules rather than a weakening of either. A spec-pinned
+    source that also lives inside a FROZEN directory is subject to
+    `tests/test_frozen_directories.py`, whose rule since wave 16d is that a
+    recorded digest implies `binary` with no exception. `binary` and `eol=`
+    cannot both be set: `binary` is shorthand for `-text -diff`, and an
+    unset `text` makes `eol` inoperative, so git reports `eol: unspecified`.
+
+    Accepting `binary` here does not loosen what this file is defending.
+    F-230 is about the checkout form depending on the platform; `eol=`
+    removes the platform by forcing a conversion, and `binary` removes it by
+    forbidding conversion altogether — blob, checkout and working tree are one
+    set of bytes everywhere. Binary is the stronger of the two, not a
+    concession, and the digest check above still runs against
+    `git cat-file --filters` either way.
+    """
+    out = subprocess.run(["git", "check-attr", "binary", "--", rel],
+                         cwd=str(ROOT), capture_output=True, text=True).stdout
+    return out.strip().rsplit(": ", 1)[-1] == "set" if out.strip() else False
+
+
 @_NEEDS_GIT
 @pytest.mark.parametrize("spec_rel", SPECS or [""], ids=SPECS or ["<none>"])
 def test_every_pinned_source_has_an_explicit_eol_rule(spec_rel):
@@ -260,13 +284,17 @@ def test_every_pinned_source_has_an_explicit_eol_rule(spec_rel):
         "%s pins no source by digest, so this check is vacuous." % spec_rel
     )
 
-    unpinned = [rel for rel in pinned if _eol_attr(rel) is None]
+    unpinned = [rel for rel in pinned
+                if _eol_attr(rel) is None and not _is_binary(rel)]
     assert not unpinned, (
-        "These files have a recorded `source_sha256` in %s but no explicit "
-        "`eol=` rule in .gitattributes, so what a checkout serves depends on "
-        "the platform while the recorded digest does not: %s. Add an `eol=` "
-        "rule matching the form the digest was measured in — `eol=crlf` if it "
-        "was recorded on Windows, `eol=lf` if on Linux or macOS. Do NOT edit "
+        "These files have a recorded `source_sha256` in %s but neither an "
+        "explicit `eol=` rule nor `binary` in .gitattributes, so what a "
+        "checkout serves depends on the platform while the recorded digest "
+        "does not: %s. Add an `eol=` rule matching the form the digest was "
+        "measured in — `eol=crlf` if it was recorded on Windows, `eol=lf` if "
+        "on Linux or macOS — or `binary`, which is stronger because it "
+        "forbids conversion outright and is what a frozen directory requires. "
+        "Do NOT edit "
         "the digest: it is an output record (F-225), and the checkout form is "
         "what is wrong. This assertion is deliberately platform-independent — "
         "the digest check alone passes on the authoring machine and fails "

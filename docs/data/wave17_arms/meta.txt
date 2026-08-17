@@ -1,0 +1,95 @@
+# wave17_arms — the wave-17 criteria-experiment arms: design, dry run and the
+# ten live runs (2026-08-16/17). Integrity is held by SHA256SUMS beside this
+# file. The analysis that reads these bytes is ANALYSIS_WAVE_17_ARMS.md, in this
+# directory; the guard is tests/test_wave17_freeze.py.
+#
+# THE EXPERIMENT: eight authored criteria for a respiratory-sinus-arrhythmia
+# review, plus nine deliberate variations on them, each screened through the
+# product's own EH/IH/EL/IL engines. Per-criterion intents were REGISTERED
+# BEFORE any call, in experiment_spec.json's `intents` arrays, so the runs test
+# the design rather than describe it.
+#
+# DATE:      2026-08-16 (arms 17a-17d) and 2026-08-17 (h6, h9, h7 at 17e)
+# BRANCH:    fix/wave-17e-freeze
+# ENDPOINT:  http://localhost:11434/v1 (OPENAI_BASE_URL not set; store default)
+# MODEL:     qwen2.5:7b, passed EXPLICITLY per stage for EL AND IL, never
+#            store-resolved. live_preflight refuses to run unless
+#            live.model.{EL,IL} are both set, because the GUI path has a
+#            stage-to-app-level fallback (settings.py:411, effective()) that
+#            would silently resolve IL to a different model.
+# WINDOW:    4096 both stages     TRUNC: 1500     TEMP: 0.0
+# BATCH:     5 both stages on every arm EXCEPT h9_batch1, which is 1 — that is
+#            the arm's only variable and F-247 is what it measured.
+# PROMPTS:   EL_v3_nullquote / IL_v3_nullquote
+# POLICY:    exclusion_policy=flag_only on every arm. NOTHING WAS REMOVED
+#            ANYWHERE: OUT=0 in all twenty stage summaries.
+# CACHE:     OFF in every arm (use_cache=false, enforced in three places).
+#            Required, not incidental: h0 and h9 differ only in batch size and
+#            the F-101 cache key is blind to batch size, so a live cache would
+#            have silently collapsed the two arms this freeze exists to compare.
+# SHAPE:     request_shape=json_schema on every call of every arm; no F-107
+#            unconstrained fallback fired anywhere.
+#
+# CORPUS:    samples/20260816_1841_rsaAggregate.csv, 463 records, sha256
+#            e8b262f1203c8b459357e866bc376e40f3b73a2d7b68b67cac5a3f01e371435c.
+#            The harness verifies this digest before every run and refuses to
+#            proceed on a mismatch.
+# CRITERIA:  samples/20260816_1841_rsaSampleIcEc.txt, 8 criteria, sha256
+#            62e59ab8d8f25a430c85135ff643fce54e483eef565e9f4bcac1cd207ef5c9cc.
+#            Both files live under samples/ and are NOT part of this freeze;
+#            they are pinned separately and verified by
+#            tools/verify_spec_digests.py (F-230).
+#
+# SPEND:     472 live calls across ten arms, ~1h20m of wall clock. Every arm
+#            finished at or below 57.1% of its declared per-arm budget; none
+#            approached its ceiling.
+#
+#   arm                calls/budget   EL counts                 IL counts
+#   h0_baseline           24 / 42     27 / 3 / 2                12 / 1 / 19
+#   h1_paraphrase         24 / 42     25 / 1 / 6                 7 / 0 / 25
+#   h2_polarity           12 / 24     12 / 0 / 0                 1 / 0 / 11
+#   h3_stage_stress       49 / 96    111 / 0 / 5                 1 / 1 / 114
+#   h4_edge_shapes        56 / 112    57 / 6 / 6                 0 / 4 / 65
+#   h5_adversarial        18 / 36     27 / 1 / 1                 0 / 0 / 29
+#   h6_no_abstract        56 / 112   135 / 1 / 3                19 / 5 / 115
+#   h7_loose             115 / 228   155 / 15 / 19              33 / 5 / 151
+#   h8_pinned_target      22 / 42     27 / 1 / 4                12 / 1 / 19
+#   h9_batch1             96 / 192    32 / 0 / 0                 5 / 0 / 27
+#   (counts are PASS_CLEAN / PASS_FLAGGED-or-REVIEW / EXCLUSION_SUPPRESSED;
+#    OUT is 0 on all twenty and is therefore not shown)
+#
+# A DECLARED BUDGET IS A FAULT-CEILING, NOT A SPEND PREDICTION. Every --budget
+# is 2x the arm's predicted call count, per the wave-16b lesson that a ceiling
+# set at the no-re-ask arithmetic kills a healthy arm.
+#
+# h0_baseline RAN TWICE, and this is the wave's control. The first run is at
+# commit 6265d89, the second at 74bf295 — 24 calls each, different wall clock
+# (191.7s and 191.3s), and the FULL.csv blobs are IDENTICAL across both and
+# every commit since (ad80e26e / 75eeeb2e). 0 differences in 96
+# record-criterion pairs on all six evidence axes. Nothing in the analysis is
+# run-to-run variation. The freeze keeps ONE copy, because the bytes are the
+# same bytes; the provenance is the git history and this paragraph.
+#
+# crit_impacts.json IS A DERIVATION, NOT A CAPTURE, and it exists because of
+# F-228: the product computes a per-criterion impact table on every run and
+# persists it nowhere, so a freeze of the shipped artefacts alone would inherit
+# that hole. The EL/IL halves are reconstructed from the committed evidence by
+# tools/extract_crit_impacts.py, which the freeze test re-runs and compares; the
+# EH/IH halves are copied from the dry manifests, which do persist them. No run
+# was made and no LLM call was issued to produce it. It covers all TEN arms.
+#
+# LINE ENDINGS: dryrun_v1/** and live_v1/** are pinned `binary` in
+# .gitattributes, so every checkout serves these bytes unchanged on every
+# platform. They were `text=auto` until this freeze, which meant a Windows
+# clone and a Linux clone produced DIFFERENT bytes for the same commit — a
+# digest is a promise about bytes, so that had to be settled first. Pinning
+# changed no committed byte: it is a metadata change only. The nine top-level
+# files stay `text eol=crlf` deliberately, because experiment_spec.json records
+# each arm's source_sha256 against the CRLF checkout and F-230's guard compares
+# against `git cat-file --filters`.
+#
+# WHAT THIS EVIDENCE SUPPORTS, and what it does not, is stated in
+# ANALYSIS_WAVE_17_ARMS.md §11. The short form: the criteria in
+# samples/20260816_1841_rsaSampleIcEc.txt are a REALISTIC EXAMPLE, not a
+# recommended instrument — F-239 measures one of them removing 117 on-topic
+# papers including the corpus's own seed paper.

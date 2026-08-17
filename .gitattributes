@@ -189,9 +189,23 @@ samples/20260816_1841_rsaAggregate.csv text eol=crlf
 # match a Windows checkout today. Nothing reads them at test time, so it is
 # silent — but it is the same defect, one directory over, and this rule is what
 # stops wave 17 shipping it too.
-docs/data/wave17_arms/*.txt text eol=crlf
-docs/data/wave17_arms/*.csv text eol=crlf
-docs/data/wave17_arms/*.json text eol=crlf
+# WAVE-17 FREEZE. Everything under this directory carries a recorded digest in
+# its SHA256SUMS, and this repository's rule — wave 16d, enforced by
+# tests/test_frozen_directories.py — is that a recorded digest implies `binary`
+# with no exception for prose and none for SHA256SUMS itself. `binary` does no
+# conversion in either direction, so blob, checkout and working tree are one set
+# of bytes on every platform.
+#
+# The nine authored arm files and experiment_spec.json were `text eol=crlf` and
+# are committed with CRLF BLOBS, deliberately: experiment_spec.json records each
+# arm's source_sha256 against the CRLF form, and
+# tests/test_experiment_spec_paths.py verifies those against
+# `git cat-file --filters`. Under `binary` the filtered bytes ARE the blob, so
+# keeping the blobs CRLF is what keeps those recorded digests true. The two
+# subdirectories were `text=auto` — meaning a Windows clone and a Linux clone
+# produced different bytes for the same commit — and are committed with LF
+# blobs, which is what they already held. F-223, F-230.
+docs/data/wave17_arms/** binary
 # Wave 16a's experiment arms (F-230, repaired at wave 17b). `experiment_spec.json`
 # records a `source_sha256` for every arm, and seven of the eight were computed
 # from the LF form — so on Windows, where `* text=auto` checks these out as CRLF,

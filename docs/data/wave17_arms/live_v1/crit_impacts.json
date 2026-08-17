@@ -1,0 +1,853 @@
+{
+  "arms": {
+    "h0_baseline": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "EC-1": {
+              "failed": 12,
+              "met": 451,
+              "missing": 0,
+              "unknown": 0
+            },
+            "EC-4": {
+              "failed": 28,
+              "met": 398,
+              "missing": 37,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h0_baseline_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "IC-3": {
+              "failed": 0,
+              "met": 423,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-4": {
+              "failed": 274,
+              "met": 149,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-5": {
+              "failed": 311,
+              "met": 112,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h0_baseline_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "EC-2": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            },
+            "EC-3": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 2
+            }
+          },
+          "impacts": {
+            "EC-2": {
+              "failed": 0,
+              "met": 30,
+              "missing": 0,
+              "uncertain": 2
+            },
+            "EC-3": {
+              "failed": 2,
+              "met": 29,
+              "missing": 0,
+              "uncertain": 1
+            }
+          },
+          "records": 32
+        },
+        "IL": {
+          "failed_split": {
+            "IC-1": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 19
+            }
+          },
+          "impacts": {
+            "IC-1": {
+              "failed": 19,
+              "met": 12,
+              "missing": 0,
+              "uncertain": 1
+            }
+          },
+          "records": 32
+        }
+      }
+    },
+    "h1_paraphrase": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "EC-1": {
+              "failed": 12,
+              "met": 451,
+              "missing": 0,
+              "unknown": 0
+            },
+            "EC-4": {
+              "failed": 28,
+              "met": 398,
+              "missing": 37,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h1_paraphrase_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "IC-3": {
+              "failed": 0,
+              "met": 423,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-4": {
+              "failed": 274,
+              "met": 149,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-5": {
+              "failed": 311,
+              "met": 112,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h1_paraphrase_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "EC-2": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 5
+            },
+            "EC-3": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 1
+            }
+          },
+          "impacts": {
+            "EC-2": {
+              "failed": 5,
+              "met": 26,
+              "missing": 0,
+              "uncertain": 1
+            },
+            "EC-3": {
+              "failed": 1,
+              "met": 31,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 32
+        },
+        "IL": {
+          "failed_split": {
+            "IC-1": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 25
+            }
+          },
+          "impacts": {
+            "IC-1": {
+              "failed": 25,
+              "met": 7,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 32
+        }
+      }
+    },
+    "h2_polarity": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "EC-24": {
+              "failed": 2,
+              "met": 461,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h2_polarity_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "IC-26": {
+              "failed": 449,
+              "met": 12,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h2_polarity_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "EC-23": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            },
+            "EC-28": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            }
+          },
+          "impacts": {
+            "EC-23": {
+              "failed": 0,
+              "met": 12,
+              "missing": 0,
+              "uncertain": 0
+            },
+            "EC-28": {
+              "failed": 0,
+              "met": 12,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 12
+        },
+        "IL": {
+          "failed_split": {
+            "IC-21": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 2
+            },
+            "IC-22": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 10
+            }
+          },
+          "impacts": {
+            "IC-21": {
+              "failed": 2,
+              "met": 9,
+              "missing": 0,
+              "uncertain": 1
+            },
+            "IC-22": {
+              "failed": 10,
+              "met": 2,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 12
+        }
+      }
+    },
+    "h3_stage_stress": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "EC-34": {
+              "failed": 0,
+              "met": 463,
+              "missing": 0,
+              "unknown": 0
+            },
+            "EC-35": {
+              "failed": 61,
+              "met": 401,
+              "missing": 1,
+              "unknown": 0
+            },
+            "EC-36": {
+              "failed": 0,
+              "met": 0,
+              "missing": 0,
+              "unknown": 463
+            },
+            "EC-37": {
+              "failed": 4,
+              "met": 459,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h3_stage_stress_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "IC-31": {
+              "failed": 277,
+              "met": 120,
+              "missing": 1,
+              "unknown": 0
+            },
+            "IC-32": {
+              "failed": 11,
+              "met": 387,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h3_stage_stress_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "EC-38": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 5
+            }
+          },
+          "impacts": {
+            "EC-38": {
+              "failed": 5,
+              "met": 111,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 116
+        },
+        "IL": {
+          "failed_split": {
+            "IC-33": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 114
+            }
+          },
+          "impacts": {
+            "IC-33": {
+              "failed": 114,
+              "met": 1,
+              "missing": 0,
+              "uncertain": 1
+            }
+          },
+          "records": 116
+        }
+      }
+    },
+    "h4_edge_shapes": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "H4-2": {
+              "failed": 12,
+              "met": 451,
+              "missing": 0,
+              "unknown": 0
+            },
+            "H4-4": {
+              "failed": 0,
+              "met": 463,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h4_edge_shapes_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "H4-1": {
+              "failed": 131,
+              "met": 319,
+              "missing": 1,
+              "unknown": 0
+            },
+            "H4-3": {
+              "failed": 0,
+              "met": 0,
+              "missing": 0,
+              "unknown": 451
+            },
+            "H4-9": {
+              "failed": 377,
+              "met": 74,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h4_edge_shapes_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "H4-5": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            },
+            "H4-6": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 6
+            }
+          },
+          "impacts": {
+            "H4-5": {
+              "failed": 0,
+              "met": 68,
+              "missing": 0,
+              "uncertain": 1
+            },
+            "H4-6": {
+              "failed": 6,
+              "met": 58,
+              "missing": 0,
+              "uncertain": 5
+            }
+          },
+          "records": 69
+        },
+        "IL": {
+          "failed_split": {
+            "H4-7": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 65
+            },
+            "H4-8": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            }
+          },
+          "impacts": {
+            "H4-7": {
+              "failed": 65,
+              "met": 1,
+              "missing": 0,
+              "uncertain": 3
+            },
+            "H4-8": {
+              "failed": 0,
+              "met": 0,
+              "missing": 0,
+              "uncertain": 69
+            }
+          },
+          "records": 69
+        }
+      }
+    },
+    "h5_adversarial": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "H5-3": {
+              "failed": 23,
+              "met": 403,
+              "missing": 37,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h5_adversarial_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "H5-2": {
+              "failed": 411,
+              "met": 29,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h5_adversarial_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "H5-1": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 1
+            },
+            "H5-4": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            }
+          },
+          "impacts": {
+            "H5-1": {
+              "failed": 1,
+              "met": 28,
+              "missing": 0,
+              "uncertain": 0
+            },
+            "H5-4": {
+              "failed": 0,
+              "met": 27,
+              "missing": 0,
+              "uncertain": 2
+            }
+          },
+          "records": 29
+        },
+        "IL": {
+          "failed_split": {
+            "H5-5": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 29
+            }
+          },
+          "impacts": {
+            "H5-5": {
+              "failed": 29,
+              "met": 0,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 29
+        }
+      }
+    },
+    "h6_no_abstract": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {},
+          "source": "dryrun_v1/h6_no_abstract_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "H6-1": {
+              "failed": 324,
+              "met": 139,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h6_no_abstract_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "H6-2": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 3
+            }
+          },
+          "impacts": {
+            "H6-2": {
+              "failed": 3,
+              "met": 135,
+              "missing": 0,
+              "uncertain": 1
+            }
+          },
+          "records": 139
+        },
+        "IL": {
+          "failed_split": {
+            "H6-3": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 115
+            }
+          },
+          "impacts": {
+            "H6-3": {
+              "failed": 115,
+              "met": 19,
+              "missing": 0,
+              "uncertain": 5
+            }
+          },
+          "records": 139
+        }
+      }
+    },
+    "h7_loose": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "H7-1": {
+              "failed": 12,
+              "met": 451,
+              "missing": 0,
+              "unknown": 0
+            },
+            "H7-2": {
+              "failed": 28,
+              "met": 398,
+              "missing": 37,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h7_loose_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "H7-3": {
+              "failed": 0,
+              "met": 423,
+              "missing": 0,
+              "unknown": 0
+            },
+            "H7-4": {
+              "failed": 234,
+              "met": 189,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h7_loose_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "H7-5": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 13
+            },
+            "H7-6": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 9
+            }
+          },
+          "impacts": {
+            "H7-5": {
+              "failed": 13,
+              "met": 165,
+              "missing": 0,
+              "uncertain": 11
+            },
+            "H7-6": {
+              "failed": 9,
+              "met": 175,
+              "missing": 0,
+              "uncertain": 5
+            }
+          },
+          "records": 189
+        },
+        "IL": {
+          "failed_split": {
+            "H7-7": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 151
+            }
+          },
+          "impacts": {
+            "H7-7": {
+              "failed": 151,
+              "met": 33,
+              "missing": 0,
+              "uncertain": 5
+            }
+          },
+          "records": 189
+        }
+      }
+    },
+    "h8_pinned_target": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "EC-1": {
+              "failed": 12,
+              "met": 451,
+              "missing": 0,
+              "unknown": 0
+            },
+            "EC-4": {
+              "failed": 28,
+              "met": 398,
+              "missing": 37,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h8_pinned_target_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "IC-3": {
+              "failed": 0,
+              "met": 423,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-4": {
+              "failed": 274,
+              "met": 149,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-5": {
+              "failed": 311,
+              "met": 112,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h8_pinned_target_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "EC-2": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 1
+            },
+            "EC-3": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 3
+            }
+          },
+          "impacts": {
+            "EC-2": {
+              "failed": 1,
+              "met": 30,
+              "missing": 0,
+              "uncertain": 1
+            },
+            "EC-3": {
+              "failed": 3,
+              "met": 29,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 32
+        },
+        "IL": {
+          "failed_split": {
+            "IC-1": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 19
+            }
+          },
+          "impacts": {
+            "IC-1": {
+              "failed": 19,
+              "met": 12,
+              "missing": 0,
+              "uncertain": 1
+            }
+          },
+          "records": 32
+        }
+      }
+    },
+    "h9_batch1": {
+      "deterministic_stages": {
+        "EH": {
+          "impacts": {
+            "EC-1": {
+              "failed": 12,
+              "met": 451,
+              "missing": 0,
+              "unknown": 0
+            },
+            "EC-4": {
+              "failed": 28,
+              "met": 398,
+              "missing": 37,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h9_batch1_manifest.json :: funnel.eh.impacts"
+        },
+        "IH": {
+          "impacts": {
+            "IC-3": {
+              "failed": 0,
+              "met": 423,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-4": {
+              "failed": 274,
+              "met": 149,
+              "missing": 0,
+              "unknown": 0
+            },
+            "IC-5": {
+              "failed": 311,
+              "met": 112,
+              "missing": 0,
+              "unknown": 0
+            }
+          },
+          "source": "dryrun_v1/h9_batch1_manifest.json :: funnel.ih.impacts"
+        }
+      },
+      "llm_stages": {
+        "EL": {
+          "failed_split": {
+            "EC-2": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            },
+            "EC-3": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 0
+            }
+          },
+          "impacts": {
+            "EC-2": {
+              "failed": 0,
+              "met": 32,
+              "missing": 0,
+              "uncertain": 0
+            },
+            "EC-3": {
+              "failed": 0,
+              "met": 32,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 32
+        },
+        "IL": {
+          "failed_split": {
+            "IC-1": {
+              "acted_FAILED": 0,
+              "declined_SUPPRESSED": 27
+            }
+          },
+          "impacts": {
+            "IC-1": {
+              "failed": 27,
+              "met": 5,
+              "missing": 0,
+              "uncertain": 0
+            }
+          },
+          "records": 32
+        }
+      }
+    }
+  },
+  "generated_by": "tools/extract_crit_impacts.py",
+  "mapping": {
+    "FAILED": "failed",
+    "MET": "met",
+    "MISSING": "missing",
+    "SUPPRESSED": "failed",
+    "UNCERTAIN": "uncertain"
+  },
+  "note_on_failed": "`failed` counts acted removals AND declined ones, which is what plugins/06_el/screen.py::_excluded_by does on purpose. `failed_split` records the split, which the engine's own table cannot express.",
+  "what": "Per-criterion impact tables. The EL/IL halves are DERIVED from the committed evidence because the product never persists them (F-228); the EH/IH halves are COPIED from the dry manifests, which do. No run was made and no LLM call was issued to produce this file."
+}

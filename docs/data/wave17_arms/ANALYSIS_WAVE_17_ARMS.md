@@ -73,8 +73,8 @@ and `h8` at zero call cost gives 16 excluding verdicts on 9 distinct pairs;
 three independent judges call 8 unanimously wrong and the ninth merely
 defensible, **none correct**. EC-2's true-positive set on the pile is empty, and
 EC-3 never fired on either record it was written to catch (0 of 6). On A187 and
-A275 the model offered **the same quote, at the same span, as proof of inclusion
-and of exclusion** — both `quote_valid: true`. Raised F-244 to High. (§7.8)
+A275 the model offered **the same quote as proof of inclusion and of exclusion**
+— both `quote_valid: true`. Raised F-244 to High. (§7.8)
 
 **K5 — the pile is mostly right; what is missing from it is not.** Two substring
 rules removed 391 of 423 records and let through **none** of the 152 that are
@@ -1394,15 +1394,24 @@ h0 / A275   IC-1 meet 0.85  quote "How heart rate variability affects emotion
             EC-3 meet 0.90  quote  ...the same string...
 ```
 
-**The byte-identical quote, at the same span, offered as proof that the paper
-reports HRV as an index of emotion regulation and as proof that its primary
-focus is clinical arrhythmia diagnosis rather than psychological function.** Both
+**The byte-identical quote offered as proof that the paper reports HRV as an
+index of emotion regulation and as proof that its primary focus is clinical
+arrhythmia diagnosis rather than psychological function.** On A187 the two
+verdicts even declare the same span; on A275 they declare `[0, 39]` and
+`[0, 35]` for the same 68-character string. Both
 carry `quote_valid: true`, because the string exists, and the gate accepted both
 — which is §7.6's point at its sharpest: a substring check cannot distinguish
 evidence from its own negation. The same pattern recurs on `h8`/A275, and on
 `h8`/A187 EC-3 quotes the abstract sentence *"HRV analysis is emerging as an
 objective measure of regulated emotional responding"* as proof of an arrhythmia
 focus.
+
+**The `span` field is decorative and this is the place to say so.** Across all ten
+arms, of the **212** evidence cells carrying both a non-null quote and a span,
+**not one** has a span whose width equals the quoted string's length — A187's
+agreed `[0, 36]` sits under a 68-character quote. The schema documents it as
+*"[start, end] of the quote"*. Nothing consults it and nothing checks it, so the
+offset a reviewer sees beside the evidence is wrong in every recorded case.
 
 **What this does and does not license.** It raised **F-244** from Medium to High.
 It does not license "EL is unreliable" as a general claim: 16 verdicts fall on 8
@@ -1880,13 +1889,16 @@ the inaccurate one.** On the arm where correctness is knowable by construction
 rather than by judgement, IL is 47 for 47 and EL is 6 for 19.
 
 The sharpest single artefact is on records A187 and A275. For each, the model
-returned **one byte-identical quote, at the same character span**, as proof of
-IL's *"this paper reports HRV as an index of emotion regulation"* (include) and
-of EL's *"this paper's primary focus is clinical arrhythmia diagnosis rather
-than psychological function"* (exclude). Both were marked valid evidence, because
-the quoted text does appear in the record. Both were accepted. **The evidence
-check verifies that a quotation exists; nothing verifies that it supports the
-claim.**
+returned **one byte-identical quote** as proof of IL's *"this paper reports HRV
+as an index of emotion regulation"* (include) and of EL's *"this paper's primary
+focus is clinical arrhythmia diagnosis rather than psychological function"*
+(exclude). Both were marked valid evidence, because the quoted text does appear
+in the record. Both were accepted. **The evidence check verifies that a quotation
+exists; nothing verifies that it supports the claim.**
+
+The accompanying character offsets are no help either: of the **212** evidence
+cells in the wave that carry both a quote and a span, **none** has a span whose
+width matches its quote.
 
 ### What the guards prevented, and which guard did it
 
@@ -1899,14 +1911,26 @@ and the distinction matters:
 | **`exclusion_policy: flag_only`** | **49 verdicts** that passed the full evidence gate and reached `ACTION_EXCLUDE` | **Yes.** It is a provider setting |
 | **Gate rule (c)** — a removal justified by *absence* is never auto-acted | **576 verdicts** | **No.** Unconditional, whatever the setting |
 
-The 13 wrongly-removable on-topic papers on the off-topic arm sat behind
-**`flag_only`**, not rule (c) — they came through the *presence* path, where the
-model produced a quote that validated. **The weaker of the two guards is the one
-standing in front of the wrong deletions.** Rule (c) held far more (576), and
-holds unconditionally, but it holds a different population: verdicts justified by
-absence, which by construction have no evidence to check. Both were designed as
-conservatism. Both turned out load-bearing. Only one of them can be turned off,
-and it is the one doing the work in front of the worst cases.
+**The weaker of the two guards is the one standing in front of the wrong
+deletions, and this is worth being exact about.** The 13 wrongly-removable
+on-topic papers on the off-topic arm sat behind **`flag_only`** — a provider
+setting — not behind rule (c). They arrived by the *presence* path, where the
+model produced a quote that validated, which is the one path rule (c) never
+touches. Rule (c) held far more (576) and holds unconditionally, but it holds a
+different population: verdicts justified by absence, which by construction have
+no evidence to check at all.
+
+**So the plain consequence: a user who sets `exclusion_policy` to act gets 13
+wrongly deleted on-topic papers on `h7_loose` alone, and 2 more on the baseline
+arm — A187 and A275, two of the seven records all three reviewers unanimously
+call correct inclusions. Each deletion carries evidence that renders as valid in
+every artefact: `quote_valid: true`, a quote over the substance floor, a
+confidence above threshold.** There is nothing in the bundle a reviewer could
+use to tell those apart from a sound exclusion.
+
+Both guards were designed as conservatism and both turned out load-bearing. Only
+one of them can be turned off — and it is the one doing the work in front of the
+worst cases.
 
 ### What the deterministic half did — and what it destroyed
 
