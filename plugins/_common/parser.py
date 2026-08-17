@@ -77,6 +77,40 @@ DOC_TYPE_MAP = {
     "report": "report",
 }
 
+#: Language name/code -> ISO 639-1 code, for `equals lang X` comparisons.
+#:
+#: F-212 (wave 17b). This held three languages while
+#: `plugins/03_harmoniser/inference.py`'s branch-1 alternation recognises six,
+#: so `equals lang German` / `Portuguese` / `Italian` normalised to themselves
+#: and could never equal a corpus cell storing `de` / `pt` / `it`. The
+#: criterion cut nothing, `_validate_row` returned E=0 W=0, and all six linter
+#: checks stayed silent. Measured twice: wave 16a's G3 probe (German, 1 `de`
+#: record) and wave 17b's RSA criteria file (Portuguese, 12 `pt` records).
+#:
+#: The set below is the register's own remedy, bounded by measurement rather
+#: than by guesswork, and it is two closed sets unioned:
+#:
+#:   1. EVERY NAME BRANCH 1 CAN EMIT — the six in its alternation
+#:      (`english|french|spanish|german|portuguese|italian`). Three were
+#:      missing. A name the translator can produce and the evaluator cannot
+#:      match is the defect, so this half is mandatory.
+#:   2. EVERY CODE A COMMITTED CORPUS STORES — measured across both sample
+#:      aggregates: en, fr, es, pt, de, nl, ca, tr, id, ja. Seven had no name
+#:      route at all. These five (nl, ca, tr, id, ja) are outside the
+#:      alternation and reachable only through branch 1's free-capture
+#:      patterns (`written in X`), which is exactly the path F-167's comment
+#:      flags: "Dutch or German" reaches `Dutch` only that way.
+#:
+#: Codes already normalise to themselves through `_norm_lang`'s
+#: `LANG_MAP.get(x, x)` default, so the identity rows below are not
+#: load-bearing — they are here so the map's coverage can be read off it
+#: directly instead of inferred from a default. The 639-2/B and /T variants
+#: mirror the shape the original three entries already used (eng, fra/fre, spa).
+#:
+#: `tests/test_lang_map.py` derives both halves rather than repeating them:
+#: the alternation from `inference.py`'s source, the codes from the corpora
+#: under `git ls-files`. Adding a seventh language to the alternation, or a
+#: corpus with an eleventh code, fails there until this map follows.
 LANG_MAP = {
     "en": "en",
     "eng": "en",
@@ -91,6 +125,35 @@ LANG_MAP = {
     "es": "es",
     "spa": "es",
     "spanish": "es",
+    # --- F-212: the three alternation names that had no code ---
+    "de": "de",
+    "deu": "de",
+    "ger": "de",
+    "german": "de",
+    "pt": "pt",
+    "por": "pt",
+    "portuguese": "pt",
+    "pt-br": "pt",
+    "it": "it",
+    "ita": "it",
+    "italian": "it",
+    # --- F-212: codes a committed corpus stores, previously unreachable ---
+    "nl": "nl",
+    "nld": "nl",
+    "dut": "nl",
+    "dutch": "nl",
+    "ca": "ca",
+    "cat": "ca",
+    "catalan": "ca",
+    "tr": "tr",
+    "tur": "tr",
+    "turkish": "tr",
+    "id": "id",
+    "ind": "id",
+    "indonesian": "id",
+    "ja": "ja",
+    "jpn": "ja",
+    "japanese": "ja",
 }
 
 
